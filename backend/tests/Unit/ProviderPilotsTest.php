@@ -36,6 +36,18 @@ class ProviderPilotsTest extends TestCase
             ['candidate-alert', 'gap-filter-refusal', 'vitality-filter-refusal', 'trend-data-missing', 'goal-during-scan', 'statistics-missing', 'upcoming-match'],
             array_map(fn ($match): ?string => $match->scenario, $football->matches),
         );
+        $this->assertCount(7, array_unique(array_map(fn ($match): string => $match->homeTeam, $football->matches)));
+        $this->assertCount(7, array_unique(array_map(fn ($match): string => $match->awayTeam, $football->matches)));
+        $this->assertCount(7, array_unique(array_map(fn ($match): ?string => $match->competition, $football->matches)));
+        $this->assertCount(7, array_unique(array_map(fn ($match): ?string => $match->kickoffAt, $football->matches)));
+        $this->assertSame(
+            'Simulation — Scénario but marqué',
+            collect($football->matches)->firstWhere('scenario', 'goal-during-scan')->competition,
+        );
+        $this->assertSame(
+            'Simulation — Scénario statistiques manquantes',
+            collect($football->matches)->firstWhere('scenario', 'statistics-missing')->competition,
+        );
         $this->assertNotNull($football->rawResponse);
         $this->assertSame('cote_suggeree', $football->simulationSettings['tendance_source']);
         $this->assertSame(3, $football->simulationSettings['tendance_seuil_stable']);

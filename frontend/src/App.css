@@ -72,14 +72,14 @@ textarea:focus-visible {
 }
 
 .brand strong {
-  font-size: 13px;
+  font-size: 14px;
   letter-spacing: 1.4px;
 }
 
 .brand small {
   margin-top: 4px;
   color: #8b9d93;
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 700;
   letter-spacing: 1.5px;
 }
@@ -87,7 +87,7 @@ textarea:focus-visible {
 .sidebar-label {
   margin: 43px 11px 12px;
   color: #71837a;
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 750;
   letter-spacing: 1.1px;
 }
@@ -109,7 +109,7 @@ textarea:focus-visible {
   background: transparent;
   color: #b1c0b8;
   text-align: left;
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 550;
   transition: background 140ms ease, color 140ms ease;
 }
@@ -136,7 +136,7 @@ textarea:focus-visible {
   border-radius: 6px;
   background: #ffffff13;
   color: #dbe6df;
-  font-size: 13px;
+  font-size: 14px;
 }
 
 .sidebar-spacer {
@@ -169,13 +169,13 @@ textarea:focus-visible {
 .phase-card strong {
   display: block;
   margin: 1px 0 4px;
-  font-size: 13px;
+  font-size: 14px;
 }
 
 .phase-card p {
   margin: 0;
   color: #9aac9f;
-  font-size: 13px;
+  font-size: 14px;
   line-height: 1.45;
 }
 
@@ -208,7 +208,7 @@ textarea:focus-visible {
 
 .profile-copy strong {
   overflow: hidden;
-  font-size: 13px;
+  font-size: 14px;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -216,7 +216,7 @@ textarea:focus-visible {
 .profile-copy small {
   margin-top: 4px;
   color: #8fa096;
-  font-size: 13px;
+  font-size: 14px;
 }
 
 .profile-exit {
@@ -227,7 +227,7 @@ textarea:focus-visible {
 .sidebar-error {
   margin: 9px 0 0;
   color: #ffc0b8;
-  font-size: 13px;
+  font-size: 14px;
 }
 
 .main-area {
@@ -262,7 +262,7 @@ textarea:focus-visible {
 .breadcrumb {
   gap: 10px;
   color: #8a9991;
-  font-size: 13px;
+  font-size: 14px;
 }
 
 .breadcrumb svg {
@@ -281,7 +281,7 @@ textarea:focus-visible {
 .secure-label {
   gap: 7px;
   color: #6c7e73;
-  font-size: 13px;
+  font-size: 14px;
 }
 
 .secure-dot,
@@ -297,7 +297,7 @@ textarea:focus-visible {
   width: 32px;
   height: 32px;
   border-radius: 50%;
-  font-size: 13px;
+  font-size: 14px;
 }
 
 .mobile-menu-button {
@@ -322,7 +322,7 @@ textarea:focus-visible {
 .eyebrow {
   margin: 0 0 9px;
   color: #07834f;
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 800;
   letter-spacing: 1.35px;
 }
@@ -339,7 +339,7 @@ textarea:focus-visible {
 .page-description {
   margin: 8px 0 0;
   color: #78877e;
-  font-size: 13px;
+  font-size: 14px;
   line-height: 1.6;
 }
 
@@ -355,7 +355,7 @@ textarea:focus-visible {
   border-radius: 7px;
   background: #f4faf6;
   color: #1e6945;
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 700;
 }
 
@@ -373,7 +373,7 @@ textarea:focus-visible {
   border-color: #e9eeeb;
   background: #f8faf9;
   color: #52665a;
-  font-size: 13px;
+  font-size: 14px;
 }
 
 .notice {
@@ -417,13 +417,13 @@ textarea:focus-visible {
   display: block;
   margin: 1px 0 4px;
   color: #263a2e;
-  font-size: 13px;
+  font-size: 14px;
 }
 
 .notice p {
   margin: 0;
   color: #75857a;
-  font-size: 13px;
+  font-size: 14px;
   line-height: 1.55;
 }
 
@@ -479,7 +479,7 @@ textarea:focus-visible {
 .metric-card p {
   margin: 0 0 6px;
   color: #738078;
-  font-size: 13px;
+  font-size: 14px;
 }
 
 .metric-card strong {
@@ -495,7 +495,7 @@ textarea:focus-visible {
   display: block;
   margin-top: 5px;
   color: #9aa49e;
-  font-size: 13px;
+  font-size: 14px;
 }
 
 .content-panel {
@@ -513,14 +513,14 @@ textarea:focus-visible {
 .panel-heading h2 {
   margin: 0;
   color: #20342a;
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 720;
 }
 
 .panel-heading p {
   margin: 5px 0 0;
   color: #87938b;
-  font-size: 13px;
+  font-size: 14px;
   line-height: 1.5;
 }
 
@@ -533,7 +533,7 @@ textarea:focus-visible {
   border: 0;
   background: transparent;
   color: #16814e;
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 700;
 }
 
@@ -578,7 +578,7 @@ textarea:focus-visible {
 .empty-state h3 {
   margin: 0;
   color: #35473d;
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 700;
 }
 
@@ -586,7 +586,7 @@ textarea:focus-visible {
   max-width: 380px;
   margin: 6px 0 0;
   color: #8a9790;
-  font-size: 13px;
+  font-size: 14px;
   line-height: 1.6;
 }
 
@@ -622,7 +622,7 @@ textarea:focus-visible {
   padding: 9px 0;
   border-top: 1px solid #f0f3f1;
   color: #506158;
-  font-size: 13px;
+  font-size: 14px;
 }
 
 .filter-status,
@@ -642,7 +642,7 @@ textarea:focus-visible {
 .filter-list small {
   margin-left: auto;
   color: #a0aaa4;
-  font-size: 13px;
+  font-size: 14px;
 }
 
 .rule-summary {
@@ -665,14 +665,14 @@ textarea:focus-visible {
 
 .rule-summary strong {
   color: #526259;
-  font-size: 13px;
+  font-size: 14px;
 }
 
 .rule-summary small {
   grid-column: 2;
   margin-top: 3px;
   color: #97a199;
-  font-size: 13px;
+  font-size: 14px;
 }
 
 .matches-panel,
@@ -707,19 +707,19 @@ textarea:focus-visible {
   background: #f2f6f3;
   color: #426650;
   font-family: ui-monospace, Consolas, monospace;
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 700;
 }
 
 .rule-info strong {
   color: #33463b;
-  font-size: 13px;
+  font-size: 14px;
 }
 
 .rule-info p {
   margin: 4px 0 0;
   color: #87948b;
-  font-size: 13px;
+  font-size: 14px;
   line-height: 1.5;
 }
 
@@ -727,7 +727,7 @@ textarea:focus-visible {
   width: fit-content;
   padding: 5px 8px;
   border-radius: 999px;
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 700;
   white-space: nowrap;
 }
@@ -765,12 +765,12 @@ textarea:focus-visible {
 
 .threshold-grid span {
   color: #829087;
-  font-size: 13px;
+  font-size: 14px;
 }
 
 .threshold-grid strong {
   color: #2c4436;
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 700;
 }
 
@@ -804,7 +804,7 @@ textarea:focus-visible {
   display: block;
   min-width: 0;
   color: #48584e;
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 700;
 }
 
@@ -818,7 +818,7 @@ textarea:focus-visible {
   border-radius: 7px;
   background: white;
   color: #293c31;
-  font-size: 13px;
+  font-size: 14px;
 }
 
 .tester-form textarea {
@@ -835,7 +835,7 @@ textarea:focus-visible {
 .label-note {
   margin-left: 5px;
   color: #a0aaa3;
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 400;
 }
 
@@ -861,14 +861,14 @@ textarea:focus-visible {
   display: block;
   margin-top: 5px;
   color: #8d9991;
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 400;
 }
 
 .format-hint {
   margin: -4px 0 0;
   color: #87938b;
-  font-size: 13px;
+  font-size: 14px;
   line-height: 1.6;
 }
 
@@ -891,7 +891,7 @@ textarea:focus-visible {
   border-radius: 7px;
   background: #08764c;
   color: white;
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 700;
   transition: background 140ms ease;
 }
@@ -922,7 +922,7 @@ textarea:focus-visible {
   border-radius: 6px;
   background: #fff6f5;
   color: #9b3831;
-  font-size: 13px;
+  font-size: 14px;
 }
 
 .result-panel > .empty-state {
@@ -959,7 +959,7 @@ textarea:focus-visible {
   border-radius: 50%;
   background: #e8efea;
   color: #5d7164;
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 800;
 }
 
@@ -970,20 +970,20 @@ textarea:focus-visible {
 
 .simulation-verdict strong {
   color: #30453a;
-  font-size: 13px;
+  font-size: 14px;
 }
 
 .simulation-verdict p {
   margin: 4px 0 0;
   color: #7e8c82;
-  font-size: 13px;
+  font-size: 14px;
   line-height: 1.5;
 }
 
 .simulation-section h3 {
   margin: 0 0 8px;
   color: #405348;
-  font-size: 13px;
+  font-size: 14px;
 }
 
 .simulation-line {
@@ -994,12 +994,12 @@ textarea:focus-visible {
   padding: 8px 0;
   border-top: 1px solid #eef2ef;
   color: #738077;
-  font-size: 13px;
+  font-size: 14px;
 }
 
 .simulation-line strong {
   color: #5a6b60;
-  font-size: 13px;
+  font-size: 14px;
   text-align: right;
 }
 
@@ -1019,7 +1019,7 @@ textarea:focus-visible {
   border-radius: 6px;
   background: #f4f6f5;
   color: #77847b;
-  font-size: 13px;
+  font-size: 14px;
   line-height: 1.5;
 }
 
@@ -1035,7 +1035,7 @@ textarea:focus-visible {
   padding: 13px 37px 16px;
   border-top: 1px solid #e9eeeb;
   color: #95a098;
-  font-size: 13px;
+  font-size: 14px;
 }
 
 @media (max-width: 1100px) {
@@ -1111,7 +1111,7 @@ textarea:focus-visible {
     min-width: 0;
     gap: 6px;
     overflow: hidden;
-    font-size: 13px;
+    font-size: 14px;
     white-space: nowrap;
   }
 
@@ -1138,7 +1138,7 @@ textarea:focus-visible {
 
   .phase-badge {
     padding: 7px 8px;
-    font-size: 13px;
+    font-size: 14px;
   }
 
   .bottom-grid,
@@ -1911,7 +1911,7 @@ textarea:focus-visible {
 
 .content > .page-heading .eyebrow,
 .overview-section-label {
-  font-size: 13px;
+  font-size: 14px;
 }
 
 .page-description,
@@ -1921,6 +1921,8 @@ textarea:focus-visible {
 .field-help,
 .format-hint,
 .rule-info p,
+.overview-page .scan-status-copy > p:not(.overview-section-label),
+.active-alerts-panel > p:not(.overview-section-label),
 .setting-row small,
 .footer,
 .breadcrumb,
@@ -1997,7 +1999,7 @@ textarea:focus-visible {
 
 .quota-card small {
   color: #6d7d73;
-  font-size: 13px;
+  font-size: 14px;
   line-height: 1.45;
 }
 
@@ -2034,7 +2036,7 @@ textarea:focus-visible {
   display: block;
   margin-top: 3px;
   color: #718077;
-  font-size: 13px;
+  font-size: 14px;
 }
 
 .data-table select,
@@ -2085,7 +2087,7 @@ textarea:focus-visible {
 
 .alert-row small {
   color: #718077;
-  font-size: 13px;
+  font-size: 14px;
 }
 
 .countdown {
@@ -2235,7 +2237,7 @@ textarea:focus-visible {
 .simulation-verdict p,
 .simulation-section h3,
 .simulation-disclaimer {
-  font-size: 13px;
+  font-size: 14px;
 }
 
 .tester-form label,

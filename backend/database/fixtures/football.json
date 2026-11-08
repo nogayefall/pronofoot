@@ -10,6 +10,10 @@
     {
       "id": "fake-candidate",
       "scenario": "candidate-alert",
+      "home_team": "Avenir du Nord",
+      "away_team": "Union du Sud",
+      "competition": "Simulation — Scénario alerte",
+      "kickoff_at": "2026-11-08T18:00:00+01:00",
       "timeline": [
         {
           "football": {
@@ -44,6 +48,10 @@
     {
       "id": "fake-gap-refusal",
       "scenario": "gap-filter-refusal",
+      "home_team": "Étoile des Cotes",
+      "away_team": "Sporting des Écarts",
+      "competition": "Simulation — Scénario refus d’écart",
+      "kickoff_at": "2026-11-08T18:15:00+01:00",
       "timeline": [
         {
           "football": {
@@ -73,6 +81,10 @@
     {
       "id": "fake-vitality-refusal",
       "scenario": "vitality-filter-refusal",
+      "home_team": "Dynamo Vitalité",
+      "away_team": "Athletic Énergie",
+      "competition": "Simulation — Scénario vitalité",
+      "kickoff_at": "2026-11-08T18:30:00+01:00",
       "timeline": [
         {
           "football": {
@@ -102,6 +114,10 @@
     {
       "id": "fake-trend-unavailable",
       "scenario": "trend-data-missing",
+      "home_team": "Olympique Tendance",
+      "away_team": "Racing des Cotes",
+      "competition": "Simulation — Scénario tendance",
+      "kickoff_at": "2026-11-08T18:45:00+01:00",
       "timeline": [
         {
           "football": {
@@ -131,6 +147,10 @@
     {
       "id": "fake-goal-during-scan",
       "scenario": "goal-during-scan",
+      "home_team": "Scénario But marqué",
+      "away_team": "Scénario Relance rapide",
+      "competition": "Simulation — Scénario but marqué",
+      "kickoff_at": "2026-11-08T19:00:00+01:00",
       "timeline": [
         {
           "football": {
@@ -189,6 +209,10 @@
     {
       "id": "fake-missing-statistics",
       "scenario": "statistics-missing",
+      "home_team": "Scénario Statistiques manquantes",
+      "away_team": "Scénario Données absentes",
+      "competition": "Simulation — Scénario statistiques manquantes",
+      "kickoff_at": "2026-11-08T19:15:00+01:00",
       "timeline": [
         {
           "football": {
@@ -215,7 +239,8 @@
       "scenario": "upcoming-match",
       "home_team": "Équipe fictive à domicile",
       "away_team": "Équipe fictive à l’extérieur",
-      "competition": "Compétition de simulation",
+      "competition": "Simulation — Rencontre à venir",
+      "kickoff_at": "2026-11-08T20:00:00+01:00",
       "timeline": [
         {
           "football": {
