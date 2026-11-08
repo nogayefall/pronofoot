@@ -209,6 +209,26 @@
           }
         }
       ]
+    },
+    {
+      "id": "fake-upcoming",
+      "scenario": "upcoming-match",
+      "home_team": "Équipe fictive à domicile",
+      "away_team": "Équipe fictive à l’extérieur",
+      "competition": "Compétition de simulation",
+      "timeline": [
+        {
+          "football": {
+            "status": "upcoming",
+            "statistics": [],
+            "vitality_score": null
+          },
+          "odds": {
+            "exact_score_odds": {},
+            "over_under_odds": {}
+          }
+        }
+      ]
     }
   ]
 }

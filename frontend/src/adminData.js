@@ -31,7 +31,15 @@ export function parseCorrectScoreOdds(text) {
   return odds
 }
 
-export function createRuleTestPayload({ homeScore, awayScore, oddsText, vitalityScore, oddsChangePercent }) {
+export function createRuleTestPayload({
+  homeScore,
+  awayScore,
+  oddsText,
+  vitalityScore,
+  oddsChangePercent,
+  tendanceSource = '',
+  tendanceSeuilStable = '',
+}) {
   const parsedHomeScore = Number(homeScore)
   const parsedAwayScore = Number(awayScore)
   const parsedVitality = Number(vitalityScore)
@@ -48,6 +56,14 @@ export function createRuleTestPayload({ homeScore, awayScore, oddsText, vitality
 
   if (!Number.isFinite(parsedOddsChange)) {
     throw new Error('La variation des cotes sur deux minutes doit être un nombre valide.')
+  }
+
+  const parsedStableThreshold = tendanceSeuilStable === '' ? null : Number(tendanceSeuilStable)
+  if (tendanceSource !== '' && tendanceSource !== 'cote_suggeree') {
+    throw new Error('La source de tendance doit être cote_suggeree ou rester non confirmée.')
+  }
+  if (parsedStableThreshold !== null && (!Number.isFinite(parsedStableThreshold) || parsedStableThreshold < 0)) {
+    throw new Error('Le seuil de tendance stable doit être un nombre positif ou nul.')
   }
 
   const exactScoreOdds = parseCorrectScoreOdds(oddsText)
@@ -68,5 +84,35 @@ export function createRuleTestPayload({ homeScore, awayScore, oddsText, vitality
     exact_score_odds: exactScoreOdds,
     vitality_score: parsedVitality,
     odds_change_percent: parsedOddsChange,
+    tendance_source: tendanceSource || null,
+    tendance_seuil_stable: parsedStableThreshold,
   }
+}
+
+export async function requestAdminApi(path, csrfToken, { method = 'GET', body } = {}) {
+  const headers = { Accept: 'application/json' }
+  if (body !== undefined) {
+    headers['Content-Type'] = 'application/json'
+  }
+  if (method !== 'GET') {
+    headers['X-CSRF-TOKEN'] = csrfToken
+  }
+
+  const response = await fetch(path, {
+    method,
+    credentials: 'same-origin',
+    headers,
+    body: body === undefined ? undefined : JSON.stringify(body),
+  })
+  if (!response.headers.get('content-type')?.includes('application/json')) {
+    throw new Error(`Réponse admin inattendue (HTTP ${response.status}). Vérifiez la session administrateur.`)
+  }
+  const result = await response.json()
+
+  if (!response.ok) {
+    const validationMessage = result.errors ? Object.values(result.errors).flat().join(' ') : ''
+    throw new Error(validationMessage || result.message || 'La requête admin a échoué.')
+  }
+
+  return result
 }

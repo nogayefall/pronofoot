@@ -12,6 +12,7 @@
 - Les situations supplémentaires auxquelles F121-D s’applique et les conditions du choix Over 4.5 / Over 5.5.
 - La confirmation des bornes inclusives ou strictes lorsque le cahier des charges ne les précise pas.
 - Confirmer si les cadences de relance après but du TRD (15 secondes pendant 120 secondes) doivent être conservées en production. Le CDC Phase 1 indique 30 secondes pour les cotes, 60 secondes pour les statistiques et 15 minutes avant expiration sans but.
+- Fournir dix situations complètes avec les cotes, scores, statistiques, règle concernée et verdict attendu pour valider l’acceptation métier.
 
 Sans confirmation d’un paramètre nécessaire, le comportement reste l’abstention : aucune alerte n’est créée.
 
@@ -25,6 +26,6 @@ Sans confirmation d’un paramètre nécessaire, le comportement reste l’abste
 - Fournir, si le repli est retenu, un bot Telegram et un identifiant de conversation, conservés uniquement dans `.env`.
 - Confirmer les détails du modèle WhatsApp et du compte Meta avec la documentation officielle. Les canaux réels restent `NON VÉRIFIÉS` : aucun appel ni format réel n’est branché.
 - Confirmer le budget de requêtes, les limites de quotas et les règles de regroupement des matchs pour chaque API.
-- Fournir plus tard un serveur et un nom de domaine pour la préparation d’une livraison. Aucun déploiement n’est réalisé pendant cette étape.
+- Fournir un serveur et un nom de domaine lorsque la mise en production sera autorisée. Le guide [`DEPLOIEMENT.md`](./DEPLOIEMENT.md) décrit les prérequis, sans déployer l’application.
 
 Les clés API, jetons et identifiants doivent être remis et configurés exclusivement dans `.env`. Ne pas les envoyer dans un dépôt Git, un journal ou un rapport. Les captures `feasibility:test --capture` sont enregistrées localement dans `backend/storage/feasibility/` et masquent les valeurs identifiées comme secrets.

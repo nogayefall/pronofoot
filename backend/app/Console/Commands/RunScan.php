@@ -4,6 +4,7 @@ namespace App\Console\Commands;
 
 use App\Services\ScanService;
 use Illuminate\Console\Command;
+use Illuminate\Support\Facades\Cache;
 use InvalidArgumentException;
 
 class RunScan extends Command
@@ -27,24 +28,33 @@ class RunScan extends Command
         $errors = 0;
         $this->info('Scan continu actif. Arrêt avec Ctrl+C.');
 
-        while ($maxPasses === 0 || $pass < $maxPasses) {
-            $result = $scanner->runOnce((int) $scanNumber + $pass, forceRefresh: false);
-            $pass++;
-            $errors += $result->errors;
-            $this->line(sprintf(
-                '[%s] match(s) %d — alerte(s) %d — but(s) %d — incident(s) %d',
-                now()->toDateTimeString(),
-                $result->matchesScanned,
-                $result->alertsCreated,
-                $result->goalsDetected,
-                $result->errors,
-            ));
+        try {
+            while ($maxPasses === 0 || $pass < $maxPasses) {
+                $result = $scanner->runOnce((int) $scanNumber + $pass, forceRefresh: false);
+                $pass++;
+                $errors += $result->errors;
+                Cache::put(
+                    'pronofoot.scan.running',
+                    true,
+                    now()->addSeconds(max(60, $result->nextPollIntervalSeconds * 2)),
+                );
+                $this->line(sprintf(
+                    '[%s] match(s) %d — alerte(s) %d — but(s) %d — incident(s) %d',
+                    now()->toDateTimeString(),
+                    $result->matchesScanned,
+                    $result->alertsCreated,
+                    $result->goalsDetected,
+                    $result->errors,
+                ));
 
-            if ($maxPasses !== 0 && $pass >= $maxPasses) {
-                break;
+                if ($maxPasses !== 0 && $pass >= $maxPasses) {
+                    break;
+                }
+
+                usleep($result->nextPollIntervalSeconds * 1_000_000);
             }
-
-            usleep($result->nextPollIntervalSeconds * 1_000_000);
+        } finally {
+            Cache::forget('pronofoot.scan.running');
         }
 
         return $errors === 0 ? self::SUCCESS : self::FAILURE;

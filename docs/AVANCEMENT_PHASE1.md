@@ -120,10 +120,22 @@ L’ordre appliqué est celui de `Claude.md` :
 - En mode fake, WhatsApp et Telegram sont simulés sans réseau ; le canal `log` écrit le message dans le journal Laravel. Une panne simulée du canal principal utilise le repli configuré.
 - Le mode `real` refuse explicitement les canaux WhatsApp et Telegram tant que leurs formats et comptes ne sont pas vérifiés ; aucun endpoint réel ni format non confirmé n’est utilisé.
 - Les alertes passent par le job `SendAlertNotification`, après validation de la transaction, avec trois tentatives. Le statut, le canal utilisé, le recours au repli et les échecs sont conservés.
-- Le point d’entrée admin protégé `POST /admin/notifications/test` permet à la page Paramètres de tester le canal ; l’interface du bouton sera terminée à l’étape 8.
+- Le point d’entrée admin protégé `POST /admin/notifications/test` est relié au bouton de test de la page Paramètres.
 - Le message court inclut match, minute, score, équipe/sélection, règle, écart, vitalité, tendance, convergence et expiration ; il ne promet aucun gain.
 - Pour tester le job lorsque la file n’est pas `sync`, lancer `php artisan queue:work --tries=3` dans un terminal en plus du scan.
 - Tests ciblés des notifications et du scan : `php artisan test --filter="ScanServiceTest|AdministratorAuthenticationTest"` — 33 tests réussis, 162 assertions ; suite complète : 71 tests, 304 assertions ; `vendor\bin\pint --test` — réussi.
+
+### Étape 8 — Administration, journal, statistiques et préparation au déploiement
+
+- API admin protégée pour le tableau de bord, les quotas connus, les rencontres disponibles et suivies, les paramètres et leur historique, le profil de règles, le journal, les résultats manuels et les statistiques.
+- L’interface React consomme ces API : ajout/retrait de matchs (refus si le fournisseur annonce un quota nul), configuration, test des notifications, filtres du journal et des statistiques, résultats d’alertes et compte à rebours.
+- L’interface indique visiblement le mode simulation lorsqu’un pilote fictif fournit les données. Elle ne présente pas de données de fournisseurs inventées en mode normal ; les absences restent explicites.
+- Les poids de convergence sont laissés vides jusqu’à validation, les règles non définies restent bloquées, et les paramètres de tendance restent à confirmer par défaut.
+- Le tableau de bord affiche l’état du scan et les dernières données disponibles ; aucun indicateur de scan ou quota n’est fabriqué lorsqu’il est inconnu.
+- Les styles de l’interface garantissent une taille minimale de 13 px, un texte secondaire d’au moins 14 px et des commandes tactiles d’au moins 44 px.
+- En-têtes de sécurité ajoutés ; le cookie de session devient Secure en production par défaut. Les canaux/API réels restent non vérifiés et sans appels réels.
+- `backend/public/admin-assets/hot` est ignoré par Git. Le guide [`DEPLOIEMENT.md`](./DEPLOIEMENT.md) décrit Nginx, Supervisor, HTTPS, sauvegardes, rotation et contrôles sans effectuer de déploiement.
+- Test du quota nul et tests des API admin ajoutés.
 
 ## Guide de démarrage et de test local
 
@@ -234,26 +246,29 @@ Les tests automatisés ne remplacent pas les dix situations complètes avec déc
 - Fournir les dix situations de test admin complètes et leurs décisions attendues.
 - Trancher les deux définitions contradictoires de F121-E avant son implémentation.
 - Fournir la formule de normalisation de la vitalité, avec exemples chiffrés.
-- Confirmer la limite de variation correspondant à « tendance stable ».
+- Confirmer que la tendance porte bien sur la cote suggérée et la limite de variation correspondant à « tendance stable ».
 - Définir les formules manquantes de F121-K, F121-T, F121-X, F122, F124 et F126 avant de les activer.
 - Préciser les cas de F121-D autres que les exemples 2–3 et 3–2, et les conditions éventuelles qui autorisent Over 5.5.
 - Clarifier les bornes exactes des seuils lorsque les documents ne disent que « inférieur » ou « supérieur ».
+- Fournir les clés API, comptes de notification autorisés, domaine et serveur lorsque le client sera prêt à financer et valider une mise en réel.
 
-### Étapes de développement restantes
+### État des étapes
 
 5. **Terminé :** pilotes fake et real prudents, commande de faisabilité et capture sans clés.
 6. **Terminé :** scan paramétrable, instantanés, relance après but, anti-doublon et expiration.
-7. **À faire — prochaine étape :** ajouter le canal de notification de développement, WhatsApp et le repli Telegram, sans identifiants réels.
-8. **À faire :** compléter les écrans et données de matchs, paramètres, journal et statistiques, puis documenter la préparation du déploiement.
+7. **Terminé en mode fake/log :** file d’attente, bouton de test et repli simulé. WhatsApp et Telegram réels restent bloqués tant que leurs comptes et formats ne sont pas validés.
+8. **Terminé pour la préparation logicielle :** API et interface d’administration, journal, statistiques et guide de déploiement. La mise en production elle-même n’est pas incluse.
 
-### À brancher lors des prochaines étapes d’intégration
+### Contrôles de l’étape 8
 
-- Les listes de matchs, compteurs, journal et statistiques de l’interface restent à relier aux données persistées (étape 8).
-- Les paramètres de scan et seuils métier documentés sont maintenant persistés et appliqués ; leur édition depuis la page Paramètres reste à réaliser à l’étape 8.
-- Le testeur simule actuellement l’évaluation des règles/filtres depuis l’interface. Le branchement du client d’API et des données réelles ou fictives appartient aux étapes suivantes.
+- Validation finale (2026-11-08) : `php artisan test` — 78 tests réussis, 353 assertions ; `vendor\bin\pint --test` — réussi ; `npm test` — 3 tests réussis ; `npm run lint` — réussi ; `npm run build` — réussi.
+- `php artisan migrate:status` confirme que les migrations locales sont appliquées.
+- `php artisan feasibility:test` — mode simulation explicite, 6 matchs live Odds et 7 Football fictifs, scores exacts/Over-Under et statistiques présents dans les fixtures ; fréquences non fournies donc estimation horaire non calculée.
+- Vérification HTTP locale : `/` sur le port Vite 5174 redirige vers `/login` sur Laravel 8001 ; la page de connexion répond 200 et inclut `X-Frame-Options: DENY`.
+- Vérification CSS : aucune déclaration `font-size` inférieure à 13 px. La vérification visuelle de l’espace admin authentifié reste à réaliser dans un navigateur équipé d’un moteur Playwright.
 - En développement, démarrer `php artisan serve --host=127.0.0.1 --port=8001` depuis `backend/` et `npm run dev` depuis `frontend/` dans deux terminaux. Laravel sert l’application sur le port 8001 et Vite redirige sa racine vers la connexion Laravel. Vite utilise le port 5174 par défaut pour éviter le port 5173 déjà occupé sur cette machine. Quand Vite n’est pas lancé, Laravel utilise les ressources compilées par `npm run build`.
 
-Pour chaque API externe, confirmer la disponibilité réelle des marchés de score exact et Plus/Moins en direct ainsi que des statistiques avant de dépendre de ces données.
+Les limites et informations client requises sont listées dans [`A_FOURNIR_PAR_LE_CLIENT.md`](./A_FOURNIR_PAR_LE_CLIENT.md). Le passage progressif aux fournisseurs réels est décrit dans [`PASSER_EN_REEL.md`](./PASSER_EN_REEL.md) ; aucun appel payant n’est effectué en suivant les contrôles fake.
 
 ## Vérifications locales
 

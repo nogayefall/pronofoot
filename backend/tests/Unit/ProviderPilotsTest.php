@@ -31,9 +31,9 @@ class ProviderPilotsTest extends TestCase
         $this->assertTrue($odds->reachable);
         $this->assertTrue($odds->exactScoreMarketAvailable);
         $this->assertTrue($odds->overUnderMarketAvailable);
-        $this->assertCount(6, $football->matches);
+        $this->assertCount(7, $football->matches);
         $this->assertSame(
-            ['candidate-alert', 'gap-filter-refusal', 'vitality-filter-refusal', 'trend-data-missing', 'goal-during-scan', 'statistics-missing'],
+            ['candidate-alert', 'gap-filter-refusal', 'vitality-filter-refusal', 'trend-data-missing', 'goal-during-scan', 'statistics-missing', 'upcoming-match'],
             array_map(fn ($match): ?string => $match->scenario, $football->matches),
         );
         $this->assertNotNull($football->rawResponse);

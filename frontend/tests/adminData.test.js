@@ -23,6 +23,8 @@ test('createRuleTestPayload validates the score, vitality and required correct-s
     oddsText: '0-0 = 7,50\n1-0 = 8,60\n0-1 = 9,80',
     vitalityScore: '61',
     oddsChangePercent: '-1',
+    tendanceSource: 'cote_suggeree',
+    tendanceSeuilStable: '3',
   }
 
   assert.deepEqual(createRuleTestPayload(fields), {
@@ -31,6 +33,8 @@ test('createRuleTestPayload validates the score, vitality and required correct-s
     exact_score_odds: { '0-0': 7.5, '1-0': 8.6, '0-1': 9.8 },
     vitality_score: 61,
     odds_change_percent: -1,
+    tendance_source: 'cote_suggeree',
+    tendance_seuil_stable: 3,
   })
   assert.throws(() => createRuleTestPayload({ ...fields, oddsText: '0-0=7.5' }), /cote du score 1-0 est nécessaire/)
   assert.throws(() => createRuleTestPayload({ ...fields, homeScore: '-1' }), /scores doivent être/)

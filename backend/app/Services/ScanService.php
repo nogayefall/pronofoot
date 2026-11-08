@@ -22,6 +22,7 @@ use App\Rules\RuleInput;
 use App\Rules\RuleResult;
 use Carbon\CarbonImmutable;
 use Illuminate\Database\Eloquent\Collection;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 
@@ -43,6 +44,7 @@ final class ScanService
     public function runOnce(int $scanNumber = 0, bool $forceRefresh = true): ScanPassResult
     {
         $now = CarbonImmutable::now();
+        Cache::put('pronofoot.scan.last_pass_at', $now->toIso8601String(), $now->addDays(30));
         $settingValues = $this->settings->all();
         $oddsInterval = $this->settings->integer($settingValues, 'scan.odds_interval_seconds');
         $statisticsInterval = $this->settings->integer($settingValues, 'scan.statistics_interval_seconds');
@@ -101,6 +103,13 @@ final class ScanService
 
             try {
                 $oddsFeed = $this->oddsProvider->getLiveOdds($scanNumber);
+                $this->rememberProviderStatus('odds', [
+                    'driver' => $oddsFeed->driver,
+                    'requestsUsed' => $oddsFeed->requestsUsed,
+                    'requestsRemaining' => $oddsFeed->requestsRemaining,
+                    'checkedAt' => $now->toIso8601String(),
+                    'message' => $oddsFeed->statusMessage,
+                ]);
                 if ($oddsFeed->reachable === true && $oddsFeed->exactScoreMarketAvailable) {
                     $this->cachedOddsFeed = $oddsFeed;
                     $this->lastOddsFetchAt = $now;
@@ -111,12 +120,28 @@ final class ScanService
                         : 'odds_provider_unavailable';
                 }
             } catch (ProviderUnavailable $exception) {
+                $this->rememberProviderStatus('odds', [
+                    'driver' => config('services.pronofoot.odds_driver'),
+                    'requestsUsed' => null,
+                    'requestsRemaining' => null,
+                    'checkedAt' => $now->toIso8601String(),
+                    'message' => $exception->getMessage(),
+                ]);
                 $oddsUnavailableReason = $exception->getMessage();
                 Log::warning('Fournisseur Odds indisponible pendant le scan.', ['reason' => $exception->getMessage()]);
             }
         }
 
         $oddsFeed = $this->cachedOddsFeed;
+        if ($oddsFeed !== null) {
+            $this->rememberProviderStatus('odds', [
+                'driver' => $oddsFeed->driver,
+                'requestsUsed' => $oddsFeed->requestsUsed,
+                'requestsRemaining' => $oddsFeed->requestsRemaining,
+                'checkedAt' => $now->toIso8601String(),
+                'message' => $oddsFeed->statusMessage,
+            ]);
+        }
         $oddsMatches = $oddsFeed === null ? [] : $this->indexMatches($oddsFeed->matches);
         $profile = RuleProfile::query()->where('is_active', true)->first();
         $alertsCreated = 0;
@@ -258,6 +283,13 @@ final class ScanService
         try {
             $feed = $this->footballProvider->getLiveMatches($scanNumber, $includeStatistics);
         } catch (ProviderUnavailable $exception) {
+            $this->rememberProviderStatus('football', [
+                'driver' => config('services.pronofoot.football_driver'),
+                'requestsUsed' => null,
+                'requestsRemaining' => null,
+                'checkedAt' => $now->toIso8601String(),
+                'message' => $exception->getMessage(),
+            ]);
             Log::warning('Fournisseur Football indisponible pendant le scan.', ['reason' => $exception->getMessage()]);
             foreach ($trackedMatches as $trackedMatch) {
                 $this->recordIncident($trackedMatch, 'football_provider_unavailable', $exception->getMessage(), $now);
@@ -265,6 +297,14 @@ final class ScanService
 
             return null;
         }
+
+        $this->rememberProviderStatus('football', [
+            'driver' => $feed->driver,
+            'requestsUsed' => $feed->requestsUsed,
+            'requestsRemaining' => $feed->requestsRemaining,
+            'checkedAt' => $now->toIso8601String(),
+            'message' => $feed->statusMessage,
+        ]);
 
         if ($feed->reachable !== true) {
             foreach ($trackedMatches as $trackedMatch) {
@@ -745,6 +785,16 @@ final class ScanService
             'reason' => $reason,
             'evaluated_at' => $now,
         ]);
+    }
+
+    /**
+     * @param  array<string, int|float|string|null>  $status
+     */
+    private function rememberProviderStatus(string $provider, array $status): void
+    {
+        $providerStatus = Cache::get('pronofoot.provider_status', []);
+        $providerStatus[$provider] = $status;
+        Cache::put('pronofoot.provider_status', $providerStatus, now()->addDay());
     }
 
     /**

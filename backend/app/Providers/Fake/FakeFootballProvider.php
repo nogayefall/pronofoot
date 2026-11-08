@@ -23,7 +23,7 @@ final class FakeFootballProvider implements FootballProvider
 
             $snapshot = $timeline[min(max($scanNumber, 0), count($timeline) - 1)];
             $data = $snapshot['football'] ?? null;
-            if (! is_array($data) || ($data['status'] ?? null) !== 'live') {
+            if (! is_array($data) || ! in_array($data['status'] ?? null, ['live', 'upcoming'], true)) {
                 continue;
             }
 

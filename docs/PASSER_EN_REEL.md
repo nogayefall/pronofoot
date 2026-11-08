@@ -2,6 +2,8 @@
 
 Le fonctionnement fictif est disponible sans clé. Garder les deux pilotes sur `fake` tant que les blocages ci-dessous ne sont pas levés. Aucun fournisseur réel n’est appelé en mode fictif.
 
+Pour les prérequis système, Nginx, Supervisor, HTTPS, sauvegardes et liste de contrôle, consulter [`DEPLOIEMENT.md`](./DEPLOIEMENT.md). Ce document est une préparation seulement : aucun serveur n’est provisionné ni déployé.
+
 ## 1. Vérifier les sources avant toute activation
 
 1. Les cadences appliquées proviennent des documents disponibles : cotes toutes les 30 secondes, statistiques toutes les 60 secondes et expiration après 15 minutes sans but selon le PDF du CDC Phase 1 ; relance toutes les 15 secondes pendant 120 secondes après but selon le TRD. Vérifier ces valeurs paramétrables avant activation en production.

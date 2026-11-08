@@ -79,7 +79,7 @@ textarea:focus-visible {
 .brand small {
   margin-top: 4px;
   color: #8b9d93;
-  font-size: 9px;
+  font-size: 13px;
   font-weight: 700;
   letter-spacing: 1.5px;
 }
@@ -87,7 +87,7 @@ textarea:focus-visible {
 .sidebar-label {
   margin: 43px 11px 12px;
   color: #71837a;
-  font-size: 10px;
+  font-size: 13px;
   font-weight: 750;
   letter-spacing: 1.1px;
 }
@@ -109,7 +109,7 @@ textarea:focus-visible {
   background: transparent;
   color: #b1c0b8;
   text-align: left;
-  font-size: 12px;
+  font-size: 13px;
   font-weight: 550;
   transition: background 140ms ease, color 140ms ease;
 }
@@ -136,7 +136,7 @@ textarea:focus-visible {
   border-radius: 6px;
   background: #ffffff13;
   color: #dbe6df;
-  font-size: 10px;
+  font-size: 13px;
 }
 
 .sidebar-spacer {
@@ -169,13 +169,13 @@ textarea:focus-visible {
 .phase-card strong {
   display: block;
   margin: 1px 0 4px;
-  font-size: 11px;
+  font-size: 13px;
 }
 
 .phase-card p {
   margin: 0;
   color: #9aac9f;
-  font-size: 10px;
+  font-size: 13px;
   line-height: 1.45;
 }
 
@@ -208,7 +208,7 @@ textarea:focus-visible {
 
 .profile-copy strong {
   overflow: hidden;
-  font-size: 11px;
+  font-size: 13px;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -216,7 +216,7 @@ textarea:focus-visible {
 .profile-copy small {
   margin-top: 4px;
   color: #8fa096;
-  font-size: 10px;
+  font-size: 13px;
 }
 
 .profile-exit {
@@ -227,7 +227,7 @@ textarea:focus-visible {
 .sidebar-error {
   margin: 9px 0 0;
   color: #ffc0b8;
-  font-size: 11px;
+  font-size: 13px;
 }
 
 .main-area {
@@ -262,7 +262,7 @@ textarea:focus-visible {
 .breadcrumb {
   gap: 10px;
   color: #8a9991;
-  font-size: 12px;
+  font-size: 13px;
 }
 
 .breadcrumb svg {
@@ -281,7 +281,7 @@ textarea:focus-visible {
 .secure-label {
   gap: 7px;
   color: #6c7e73;
-  font-size: 11px;
+  font-size: 13px;
 }
 
 .secure-dot,
@@ -297,7 +297,7 @@ textarea:focus-visible {
   width: 32px;
   height: 32px;
   border-radius: 50%;
-  font-size: 12px;
+  font-size: 13px;
 }
 
 .mobile-menu-button {
@@ -322,7 +322,7 @@ textarea:focus-visible {
 .eyebrow {
   margin: 0 0 9px;
   color: #07834f;
-  font-size: 9px;
+  font-size: 13px;
   font-weight: 800;
   letter-spacing: 1.35px;
 }
@@ -339,7 +339,7 @@ textarea:focus-visible {
 .page-description {
   margin: 8px 0 0;
   color: #78877e;
-  font-size: 12px;
+  font-size: 13px;
   line-height: 1.6;
 }
 
@@ -355,7 +355,7 @@ textarea:focus-visible {
   border-radius: 7px;
   background: #f4faf6;
   color: #1e6945;
-  font-size: 10px;
+  font-size: 13px;
   font-weight: 700;
 }
 
@@ -373,7 +373,7 @@ textarea:focus-visible {
   border-color: #e9eeeb;
   background: #f8faf9;
   color: #52665a;
-  font-size: 10px;
+  font-size: 13px;
 }
 
 .notice {
@@ -417,13 +417,13 @@ textarea:focus-visible {
   display: block;
   margin: 1px 0 4px;
   color: #263a2e;
-  font-size: 11px;
+  font-size: 13px;
 }
 
 .notice p {
   margin: 0;
   color: #75857a;
-  font-size: 10px;
+  font-size: 13px;
   line-height: 1.55;
 }
 
@@ -479,7 +479,7 @@ textarea:focus-visible {
 .metric-card p {
   margin: 0 0 6px;
   color: #738078;
-  font-size: 10px;
+  font-size: 13px;
 }
 
 .metric-card strong {
@@ -495,7 +495,7 @@ textarea:focus-visible {
   display: block;
   margin-top: 5px;
   color: #9aa49e;
-  font-size: 9px;
+  font-size: 13px;
 }
 
 .content-panel {
@@ -520,7 +520,7 @@ textarea:focus-visible {
 .panel-heading p {
   margin: 5px 0 0;
   color: #87938b;
-  font-size: 10px;
+  font-size: 13px;
   line-height: 1.5;
 }
 
@@ -533,7 +533,7 @@ textarea:focus-visible {
   border: 0;
   background: transparent;
   color: #16814e;
-  font-size: 10px;
+  font-size: 13px;
   font-weight: 700;
 }
 
@@ -578,7 +578,7 @@ textarea:focus-visible {
 .empty-state h3 {
   margin: 0;
   color: #35473d;
-  font-size: 11px;
+  font-size: 13px;
   font-weight: 700;
 }
 
@@ -586,7 +586,7 @@ textarea:focus-visible {
   max-width: 380px;
   margin: 6px 0 0;
   color: #8a9790;
-  font-size: 10px;
+  font-size: 13px;
   line-height: 1.6;
 }
 
@@ -622,7 +622,7 @@ textarea:focus-visible {
   padding: 9px 0;
   border-top: 1px solid #f0f3f1;
   color: #506158;
-  font-size: 10px;
+  font-size: 13px;
 }
 
 .filter-status,
@@ -642,7 +642,7 @@ textarea:focus-visible {
 .filter-list small {
   margin-left: auto;
   color: #a0aaa4;
-  font-size: 9px;
+  font-size: 13px;
 }
 
 .rule-summary {
@@ -665,14 +665,14 @@ textarea:focus-visible {
 
 .rule-summary strong {
   color: #526259;
-  font-size: 10px;
+  font-size: 13px;
 }
 
 .rule-summary small {
   grid-column: 2;
   margin-top: 3px;
   color: #97a199;
-  font-size: 9px;
+  font-size: 13px;
 }
 
 .matches-panel,
@@ -707,19 +707,19 @@ textarea:focus-visible {
   background: #f2f6f3;
   color: #426650;
   font-family: ui-monospace, Consolas, monospace;
-  font-size: 9px;
+  font-size: 13px;
   font-weight: 700;
 }
 
 .rule-info strong {
   color: #33463b;
-  font-size: 10px;
+  font-size: 13px;
 }
 
 .rule-info p {
   margin: 4px 0 0;
   color: #87948b;
-  font-size: 9px;
+  font-size: 13px;
   line-height: 1.5;
 }
 
@@ -727,7 +727,7 @@ textarea:focus-visible {
   width: fit-content;
   padding: 5px 8px;
   border-radius: 999px;
-  font-size: 9px;
+  font-size: 13px;
   font-weight: 700;
   white-space: nowrap;
 }
@@ -765,12 +765,12 @@ textarea:focus-visible {
 
 .threshold-grid span {
   color: #829087;
-  font-size: 9px;
+  font-size: 13px;
 }
 
 .threshold-grid strong {
   color: #2c4436;
-  font-size: 12px;
+  font-size: 13px;
   font-weight: 700;
 }
 
@@ -804,7 +804,7 @@ textarea:focus-visible {
   display: block;
   min-width: 0;
   color: #48584e;
-  font-size: 10px;
+  font-size: 13px;
   font-weight: 700;
 }
 
@@ -818,7 +818,7 @@ textarea:focus-visible {
   border-radius: 7px;
   background: white;
   color: #293c31;
-  font-size: 11px;
+  font-size: 13px;
 }
 
 .tester-form textarea {
@@ -835,7 +835,7 @@ textarea:focus-visible {
 .label-note {
   margin-left: 5px;
   color: #a0aaa3;
-  font-size: 9px;
+  font-size: 13px;
   font-weight: 400;
 }
 
@@ -861,14 +861,14 @@ textarea:focus-visible {
   display: block;
   margin-top: 5px;
   color: #8d9991;
-  font-size: 9px;
+  font-size: 13px;
   font-weight: 400;
 }
 
 .format-hint {
   margin: -4px 0 0;
   color: #87938b;
-  font-size: 9px;
+  font-size: 13px;
   line-height: 1.6;
 }
 
@@ -891,7 +891,7 @@ textarea:focus-visible {
   border-radius: 7px;
   background: #08764c;
   color: white;
-  font-size: 10px;
+  font-size: 13px;
   font-weight: 700;
   transition: background 140ms ease;
 }
@@ -922,7 +922,7 @@ textarea:focus-visible {
   border-radius: 6px;
   background: #fff6f5;
   color: #9b3831;
-  font-size: 10px;
+  font-size: 13px;
 }
 
 .result-panel > .empty-state {
@@ -970,20 +970,20 @@ textarea:focus-visible {
 
 .simulation-verdict strong {
   color: #30453a;
-  font-size: 10px;
+  font-size: 13px;
 }
 
 .simulation-verdict p {
   margin: 4px 0 0;
   color: #7e8c82;
-  font-size: 9px;
+  font-size: 13px;
   line-height: 1.5;
 }
 
 .simulation-section h3 {
   margin: 0 0 8px;
   color: #405348;
-  font-size: 10px;
+  font-size: 13px;
 }
 
 .simulation-line {
@@ -994,12 +994,12 @@ textarea:focus-visible {
   padding: 8px 0;
   border-top: 1px solid #eef2ef;
   color: #738077;
-  font-size: 9px;
+  font-size: 13px;
 }
 
 .simulation-line strong {
   color: #5a6b60;
-  font-size: 9px;
+  font-size: 13px;
   text-align: right;
 }
 
@@ -1019,7 +1019,7 @@ textarea:focus-visible {
   border-radius: 6px;
   background: #f4f6f5;
   color: #77847b;
-  font-size: 9px;
+  font-size: 13px;
   line-height: 1.5;
 }
 
@@ -1035,7 +1035,7 @@ textarea:focus-visible {
   padding: 13px 37px 16px;
   border-top: 1px solid #e9eeeb;
   color: #95a098;
-  font-size: 9px;
+  font-size: 13px;
 }
 
 @media (max-width: 1100px) {
@@ -1111,7 +1111,7 @@ textarea:focus-visible {
     min-width: 0;
     gap: 6px;
     overflow: hidden;
-    font-size: 10px;
+    font-size: 13px;
     white-space: nowrap;
   }
 
@@ -1138,7 +1138,7 @@ textarea:focus-visible {
 
   .phase-badge {
     padding: 7px 8px;
-    font-size: 9px;
+    font-size: 13px;
   }
 
   .bottom-grid,
@@ -1901,5 +1901,395 @@ textarea:focus-visible {
   .page-heading .count-badge,
   .page-heading .secondary-button {
     width: fit-content;
+  }
+}
+
+.admin-shell {
+  min-height: 100vh;
+  font-size: 16px;
+}
+
+.content > .page-heading .eyebrow,
+.overview-section-label {
+  font-size: 13px;
+}
+
+.page-description,
+.notice p,
+.panel-heading p,
+.empty-state p,
+.field-help,
+.format-hint,
+.rule-info p,
+.setting-row small,
+.footer,
+.breadcrumb,
+.secure-label {
+  font-size: 14px;
+}
+
+.primary-button,
+.secondary-button,
+.overview-primary-action,
+.mobile-menu-button,
+.nav-item {
+  min-height: 44px;
+  font-size: 14px;
+}
+
+.simulation-banner,
+.success-message {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 16px;
+  padding: 13px 15px;
+  border: 1px solid #cfe7d7;
+  border-radius: 8px;
+  background: #eff9f2;
+  color: #235d3b;
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.simulation-banner svg {
+  flex: none;
+}
+
+.success-message {
+  border-color: #cfe7d7;
+}
+
+.api-error {
+  margin-bottom: 16px;
+}
+
+.quota-grid,
+.stats-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  margin-top: 16px;
+}
+
+.quota-card,
+.stat-card {
+  display: grid;
+  gap: 6px;
+  padding: 14px;
+  border: 1px solid #e8eeea;
+  border-radius: 8px;
+  background: #fbfcfb;
+}
+
+.quota-card strong,
+.stat-card span {
+  color: #59695f;
+  font-size: 14px;
+}
+
+.quota-card > span,
+.stat-card strong {
+  color: #20342a;
+  font-size: 20px;
+  font-weight: 750;
+}
+
+.quota-card small {
+  color: #6d7d73;
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.table-scroll {
+  width: 100%;
+  margin-top: 14px;
+  overflow-x: auto;
+  overscroll-behavior-inline: contain;
+}
+
+.data-table {
+  width: 100%;
+  min-width: 820px;
+  border-collapse: collapse;
+  text-align: left;
+}
+
+.data-table th,
+.data-table td {
+  padding: 12px 10px;
+  border-top: 1px solid #edf1ee;
+  color: #46584d;
+  font-size: 14px;
+  line-height: 1.45;
+  vertical-align: top;
+}
+
+.data-table th {
+  color: #59695f;
+  font-weight: 700;
+}
+
+.data-table td small {
+  display: block;
+  margin-top: 3px;
+  color: #718077;
+  font-size: 13px;
+}
+
+.data-table select,
+.filter-toolbar input,
+.filter-toolbar select,
+.setting-row input,
+.setting-row textarea,
+.field-grid input,
+.field-grid select,
+.data-table select {
+  min-height: 44px;
+  padding: 9px 10px;
+  border: 1px solid #dfe7e2;
+  border-radius: 7px;
+  background: #fff;
+  color: #293c31;
+  font: inherit;
+}
+
+.compact-button {
+  min-width: 88px;
+}
+
+.alert-list {
+  margin-top: 10px;
+}
+
+.alert-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 13px 0;
+  border-top: 1px solid #edf1ee;
+}
+
+.alert-row strong {
+  color: #30453a;
+  font-size: 15px;
+}
+
+.alert-row p {
+  margin: 5px 0;
+  color: #53645a;
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.alert-row small {
+  color: #718077;
+  font-size: 13px;
+}
+
+.countdown {
+  flex: none;
+  color: #39684c;
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.field-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+  margin-top: 14px;
+}
+
+.field-grid label,
+.filter-toolbar label {
+  display: grid;
+  gap: 7px;
+  color: #45554c;
+  font-size: 14px;
+  font-weight: 650;
+}
+
+.filter-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: end;
+  gap: 12px;
+  margin-bottom: 18px;
+}
+
+.filter-toolbar label {
+  min-width: 140px;
+}
+
+.filter-toolbar .secondary-button {
+  flex: none;
+}
+
+.rule-selection {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px 20px;
+  margin: 0 0 18px;
+  padding: 14px;
+  border: 1px solid #e8eeea;
+  border-radius: 8px;
+}
+
+.rule-selection legend {
+  padding: 0 6px;
+  color: #405348;
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.check-row {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 44px;
+  color: #45554c;
+  font-size: 14px;
+}
+
+.check-row input {
+  width: 18px;
+  height: 18px;
+  accent-color: #08764c;
+}
+
+.settings-list {
+  display: grid;
+  margin: 8px 0 18px;
+}
+
+.setting-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(180px, .75fr);
+  align-items: center;
+  gap: 16px;
+  padding: 13px 0;
+  border-top: 1px solid #edf1ee;
+}
+
+.setting-row strong {
+  display: block;
+  color: #33463b;
+  font-size: 15px;
+}
+
+.setting-row small {
+  display: block;
+  margin-top: 4px;
+  color: #718077;
+  line-height: 1.45;
+}
+
+.setting-row input[type="checkbox"] {
+  width: 20px;
+  height: 20px;
+  justify-self: start;
+  accent-color: #08764c;
+}
+
+.setting-row textarea {
+  resize: vertical;
+  font-family: ui-monospace, Consolas, monospace;
+}
+
+.form-actions,
+.pagination {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 12px;
+}
+
+.pagination {
+  justify-content: center;
+  color: #52665a;
+  font-size: 14px;
+}
+
+.overview-matches-heading {
+  margin-bottom: 12px;
+}
+
+.overview-matches-heading h2 {
+  font-size: 20px;
+}
+
+.panel-heading h2 {
+  font-size: 18px;
+}
+
+.rule-info strong,
+.status-pill {
+  font-size: 14px;
+}
+
+.rule-id,
+.simulation-line,
+.simulation-line strong,
+.simulation-verdict p,
+.simulation-section h3,
+.simulation-disclaimer {
+  font-size: 13px;
+}
+
+.tester-form label,
+.tester-form input,
+.tester-form textarea,
+.label-note {
+  font-size: 14px;
+}
+
+.tester-form input,
+.tester-form textarea,
+.content input,
+.content select {
+  min-height: 44px;
+}
+
+.tester-form textarea,
+.setting-row textarea {
+  min-height: 90px;
+}
+
+@media (min-width: 900px) {
+  .stats-grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 640px) {
+  .field-grid,
+  .quota-grid,
+  .stats-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .setting-row {
+    grid-template-columns: 1fr;
+    gap: 10px;
+  }
+
+  .filter-toolbar {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .filter-toolbar .secondary-button {
+    width: 100%;
+  }
+
+  .alert-row {
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .form-actions {
+    flex-wrap: wrap;
   }
 }
