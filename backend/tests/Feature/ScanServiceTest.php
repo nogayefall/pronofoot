@@ -2,15 +2,19 @@
 
 namespace Tests\Feature;
 
+use App\Jobs\SendAlertNotification;
 use App\Models\Alert;
 use App\Models\OpportunityLog;
 use App\Models\RuleProfile;
 use App\Models\Setting;
 use App\Models\TrackedMatch;
+use App\Notifications\NotificationDeliveryFailed;
+use App\Notifications\NotificationDispatcher;
 use App\Services\ScanService;
 use Carbon\CarbonImmutable;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Artisan;
+use Illuminate\Support\Facades\Queue;
 use Tests\TestCase;
 
 class ScanServiceTest extends TestCase
@@ -24,6 +28,10 @@ class ScanServiceTest extends TestCase
             'services.pronofoot.football_driver' => 'fake',
             'services.pronofoot.odds_driver' => 'fake',
             'services.pronofoot.fake_scenario' => 'baseline',
+            'services.pronofoot.notifications.mode' => 'fake',
+            'services.pronofoot.notifications.channel' => 'whatsapp',
+            'services.pronofoot.notifications.fallback' => 'telegram',
+            'services.pronofoot.notifications.fake_fail_channels' => [],
         ]);
         CarbonImmutable::setTestNow('2026-11-08 12:00:00');
     }
@@ -57,7 +65,7 @@ class ScanServiceTest extends TestCase
             'tracked_match_id' => TrackedMatch::query()->firstOrFail()->id,
             'decision' => 'duplicate_suppressed',
         ]);
-        $this->assertSame('queued', Alert::query()->firstOrFail()->status);
+        $this->assertSame('sent', Alert::query()->firstOrFail()->status);
     }
 
     public function test_scan_abstains_when_the_reference_snapshot_is_younger_than_two_minutes(): void
@@ -190,6 +198,48 @@ class ScanServiceTest extends TestCase
     public function test_scan_run_command_supports_a_bounded_fake_execution(): void
     {
         $this->assertSame(0, Artisan::call('scan:run', ['--max-passes' => 1]));
+    }
+
+    public function test_notification_job_records_a_successful_telegram_fallback(): void
+    {
+        $match = $this->trackedMatch('fake-candidate');
+        $this->referenceSnapshot($match, CarbonImmutable::now()->subMinutes(2));
+        $this->activeProfile();
+        config(['services.pronofoot.notifications.fake_fail_channels' => ['whatsapp']]);
+
+        app(ScanService::class)->runOnce();
+        $alert = Alert::query()->firstOrFail();
+
+        $this->assertSame('sent', $alert->status);
+        $this->assertSame('telegram', $alert->channel);
+        $this->assertTrue($alert->fallback_used);
+        $this->assertNull($alert->failure_reason);
+    }
+
+    public function test_notification_job_records_failure_after_primary_and_fallback_fail(): void
+    {
+        Queue::fake();
+        $match = $this->trackedMatch('fake-candidate');
+        $this->referenceSnapshot($match, CarbonImmutable::now()->subMinutes(2));
+        $this->activeProfile();
+        config(['services.pronofoot.notifications.fake_fail_channels' => ['whatsapp', 'telegram']]);
+
+        app(ScanService::class)->runOnce();
+        $alert = Alert::query()->firstOrFail();
+        $job = new SendAlertNotification($alert->id);
+
+        try {
+            $job->handle(app(NotificationDispatcher::class));
+            $this->fail('Le canal principal et le repli auraient dû échouer.');
+        } catch (NotificationDeliveryFailed $exception) {
+            $job->failed($exception);
+        }
+
+        $this->assertSame('failed', $alert->fresh()->status);
+        $this->assertSame(
+            'Échec du canal principal whatsapp et du canal de repli telegram.',
+            $alert->fresh()->failure_reason,
+        );
     }
 
     private function trackedMatch(string $providerMatchId): TrackedMatch

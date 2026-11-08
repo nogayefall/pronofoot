@@ -7,6 +7,7 @@ use App\Models\User;
 use Illuminate\Foundation\Http\Middleware\PreventRequestForgery;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Http;
 use Tests\TestCase;
 
 class AdministratorAuthenticationTest extends TestCase
@@ -219,6 +220,41 @@ class AdministratorAuthenticationTest extends TestCase
             'vitality_score' => 61,
             'odds_change_percent' => -1,
         ])->assertRedirect(route('login'));
+    }
+
+    public function test_notification_test_route_uses_the_configured_fake_fallback(): void
+    {
+        config([
+            'services.pronofoot.notifications.mode' => 'fake',
+            'services.pronofoot.notifications.channel' => 'whatsapp',
+            'services.pronofoot.notifications.fallback' => 'telegram',
+            'services.pronofoot.notifications.fake_fail_channels' => ['whatsapp'],
+        ]);
+
+        $this->actingAs($this->createAdministrator())
+            ->postJson(route('admin.notifications.test'))
+            ->assertOk()
+            ->assertJsonPath('channel', 'telegram')
+            ->assertJsonPath('fallbackUsed', true)
+            ->assertJsonPath('simulation', true);
+    }
+
+    public function test_unverified_real_notification_channel_is_refused_without_network_calls(): void
+    {
+        Http::fake();
+        config([
+            'services.pronofoot.notifications.mode' => 'real',
+            'services.pronofoot.notifications.channel' => 'whatsapp',
+            'services.pronofoot.notifications.fallback' => 'none',
+        ]);
+
+        $this->actingAs($this->createAdministrator())
+            ->postJson(route('admin.notifications.test'))
+            ->assertStatus(503)
+            ->assertJsonPath('simulation', false)
+            ->assertJsonPath('message', 'Le canal réel whatsapp est NON VÉRIFIÉ ; aucun appel ni format de message n’a été utilisé.');
+
+        Http::assertNothingSent();
     }
 
     public function test_local_test_administrator_cannot_authenticate_outside_local_environment(): void

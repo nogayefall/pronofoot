@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Jobs\SendAlertNotification;
 use App\Models\Alert;
 use App\Models\MatchSnapshot;
 use App\Models\OpportunityLog;
@@ -590,12 +591,13 @@ final class ScanService
                 $rule->suggestedAction,
             );
 
-            $opportunity->alert()->create([
+            $alert = $opportunity->alert()->create([
                 'channel' => 'pending',
                 'status' => 'queued',
                 'message' => $message,
                 'expires_at' => $expiresAt,
             ]);
+            DB::afterCommit(fn () => SendAlertNotification::dispatch($alert->id));
 
             return 1;
         });

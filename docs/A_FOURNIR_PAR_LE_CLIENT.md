@@ -23,6 +23,7 @@ Sans confirmation d’un paramètre nécessaire, le comportement reste l’abste
 - Fournir dix réponses brutes représentatives d’API-Football obtenues avec consentement, sans données personnelles ou secrets, pour définir et tester son mapper.
 - Fournir un compte et un destinataire WhatsApp Business autorisés, ainsi qu’un modèle de message approuvé si nécessaire.
 - Fournir, si le repli est retenu, un bot Telegram et un identifiant de conversation, conservés uniquement dans `.env`.
+- Confirmer les détails du modèle WhatsApp et du compte Meta avec la documentation officielle. Les canaux réels restent `NON VÉRIFIÉS` : aucun appel ni format réel n’est branché.
 - Confirmer le budget de requêtes, les limites de quotas et les règles de regroupement des matchs pour chaque API.
 - Fournir plus tard un serveur et un nom de domaine pour la préparation d’une livraison. Aucun déploiement n’est réalisé pendant cette étape.
 

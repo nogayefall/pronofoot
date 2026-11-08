@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\Admin\NotificationTestController;
 use App\Http\Controllers\Admin\RuleSimulationController;
 use App\Http\Controllers\Auth\AuthenticatedSessionController;
 use App\Http\Middleware\EnsureAdministrator;
@@ -17,5 +18,8 @@ Route::middleware('guest')->group(function () {
 Route::middleware(['auth', EnsureAdministrator::class])->group(function () {
     Route::view('/admin', 'admin.dashboard')->name('admin.dashboard');
     Route::post('/admin/rule-test', RuleSimulationController::class)->name('admin.rule-test');
+    Route::post('/admin/notifications/test', NotificationTestController::class)
+        ->middleware('throttle:3,1')
+        ->name('admin.notifications.test');
     Route::post('/logout', [AuthenticatedSessionController::class, 'destroy'])->name('logout');
 });

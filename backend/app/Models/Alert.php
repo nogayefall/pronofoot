@@ -13,6 +13,8 @@ class Alert extends Model
         'status',
         'message',
         'sent_at',
+        'fallback_used',
+        'failure_reason',
         'expires_at',
         'goal_detected_at',
     ];
@@ -21,6 +23,7 @@ class Alert extends Model
     {
         return [
             'sent_at' => 'datetime',
+            'fallback_used' => 'boolean',
             'expires_at' => 'datetime',
             'goal_detected_at' => 'datetime',
         ];

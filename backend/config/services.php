@@ -39,6 +39,12 @@ return [
         'odds_driver' => env('ODDS_DRIVER', 'fake'),
         'football_driver' => env('FOOTBALL_DRIVER', 'fake'),
         'fake_scenario' => env('FAKE_PROVIDER_SCENARIO', 'baseline'),
+        'notifications' => [
+            'mode' => env('NOTIFICATION_MODE', 'fake'),
+            'channel' => env('NOTIFICATION_CHANNEL', 'log'),
+            'fallback' => env('NOTIFICATION_FALLBACK', 'none'),
+            'fake_fail_channels' => [],
+        ],
     ],
 
     'odds_api' => [

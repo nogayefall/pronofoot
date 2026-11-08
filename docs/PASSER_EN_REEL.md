@@ -36,6 +36,7 @@ Le pilote réel Odds signale explicitement « marché des scores exacts non disp
 ## 4. Vérifications avant le scan réel
 
 - Garder `ODDS_DRIVER=fake` et `FOOTBALL_DRIVER=fake` jusqu’à validation distincte de chaque pilote.
+- Garder `NOTIFICATION_MODE=fake`. Les canaux WhatsApp et Telegram réels sont des refus explicites `NON VÉRIFIÉ` et ne font aucun appel tant que les comptes et formats n’ont pas été confirmés et implémentés. Le canal `log` est disponible pour valider la file en local.
 - Exécuter `php artisan test` et `vendor\bin\pint --test`.
 - Configurer seulement les paramètres confirmés par le CDC et lancer `php artisan feasibility:test` ; ajouter `--capture` uniquement lorsque la réponse doit être enregistrée.
 - Confirmer les marchés et données live, les quotas et leur coût, la correspondance des matchs, ainsi que l’absence de données périmées.

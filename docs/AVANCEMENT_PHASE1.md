@@ -114,6 +114,17 @@ L’ordre appliqué est celui de `Claude.md` :
 
 **Vérification (8 novembre 2026) :** migrations appliquées à la base locale ; `php artisan test` — 67 tests réussis, 290 assertions ; `vendor\bin\pint --test` — réussi. Les tests de scan couvrent la création de signal fake, le calcul de tendance depuis l’instantané, l’abstention si la référence manque ou est trop récente, l’anti-doublon, le but et l’invalidation, l’expiration, l’indisponibilité des cotes exactes, la panne fournisseur et les statistiques absentes. Les vérifications frontend et `feasibility:test --capture` réalisées à l’étape 5 restent valides.
 
+### Étape 7 — Notifications WhatsApp et repli Telegram
+
+- Interface de notification et canaux `log`, `whatsapp` et `telegram`, sélectionnés avec `NOTIFICATION_CHANNEL` et `NOTIFICATION_FALLBACK`.
+- En mode fake, WhatsApp et Telegram sont simulés sans réseau ; le canal `log` écrit le message dans le journal Laravel. Une panne simulée du canal principal utilise le repli configuré.
+- Le mode `real` refuse explicitement les canaux WhatsApp et Telegram tant que leurs formats et comptes ne sont pas vérifiés ; aucun endpoint réel ni format non confirmé n’est utilisé.
+- Les alertes passent par le job `SendAlertNotification`, après validation de la transaction, avec trois tentatives. Le statut, le canal utilisé, le recours au repli et les échecs sont conservés.
+- Le point d’entrée admin protégé `POST /admin/notifications/test` permet à la page Paramètres de tester le canal ; l’interface du bouton sera terminée à l’étape 8.
+- Le message court inclut match, minute, score, équipe/sélection, règle, écart, vitalité, tendance, convergence et expiration ; il ne promet aucun gain.
+- Pour tester le job lorsque la file n’est pas `sync`, lancer `php artisan queue:work --tries=3` dans un terminal en plus du scan.
+- Tests ciblés des notifications et du scan : `php artisan test --filter="ScanServiceTest|AdministratorAuthenticationTest"` — 33 tests réussis, 162 assertions ; suite complète : 71 tests, 304 assertions ; `vendor\bin\pint --test` — réussi.
+
 ## Guide de démarrage et de test local
 
 ### 1. Démarrer les deux serveurs et ouvrir la connexion
