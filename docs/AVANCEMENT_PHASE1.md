@@ -89,6 +89,21 @@ L’ordre appliqué est celui de `Claude.md` :
 
 **Vérification (27 octobre 2026) :** `backend/php artisan test` — 39 tests réussis, 164 assertions ; Pint — réussi ; `frontend/npm test` — 3 tests réussis ; `frontend/npm run lint` — réussi ; `frontend/npm run build` — réussi.
 
+### Étape 5 — Pilotes de données et faisabilité
+
+- Contrats et DTO distincts pour les fournisseurs de cotes et de matchs.
+- Pilotes `fake` rejouables depuis `backend/database/fixtures/football.json`, couvrant une situation candidate, les refus d’écart et de vitalité, l’absence de donnée de tendance, un but entre deux instantanés, des statistiques manquantes et une panne d’API.
+- Sélection des pilotes par `ODDS_DRIVER` et `FOOTBALL_DRIVER`. Le mode fictif est marqué « MODE SIMULATION : données fictives » et ne produit aucun appel réseau.
+- Le pilote réel Odds n’invente pas de marché de score exact : le catalogue officiel consulté ne le documente pas ; `feasibility:test` l’affiche comme non disponible et ne tente aucune substitution.
+- Le pilote réel API-Football reste `NON VÉRIFIÉ`. Son mapper isolé ne suppose aucun champ de réponse. Une requête de capture n’est possible qu’après configuration explicite d’une URL HTTPS, d’une clé et de son en-tête documenté.
+- `php artisan feasibility:test` affiche la disponibilité, les matchs en direct, les marchés, les statistiques et les quotas connus. Le calcul indicatif des appels exige les fréquences confirmées fournies par options ; l’hypothèse d’un appel par match est signalée et ne prétend pas connaître le regroupement ou le coût réel.
+- `php artisan feasibility:test --capture` enregistre les corps de réponses dans `backend/storage/feasibility/`, sans enregistrer les clés d’accès. Ce dossier est ignoré par Git.
+- Les éléments à fournir et les limites des pilotes réels sont consignés dans `A_FOURNIR_PAR_LE_CLIENT.md` et `PASSER_EN_REEL.md`.
+
+**Étape 6 non commencée :** les fichiers CDC texte annoncés (`PRONOFOOT_CDC_Phase1_Signaux_Live.md` et `PRONOFOOT_CDC_V9.1.md`) ne sont pas présents dans `docs/` dans l’espace de travail accessible. Ils doivent être disponibles et relus avant de définir le scan, ses cadences et son comportement après but.
+
+**Vérification (8 novembre 2026) :** `php artisan test` — 54 tests réussis, 230 assertions ; `vendor\bin\pint --test` — réussi ; `npm test` — 3 tests réussis ; `npm run lint` — réussi ; `npm run build` — réussi. `php artisan feasibility:test --matches=30 --odds-interval=30 --stats-interval=60 --capture` — réussi en simulation ; captures contrôlées puis fichiers d’essai supprimés. Les fréquences de cet exemple sont des entrées explicites de la commande, pas des valeurs configurées par défaut.
+
 ## Guide de démarrage et de test local
 
 ### 1. Démarrer les deux serveurs et ouvrir la connexion

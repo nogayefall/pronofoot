@@ -35,4 +35,21 @@ return [
         ],
     ],
 
+    'pronofoot' => [
+        'odds_driver' => env('ODDS_DRIVER', 'fake'),
+        'football_driver' => env('FOOTBALL_DRIVER', 'fake'),
+        'fake_scenario' => env('FAKE_PROVIDER_SCENARIO', 'baseline'),
+    ],
+
+    'odds_api' => [
+        'api_key' => env('ODDS_API_KEY'),
+    ],
+
+    'football_api' => [
+        'probe_url' => env('API_FOOTBALL_PROBE_URL'),
+        'api_key' => env('API_FOOTBALL_API_KEY'),
+        'api_key_header' => env('API_FOOTBALL_API_KEY_HEADER'),
+        'timeout' => env('API_FOOTBALL_TIMEOUT', 10),
+    ],
+
 ];
