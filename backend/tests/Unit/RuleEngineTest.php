@@ -23,7 +23,11 @@ class RuleEngineTest extends TestCase
                 oddsChangePercent: -1.0,
                 methodScores: ['F121-C' => 82],
             ),
-            new RuleConfiguration(methodWeights: ['F121-C' => 1.0]),
+            new RuleConfiguration(
+                trendSource: 'cote_suggeree',
+                stableOddsChangePercent: 3.0,
+                methodWeights: ['F121-C' => 1.0],
+            ),
         );
 
         $this->assertSame('home', $result->rules['F121-C']->details['selectedTeam']);
@@ -44,7 +48,11 @@ class RuleEngineTest extends TestCase
                 oddsChangePercent: -1.0,
                 methodScores: ['F121-C' => 80],
             ),
-            new RuleConfiguration(methodWeights: ['F121-C' => 1.0]),
+            new RuleConfiguration(
+                trendSource: 'cote_suggeree',
+                stableOddsChangePercent: 3.0,
+                methodWeights: ['F121-C' => 1.0],
+            ),
         );
 
         $this->assertSame('away', $result->rules['F121-C']->details['selectedTeam']);
@@ -92,7 +100,11 @@ class RuleEngineTest extends TestCase
     public function test_f121_d_signals_only_when_both_upcoming_score_odds_are_below_seven(): void
     {
         $engine = new RuleEngine;
-        $configuration = new RuleConfiguration(methodWeights: ['F121-D' => 1.0]);
+        $configuration = new RuleConfiguration(
+            trendSource: 'cote_suggeree',
+            stableOddsChangePercent: 3.0,
+            methodWeights: ['F121-D' => 1.0],
+        );
 
         $candidate = $engine->evaluate(
             new RuleInput(
@@ -136,6 +148,8 @@ class RuleEngineTest extends TestCase
                 methodScores: ['F121-D' => 82],
             ),
             new RuleConfiguration(
+                trendSource: 'cote_suggeree',
+                stableOddsChangePercent: 3.0,
                 activeRules: ['F121-D'],
                 methodWeights: ['F121-D' => 1.0],
             ),
@@ -196,16 +210,75 @@ class RuleEngineTest extends TestCase
                 awayScore: 0,
                 exactScoreOdds: ['0-0' => 7.5, '1-0' => 8.6, '0-1' => 9.8],
                 vitalityScore: 61,
-                oddsChangePercent: 2.0,
+                oddsChangePercent: 3.0,
                 methodScores: ['F121-C' => 82],
             ),
             new RuleConfiguration(
+                trendSource: 'cote_suggeree',
                 stableOddsChangePercent: 3.0,
                 methodWeights: ['F121-C' => 1.0],
             ),
         );
 
         $this->assertTrue($result->filters['trend']->passed);
+    }
+
+    public function test_suggested_exact_score_key_follows_the_active_team_selection(): void
+    {
+        $engine = new RuleEngine;
+        $input = new RuleInput(
+            homeScore: 2,
+            awayScore: 0,
+            exactScoreOdds: ['2-0' => 3.0, '3-0' => 4.4, '2-1' => 3.5],
+        );
+
+        $this->assertSame(
+            '3-0',
+            $engine->suggestedExactScoreKey(
+                $input,
+                new RuleConfiguration(activeRules: ['F121-C.2', 'F121-C']),
+            ),
+        );
+        $this->assertNull(
+            $engine->suggestedExactScoreKey(
+                $input,
+                new RuleConfiguration(activeRules: ['F121-D']),
+            ),
+        );
+    }
+
+    public function test_missing_trend_configuration_blocks_both_falling_and_stable_values(): void
+    {
+        $engine = new RuleEngine;
+
+        foreach ([
+            new RuleConfiguration(methodWeights: ['F121-C' => 1.0]),
+            new RuleConfiguration(
+                trendSource: 'cote_suggeree',
+                methodWeights: ['F121-C' => 1.0],
+            ),
+            new RuleConfiguration(
+                stableOddsChangePercent: 3.0,
+                methodWeights: ['F121-C' => 1.0],
+            ),
+        ] as $configuration) {
+            foreach ([-1.0, 0.0] as $change) {
+                $result = $engine->evaluate(
+                    new RuleInput(
+                        homeScore: 0,
+                        awayScore: 0,
+                        exactScoreOdds: ['0-0' => 7.5, '1-0' => 8.6, '0-1' => 9.8],
+                        vitalityScore: 61,
+                        oddsChangePercent: $change,
+                        methodScores: ['F121-C' => 90],
+                    ),
+                    $configuration,
+                );
+
+                $this->assertFalse($result->filters['trend']->passed);
+                $this->assertFalse($result->shouldAlert);
+            }
+        }
     }
 
     public function test_convergence_equal_to_the_threshold_does_not_alert(): void

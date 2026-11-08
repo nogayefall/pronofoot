@@ -21,6 +21,8 @@ class RuleSimulationController extends Controller
             'exact_score_odds.*' => ['required', 'numeric', 'gt:0'],
             'vitality_score' => ['required', 'numeric', 'between:0,100'],
             'odds_change_percent' => ['required', 'numeric'],
+            'tendance_source' => ['nullable', 'in:cote_suggeree'],
+            'tendance_seuil_stable' => ['nullable', 'numeric', 'min:0'],
         ]);
 
         $input = new RuleInput(
@@ -35,6 +37,10 @@ class RuleSimulationController extends Controller
             $input,
             new RuleConfiguration(
                 activeRules: ['F121-C', 'F121-C.2', 'F121-D'],
+                trendSource: $validated['tendance_source'] ?? null,
+                stableOddsChangePercent: isset($validated['tendance_seuil_stable'])
+                    ? (float) $validated['tendance_seuil_stable']
+                    : null,
             ),
         );
 

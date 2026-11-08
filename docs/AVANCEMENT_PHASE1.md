@@ -1,6 +1,6 @@
 # PronoFoot — Avancement de la Phase 1
 
-Dernière mise à jour : 27 octobre 2026
+Dernière mise à jour : 8 novembre 2026
 
 ## Références et périmètre
 
@@ -47,7 +47,7 @@ L’ordre appliqué est celui de `Claude.md` :
 - F121-D : seuil strict des cotes inférieur à 7,00, appliqué aux exemples de score 2–3 et 3–2. Une proposition Over 5.5 dépend d’un paramètre fourni ; aucune règle temporelle n’est inventée.
 - Filtre d’écart : seuil 1,50 ; exception 0–0 lorsque la cote du score 0–0 est inférieure à 2,50, avec un écart requis inférieur à 1,00.
 - Filtre de vitalité : seuil 40/100 fourni par le document ; la valeur doit être fournie en entrée. La normalisation des statistiques brutes n’est pas définie et n’est pas calculée par le moteur.
-- Filtre de tendance : une baisse des cotes est reconnue ; le seuil d’une tendance stable est un paramètre non renseigné par défaut. Sans valeur confirmée, une tendance stable seule ne passe pas le filtre.
+- Filtre de tendance : le moteur exige une variation calculée, la source `cote_suggeree` et un seuil stable renseigné. Si la source ou le seuil manque, aucune tendance ne passe le filtre.
 - Convergence : moyenne pondérée des notes fournies, exemple de calcul 82 × 0,6 + 68 × 0,3 + 90 × 0,1 = 78,6 ; l’alerte exige un score strictement supérieur au seuil configuré, par défaut 75.
 - F121-E et les règles sans formule connue F121-K, F121-T, F121-X, F122, F124 et F126 restent « non définies » et ne produisent aucune alerte.
 - Tests de règles, filtres et convergence dans `backend/tests/Unit/RuleEngineTest.php`.
@@ -100,9 +100,19 @@ L’ordre appliqué est celui de `Claude.md` :
 - `php artisan feasibility:test --capture` enregistre les corps de réponses dans `backend/storage/feasibility/`, sans enregistrer les clés d’accès. Ce dossier est ignoré par Git.
 - Les éléments à fournir et les limites des pilotes réels sont consignés dans `A_FOURNIR_PAR_LE_CLIENT.md` et `PASSER_EN_REEL.md`.
 
-**Étape 6 non commencée :** les fichiers CDC texte annoncés (`PRONOFOOT_CDC_Phase1_Signaux_Live.md` et `PRONOFOOT_CDC_V9.1.md`) ne sont pas présents dans `docs/` dans l’espace de travail accessible. Ils doivent être disponibles et relus avant de définir le scan, ses cadences et son comportement après but.
+### Étape 6 — Scan, relance après un but et expiration
 
-**Vérification (8 novembre 2026) :** `php artisan test` — 54 tests réussis, 230 assertions ; `vendor\bin\pint --test` — réussi ; `npm test` — 3 tests réussis ; `npm run lint` — réussi ; `npm run build` — réussi. `php artisan feasibility:test --matches=30 --odds-interval=30 --stats-interval=60 --capture` — réussi en simulation ; captures contrôlées puis fichiers d’essai supprimés. Les fréquences de cet exemple sont des entrées explicites de la commande, pas des valeurs configurées par défaut.
+- Les PDF `PRONOFOOT_CDC_Phase1_Signaux_Live.pdf` et `PRONOFOOT_CDC_V9.1.pdf` ont été relus avant l’implémentation. Le CDC Phase 1 indique une lecture des cotes toutes les 30 secondes, des statistiques toutes les 60 secondes et l’expiration d’une alerte sans but après 15 minutes.
+- Les paramètres correspondants sont enregistrés en base et appliqués par le scan. La relance à 15 secondes pendant 120 secondes après détection d’un but vient du TRD ; elle reste configurable et est distinguée des cadences explicitement indiquées dans le CDC.
+- `php artisan scan:once` effectue un passage ; `php artisan scan:run` maintient le processus en boucle. Les statistiques ne sont demandées qu’à leur cadence ; les cotes sont rafraîchies à leur cadence ou immédiatement après un but.
+- Chaque passage conserve un instantané des données disponibles et leur heure de capture. Des données absentes ou trop anciennes ne sont pas utilisées pour déclencher une alerte ; les erreurs de fournisseurs sont journalisées dans les opportunités.
+- Un changement à la hausse du score est journalisé comme but, invalide les alertes actives du match et déclenche une réévaluation. Les corrections de score à la baisse ne sont pas interprétées comme un but.
+- Les alertes ne sont créées que si le moteur les autorise, si un profil actif et sa convergence sont configurés et si toutes les données requises sont disponibles. Une alerte active n’est pas dupliquée pour le même match, règle et sélection.
+- Les paramètres `tendance_source` et `tendance_seuil_stable` sont persistés sans valeur jusqu’à confirmation du client. L’hypothèse fake explicite les paramètres dans la fixture. La vitalité n’est pas calculée à partir de statistiques brutes ; une donnée manquante entraîne l’abstention.
+- La tendance est calculée sur la cote du score exact suggéré, avec le dernier instantané de cotes datant d’au moins deux minutes ; formule : `(cote actuelle − cote à −2 min) / cote à −2 min × 100`. Une baisse est négative ; une variation absolue inférieure ou égale au seuil configuré est stable. Une référence absente ou trop récente, une source différente ou un paramètre vide provoque l’abstention.
+- Les alertes restent en file d’attente à cette étape ; aucun envoi WhatsApp ou Telegram n’est encore branché. Aucun pari n’est placé.
+
+**Vérification (8 novembre 2026) :** migrations appliquées à la base locale ; `php artisan test` — 67 tests réussis, 290 assertions ; `vendor\bin\pint --test` — réussi. Les tests de scan couvrent la création de signal fake, le calcul de tendance depuis l’instantané, l’abstention si la référence manque ou est trop récente, l’anti-doublon, le but et l’invalidation, l’expiration, l’indisponibilité des cotes exactes, la panne fournisseur et les statistiques absentes. Les vérifications frontend et `feasibility:test --capture` réalisées à l’étape 5 restent valides.
 
 ## Guide de démarrage et de test local
 
@@ -220,15 +230,15 @@ Les tests automatisés ne remplacent pas les dix situations complètes avec déc
 
 ### Étapes de développement restantes
 
-5. **À faire — prochaine étape :** ajouter les interfaces de clients Odds et Football, leurs pilotes fictif et réel configurables dans `.env`, puis la commande de faisabilité des marchés et statistiques en direct.
-6. **À faire :** ajouter le scan paramétrable, les instantanés, le scan renforcé après but et l’expiration des alertes.
-7. **À faire :** ajouter l’envoi WhatsApp, le pilote fictif et le repli Telegram.
-8. **À faire :** compléter le journal, le calcul des statistiques de réussite, les tests de recette, puis préparer le déploiement.
+5. **Terminé :** pilotes fake et real prudents, commande de faisabilité et capture sans clés.
+6. **Terminé :** scan paramétrable, instantanés, relance après but, anti-doublon et expiration.
+7. **À faire — prochaine étape :** ajouter le canal de notification de développement, WhatsApp et le repli Telegram, sans identifiants réels.
+8. **À faire :** compléter les écrans et données de matchs, paramètres, journal et statistiques, puis documenter la préparation du déploiement.
 
 ### À brancher lors des prochaines étapes d’intégration
 
-- Les listes de matchs, compteurs, journal et statistiques sont des états vides, en attente de leurs routes et données.
-- Les valeurs des seuils sont présentées comme références documentaires ; leur sauvegarde et leur application aux prochains scans ne sont pas encore reliées à la base.
+- Les listes de matchs, compteurs, journal et statistiques de l’interface restent à relier aux données persistées (étape 8).
+- Les paramètres de scan et seuils métier documentés sont maintenant persistés et appliqués ; leur édition depuis la page Paramètres reste à réaliser à l’étape 8.
 - Le testeur simule actuellement l’évaluation des règles/filtres depuis l’interface. Le branchement du client d’API et des données réelles ou fictives appartient aux étapes suivantes.
 - En développement, démarrer `php artisan serve --host=127.0.0.1 --port=8001` depuis `backend/` et `npm run dev` depuis `frontend/` dans deux terminaux. Laravel sert l’application sur le port 8001 et Vite redirige sa racine vers la connexion Laravel. Vite utilise le port 5174 par défaut pour éviter le port 5173 déjà occupé sur cette machine. Quand Vite n’est pas lancé, Laravel utilise les ressources compilées par `npm run build`.
 
@@ -282,3 +292,10 @@ Ne partage jamais un secret TOTP d’enrôlement, un code à usage unique ou un 
 - Garder `APP_KEY`, mots de passe, secrets TOTP et futures clés API privés. `.env` ne doit pas être versionné.
 - Avant tout déploiement : compte MySQL dédié avec mot de passe fort, HTTPS, configuration de production sans débogage, sauvegardes et procédure de récupération 2FA à définir.
 - Le projet ne passe aucun pari et ne doit pas automatiser cette action.
+### Tendance (hypothèse à confirmer)
+
+Le calcul préparé compare la cote du score exact de l’équipe ciblée par la règle, entre la cote courante et le dernier instantané dont les données de cotes datent d’au moins deux minutes :
+
+`(cote actuelle − cote à −2 min) / cote à −2 min × 100`
+
+Une variation négative est une baisse ; une variation absolue inférieure ou égale à `tendance_seuil_stable` est stable. La source `cote_suggeree` et le seuil restent vides dans les paramètres persistés jusqu’à confirmation du client. Les scénarios fake les renseignent explicitement pour tester le calcul ; une référence manquante ou trop récente provoque l’abstention.

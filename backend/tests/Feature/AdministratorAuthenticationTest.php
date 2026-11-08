@@ -182,6 +182,8 @@ class AdministratorAuthenticationTest extends TestCase
                 'exact_score_odds' => ['0-0' => 7.5, '1-0' => 8.6, '0-1' => 9.8],
                 'vitality_score' => 61,
                 'odds_change_percent' => -1,
+                'tendance_source' => 'cote_suggeree',
+                'tendance_seuil_stable' => 3,
             ])
             ->assertOk()
             ->assertJsonPath('rules.F121-C.verdict', 'candidate')

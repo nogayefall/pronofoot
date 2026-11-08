@@ -11,7 +11,7 @@ final class ApiFootballProvider implements FootballProvider
 {
     public function __construct(private readonly ApiFootballMapper $mapper) {}
 
-    public function getLiveMatches(int $scanNumber = 0): FootballFeed
+    public function getLiveMatches(int $scanNumber = 0, bool $includeStatistics = true): FootballFeed
     {
         $url = trim((string) config('services.football_api.probe_url', ''));
         $key = trim((string) config('services.football_api.api_key', ''));

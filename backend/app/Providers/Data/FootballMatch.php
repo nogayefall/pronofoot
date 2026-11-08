@@ -6,6 +6,7 @@ final readonly class FootballMatch
 {
     /**
      * @param  array<string, int|float>  $statistics
+     * @param  array<string, int|float>  $methodScores
      */
     public function __construct(
         public string $providerMatchId,
@@ -20,6 +21,6 @@ final readonly class FootballMatch
         public ?int $awayScore = null,
         public array $statistics = [],
         public ?float $vitalityScore = null,
-        public ?float $oddsChangePercent = null,
+        public array $methodScores = [],
     ) {}
 }

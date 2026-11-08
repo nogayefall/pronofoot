@@ -6,6 +6,7 @@ final readonly class FootballFeed
 {
     /**
      * @param  list<FootballMatch>  $matches
+     * @param  array<string, int|float|string|null>  $simulationSettings
      */
     public function __construct(
         public string $driver,
@@ -16,5 +17,6 @@ final readonly class FootballFeed
         public ?int $requestsUsed = null,
         public ?int $requestsRemaining = null,
         public ?string $rawResponse = null,
+        public array $simulationSettings = [],
     ) {}
 }

@@ -4,7 +4,7 @@ Le fonctionnement fictif est disponible sans clé. Garder les deux pilotes sur `
 
 ## 1. Vérifier les sources avant toute activation
 
-1. Confirmer dans le CDC Phase 1 les cadences et les seuils utilisés par le scan.
+1. Les cadences appliquées proviennent des documents disponibles : cotes toutes les 30 secondes, statistiques toutes les 60 secondes et expiration après 15 minutes sans but selon le PDF du CDC Phase 1 ; relance toutes les 15 secondes pendant 120 secondes après but selon le TRD. Vérifier ces valeurs paramétrables avant activation en production.
 2. Avec le fournisseur Odds, vérifier la disponibilité effective du marché de scores exacts en direct pour le compte, le sport et les régions visés. Le [catalogue officiel des marchés](https://the-odds-api.com/sports-odds-data/betting-markets.html) consulté ne documente pas ce marché. Le pilote réel actuel refuse le marché et **n’effectue aucun appel**. Ne pas basculer ce pilote tant que cette capacité n’est pas confirmée et implémentée à partir d’une réponse documentée.
 3. Avec API-Football, confirmer dans la documentation du compte l’URL, le nom de l’en-tête d’authentification, les endpoints, les quotas et les réponses de score et de statistiques. Le pilote contient un point de capture générique ; son mapper reste `NON VÉRIFIÉ` et ne convertit aucun champ.
 4. Préparer des réponses de test expurgées et faire valider les mappers isolés par des tests avant d’autoriser le scan. Tant que les correspondances entre identifiants de matchs et données des deux fournisseurs ne sont pas confirmées, ne pas créer d’alertes réelles.
@@ -39,5 +39,6 @@ Le pilote réel Odds signale explicitement « marché des scores exacts non disp
 - Exécuter `php artisan test` et `vendor\bin\pint --test`.
 - Configurer seulement les paramètres confirmés par le CDC et lancer `php artisan feasibility:test` ; ajouter `--capture` uniquement lorsque la réponse doit être enregistrée.
 - Confirmer les marchés et données live, les quotas et leur coût, la correspondance des matchs, ainsi que l’absence de données périmées.
+- Confirmer les deux paramètres de tendance avant de les renseigner dans `tendance_source` et `tendance_seuil_stable`. L’hypothèse actuelle compare la cote du score exact suggéré au dernier instantané datant d’au moins deux minutes ; `3 %` n’est qu’un exemple non confirmé. Si un paramètre ou l’instantané de référence manque, la tendance est non calculable et aucune alerte n’est créée.
 - Tester le cycle complet et les critères de sécurité sur des réponses de test avant toute activation de notifications réelles.
 - Les pilotes et l’interface ne placent aucun pari. N’ajouter aucune intégration d’exécution de paris.

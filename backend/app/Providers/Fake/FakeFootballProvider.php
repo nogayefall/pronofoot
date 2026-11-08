@@ -10,7 +10,7 @@ final class FakeFootballProvider implements FootballProvider
 {
     public function __construct(private readonly FakeFixtureLoader $fixtures) {}
 
-    public function getLiveMatches(int $scanNumber = 0): FootballFeed
+    public function getLiveMatches(int $scanNumber = 0, bool $includeStatistics = true): FootballFeed
     {
         $fixture = $this->fixtures->load();
         $matches = [];
@@ -27,7 +27,7 @@ final class FakeFootballProvider implements FootballProvider
                 continue;
             }
 
-            $statistics = $data['statistics'] ?? [];
+            $statistics = $includeStatistics ? ($data['statistics'] ?? []) : [];
             $matches[] = new FootballMatch(
                 providerMatchId: (string) $match['id'],
                 homeTeam: (string) ($match['home_team'] ?? 'Équipe domicile fictive'),
@@ -40,15 +40,17 @@ final class FakeFootballProvider implements FootballProvider
                 homeScore: isset($data['home_score']) ? (int) $data['home_score'] : null,
                 awayScore: isset($data['away_score']) ? (int) $data['away_score'] : null,
                 statistics: is_array($statistics) ? $statistics : [],
-                vitalityScore: is_numeric($data['vitality_score'] ?? null) ? (float) $data['vitality_score'] : null,
-                oddsChangePercent: is_numeric($data['odds_change_percent'] ?? null) ? (float) $data['odds_change_percent'] : null,
+                vitalityScore: $includeStatistics && is_numeric($data['vitality_score'] ?? null) ? (float) $data['vitality_score'] : null,
+                methodScores: is_array($data['method_scores'] ?? null) ? $data['method_scores'] : [],
             );
         }
 
         $requiredStatistics = ['shots', 'shots_on_target', 'possession', 'corners'];
-        $statisticsAvailable = collect($matches)->contains(
-            fn (FootballMatch $match): bool => count(array_intersect($requiredStatistics, array_keys($match->statistics))) === count($requiredStatistics),
-        );
+        $statisticsAvailable = ! $includeStatistics
+            ? null
+            : collect($matches)->contains(
+                fn (FootballMatch $match): bool => count(array_intersect($requiredStatistics, array_keys($match->statistics))) === count($requiredStatistics),
+            );
 
         return new FootballFeed(
             driver: 'fake',
@@ -58,6 +60,9 @@ final class FakeFootballProvider implements FootballProvider
             matches: $matches,
             requestsUsed: 0,
             rawResponse: $this->fixtures->raw(),
+            simulationSettings: is_array($fixture['simulation_settings'] ?? null)
+                ? $fixture['simulation_settings']
+                : [],
         );
     }
 }

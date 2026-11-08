@@ -30,4 +30,10 @@ class Alert extends Model
     {
         return $this->belongsTo(OpportunityLog::class);
     }
+
+    public function isActive(): bool
+    {
+        return in_array($this->status, ['queued', 'sent'], true)
+            && ($this->expires_at === null || $this->expires_at->isFuture());
+    }
 }

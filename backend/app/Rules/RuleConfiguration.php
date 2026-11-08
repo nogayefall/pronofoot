@@ -17,6 +17,7 @@ final readonly class RuleConfiguration
         public float $zeroZeroGapThreshold = 1.0,
         public float $upcomingScoreOddsLimit = 7.0,
         public float $minimumVitality = 40.0,
+        public ?string $trendSource = null,
         public ?float $stableOddsChangePercent = null,
         public float $minimumConvergenceScore = 75.0,
         public array $methodWeights = [],

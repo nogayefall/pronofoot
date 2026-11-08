@@ -13,6 +13,8 @@ class OpportunityLog extends Model
         'match_snapshot_id',
         'rule_profile_id',
         'event_type',
+        'rule_id',
+        'selection',
         'decision',
         'rule_results',
         'filter_results',

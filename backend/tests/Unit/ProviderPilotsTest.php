@@ -37,6 +37,8 @@ class ProviderPilotsTest extends TestCase
             array_map(fn ($match): ?string => $match->scenario, $football->matches),
         );
         $this->assertNotNull($football->rawResponse);
+        $this->assertSame('cote_suggeree', $football->simulationSettings['tendance_source']);
+        $this->assertSame(3, $football->simulationSettings['tendance_seuil_stable']);
         $this->assertSame(0, $football->requestsUsed);
         $this->assertSame(0, $odds->requestsUsed);
     }
@@ -56,11 +58,13 @@ class ProviderPilotsTest extends TestCase
                 awayScore: $footballMatch->awayScore,
                 exactScoreOdds: $oddsMatch->exactScoreOdds,
                 vitalityScore: $footballMatch->vitalityScore,
-                oddsChangePercent: $footballMatch->oddsChangePercent,
+                oddsChangePercent: -1.0,
                 methodScores: ['F121-C' => 82],
             ),
             new RuleConfiguration(
                 activeRules: ['F121-C'],
+                trendSource: 'cote_suggeree',
+                stableOddsChangePercent: 3.0,
                 methodWeights: ['F121-C' => 1.0],
             ),
         );
@@ -90,11 +94,13 @@ class ProviderPilotsTest extends TestCase
                     awayScore: $footballMatch->awayScore,
                     exactScoreOdds: $oddsMatch->exactScoreOdds,
                     vitalityScore: $footballMatch->vitalityScore,
-                    oddsChangePercent: $footballMatch->oddsChangePercent,
+                    oddsChangePercent: $scenario === 'trend-data-missing' ? null : -1.0,
                     methodScores: ['F121-C' => 82],
                 ),
                 new RuleConfiguration(
                     activeRules: ['F121-C'],
+                    trendSource: 'cote_suggeree',
+                    stableOddsChangePercent: 3.0,
                     methodWeights: ['F121-C' => 1.0],
                 ),
             );

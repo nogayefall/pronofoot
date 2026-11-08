@@ -16,6 +16,7 @@ class TrackedMatch extends Model
         'kickoff_at',
         'status',
         'is_active',
+        'last_goal_detected_at',
     ];
 
     protected function casts(): array
@@ -23,6 +24,7 @@ class TrackedMatch extends Model
         return [
             'kickoff_at' => 'datetime',
             'is_active' => 'boolean',
+            'last_goal_detected_at' => 'datetime',
         ];
     }
 

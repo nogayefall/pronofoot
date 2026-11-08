@@ -1,4 +1,8 @@
 {
+  "simulation_settings": {
+    "tendance_source": "cote_suggeree",
+    "tendance_seuil_stable": 3
+  },
   "failure_modes": {
     "api_outage": "Panne d’API fictive demandée pour le test de résilience."
   },
@@ -20,7 +24,9 @@
               "corners": 3
             },
             "vitality_score": 61,
-            "odds_change_percent": -1
+            "method_scores": {
+              "F121-C": 90
+            }
           },
           "odds": {
             "exact_score_odds": {
@@ -51,8 +57,7 @@
               "possession": 51,
               "corners": 2
             },
-            "vitality_score": 61,
-            "odds_change_percent": -1
+            "vitality_score": 61
           },
           "odds": {
             "exact_score_odds": {
@@ -81,8 +86,7 @@
               "possession": 50,
               "corners": 0
             },
-            "vitality_score": 39,
-            "odds_change_percent": -1
+            "vitality_score": 39
           },
           "odds": {
             "exact_score_odds": {
@@ -111,8 +115,7 @@
               "possession": 48,
               "corners": 3
             },
-            "vitality_score": 61,
-            "odds_change_percent": null
+            "vitality_score": 61
           },
           "odds": {
             "exact_score_odds": {
@@ -142,7 +145,9 @@
               "corners": 4
             },
             "vitality_score": 61,
-            "odds_change_percent": -1
+            "method_scores": {
+              "F121-C": 90
+            }
           },
           "odds": {
             "exact_score_odds": {
@@ -166,7 +171,9 @@
               "corners": 4
             },
             "vitality_score": 64,
-            "odds_change_percent": -2
+            "method_scores": {
+              "F121-C": 90
+            }
           },
           "odds": {
             "exact_score_odds": {
@@ -190,8 +197,7 @@
             "home_score": 0,
             "away_score": 0,
             "statistics": [],
-            "vitality_score": null,
-            "odds_change_percent": -1
+            "vitality_score": null
           },
           "odds": {
             "exact_score_odds": {

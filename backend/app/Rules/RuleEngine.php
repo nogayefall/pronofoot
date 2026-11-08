@@ -83,4 +83,32 @@ final class RuleEngine
             reason: $reason,
         );
     }
+
+    public function suggestedExactScoreKey(RuleInput $input, RuleConfiguration $configuration): ?string
+    {
+        $directionalResult = $this->f121C->evaluate($input);
+        $rules = [];
+        foreach ($configuration->activeRules as $ruleId) {
+            if ($ruleId === 'F121-C') {
+                $rules[$ruleId] = $directionalResult;
+            } elseif ($ruleId === 'F121-C.2') {
+                $rules[$ruleId] = $this->f121C2->evaluate($input, $directionalResult);
+            }
+        }
+
+        $activeDirectionalResult = $rules['F121-C.2'] ?? $rules['F121-C'] ?? null;
+        if ($activeDirectionalResult?->verdict !== RuleVerdict::Candidate) {
+            $activeDirectionalResult = $rules['F121-C'] ?? null;
+        }
+
+        if ($activeDirectionalResult?->verdict !== RuleVerdict::Candidate) {
+            return null;
+        }
+
+        return match ($activeDirectionalResult->details['selectedTeam'] ?? null) {
+            'home' => ($input->homeScore + 1).'-'.$input->awayScore,
+            'away' => $input->homeScore.'-'.($input->awayScore + 1),
+            default => null,
+        };
+    }
 }
