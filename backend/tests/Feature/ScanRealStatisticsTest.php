@@ -181,6 +181,28 @@ class ScanRealStatisticsTest extends TestCase
         $this->assertStringContainsString('Quota API-Football épuisé', OpportunityLog::query()->firstOrFail()->reason);
     }
 
+    public function test_scan_once_lists_each_incident_with_match_type_and_french_reason(): void
+    {
+        TrackedMatch::query()->create([
+            'provider' => 'real',
+            'provider_match_id' => '999',
+            'home_team' => 'Avenir du Nord',
+            'away_team' => 'Union du Sud',
+            'is_active' => true,
+        ]);
+        TrackedMatch::query()->where('provider_match_id', '109')->update([
+            'home_team' => 'France U17',
+            'away_team' => 'Armenia U17',
+        ]);
+        $this->fakeApi(stoppedOdds: [109], halftime: [109]);
+
+        $this->artisan('scan:once')
+            ->expectsOutputToContain('Incidents : 2')
+            ->expectsOutputToContain('Avenir du Nord – Union du Sud : données du match manquantes — Match introuvable dans le flux en direct.')
+            ->expectsOutputToContain('France U17 – Armenia U17 : match arrêté — Match arrêté à la mi-temps : aucune alerte, statistiques conservées.')
+            ->assertExitCode(1);
+    }
+
     /**
      * @return list<string>
      */
@@ -203,10 +225,11 @@ class ScanRealStatisticsTest extends TestCase
         array $stoppedOdds = [],
         int $liveRemaining = 100,
         ?int $statisticsRemainingStart = null,
+        array $halftime = [],
     ): void {
         $statisticsRemaining = $statisticsRemainingStart ?? $liveRemaining - 1;
 
-        Http::fake(function (Request $request) use ($failingStatistics, $stoppedOdds, $liveRemaining, &$statisticsRemaining) {
+        Http::fake(function (Request $request) use ($failingStatistics, $stoppedOdds, $liveRemaining, $halftime, &$statisticsRemaining) {
             $url = $request->url();
             if (str_contains($url, '/fixtures/statistics')) {
                 $fixtureId = (int) $request->data()['fixture'];
@@ -218,7 +241,7 @@ class ScanRealStatisticsTest extends TestCase
             }
 
             if (str_contains($url, '/fixtures')) {
-                return Http::response($this->liveBody(), 200, ['x-ratelimit-requests-remaining' => (string) $liveRemaining]);
+                return Http::response($this->liveBody($halftime), 200, ['x-ratelimit-requests-remaining' => (string) $liveRemaining]);
             }
 
             if (str_contains($url, '/odds/live')) {
@@ -229,10 +252,15 @@ class ScanRealStatisticsTest extends TestCase
         });
     }
 
-    private function liveBody(): string
+    /**
+     * @param  list<int>  $halftime
+     */
+    private function liveBody(array $halftime = []): string
     {
         return json_encode(['errors' => [], 'response' => array_map(fn (int $id): array => [
-            'fixture' => ['id' => $id, 'status' => ['long' => 'Second Half', 'short' => '2H', 'elapsed' => 60]],
+            'fixture' => ['id' => $id, 'status' => in_array($id, $halftime, true)
+                ? ['long' => 'Halftime', 'short' => 'HT', 'elapsed' => 45]
+                : ['long' => 'Second Half', 'short' => '2H', 'elapsed' => 60]],
             'league' => ['id' => 1, 'name' => 'Ligue de test', 'season' => 2026],
             'teams' => [
                 'home' => ['id' => $id * 10 + 1, 'name' => "Home {$id}"],

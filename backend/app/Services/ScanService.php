@@ -30,6 +30,9 @@ final class ScanService
 {
     private ?CarbonImmutable $lastOddsFetchAt = null;
 
+    /** @var list<array{match: string, type: string, reason: string}> */
+    private array $incidents = [];
+
     private ?CarbonImmutable $lastStatisticsFetchAt = null;
 
     private ?OddsFeed $cachedOddsFeed = null;
@@ -44,6 +47,7 @@ final class ScanService
     public function runOnce(int $scanNumber = 0, bool $forceRefresh = true): ScanPassResult
     {
         $now = CarbonImmutable::now();
+        $this->incidents = [];
         Cache::put('pronofoot.scan.last_pass_at', $now->toIso8601String(), $now->addDays(30));
         $settingValues = $this->settings->all();
         $oddsInterval = $this->settings->integer($settingValues, 'scan.odds_interval_seconds');
@@ -55,7 +59,7 @@ final class ScanService
         $trackedMatches = TrackedMatch::query()->where('is_active', true)->get();
 
         if ($trackedMatches->isEmpty()) {
-            return new ScanPassResult(0, 0, 0, $expiredAlerts, 0, 0, $oddsInterval);
+            return new ScanPassResult(0, 0, 0, $expiredAlerts, 0, 0, $oddsInterval, incidents: $this->incidents);
         }
 
         $includeStatistics = $forceRefresh
@@ -71,6 +75,7 @@ final class ScanService
                 0,
                 count($trackedMatches),
                 $this->nextPollInterval($settingValues, $now),
+                incidents: $this->incidents,
             );
         }
 
@@ -164,7 +169,7 @@ final class ScanService
         foreach ($trackedMatches as $trackedMatch) {
             $footballMatch = $footballMatches[$trackedMatch->provider_match_id] ?? null;
             if ($footballMatch === null || ! $this->isInPlay($footballMatch)) {
-                $this->recordIncident($trackedMatch, 'football_data_missing', 'Les données du match en direct ne sont pas disponibles.', $now);
+                $this->recordIncident($trackedMatch, 'football_data_missing', $footballMatch === null ? 'Match introuvable dans le flux en direct.' : 'Match non en cours selon le flux (statut : '.$footballMatch->status.').', $now);
                 $errors++;
 
                 continue;
@@ -206,7 +211,9 @@ final class ScanService
                 $this->recordIncident(
                     $trackedMatch,
                     'match_stopped',
-                    'Match arrêté (mi-temps ou interruption) : aucune alerte ; les statistiques sont conservées.',
+                    strcasecmp($footballMatch->status, 'Halftime') === 0
+                        ? 'Match arrêté à la mi-temps : aucune alerte, statistiques conservées.'
+                        : 'Match arrêté par le fournisseur : aucune alerte, statistiques conservées.',
                     $now,
                     $snapshot,
                 );
@@ -290,6 +297,7 @@ final class ScanService
             $errors,
             $this->nextPollInterval($settingValues, $now),
             $quotaStopped,
+            $this->incidents,
         );
     }
 
@@ -319,6 +327,7 @@ final class ScanService
             count($trackedMatches),
             $this->nextPollInterval($settingValues, $now),
             true,
+            $this->incidents,
         );
     }
 
@@ -835,6 +844,11 @@ final class ScanService
         CarbonImmutable $now,
         ?MatchSnapshot $snapshot = null,
     ): void {
+        $this->incidents[] = [
+            'match' => "{$trackedMatch->home_team} – {$trackedMatch->away_team}",
+            'type' => $eventType,
+            'reason' => $reason,
+        ];
         $this->recordOpportunity(
             $trackedMatch,
             $snapshot,

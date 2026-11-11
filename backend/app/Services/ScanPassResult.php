@@ -4,6 +4,9 @@ namespace App\Services;
 
 final readonly class ScanPassResult
 {
+    /**
+     * @param  list<array{match: string, type: string, reason: string}>  $incidents  Incidents consignés pendant ce passage.
+     */
     public function __construct(
         public int $matchesScanned,
         public int $snapshotsStored,
@@ -13,5 +16,6 @@ final readonly class ScanPassResult
         public int $errors,
         public int $nextPollIntervalSeconds,
         public bool $quotaStopped = false,
+        public array $incidents = [],
     ) {}
 }
