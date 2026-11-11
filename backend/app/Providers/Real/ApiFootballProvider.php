@@ -136,6 +136,7 @@ final class ApiFootballProvider implements FootballProvider
         $statisticsMatches = array_slice($liveFeed->matches, 0, $statisticsMatchLimit);
         $statisticsMatchId = null;
         $rawStatisticsResponse = null;
+        $rawStatisticsResponses = [];
         $statisticsFailure = null;
 
         foreach ($statisticsMatches as $match) {
@@ -162,6 +163,8 @@ final class ApiFootballProvider implements FootballProvider
 
                 break;
             }
+
+            $rawStatisticsResponses[$match->providerMatchId] = $statisticsResponse->body();
         }
 
         $feed = $this->mapper->mapFootball(
@@ -172,6 +175,7 @@ final class ApiFootballProvider implements FootballProvider
             requestsRemaining: $requestsRemaining,
             requestsLimit: $requestsLimit,
             rawCoverageResponse: $rawCoverageResponse,
+            rawStatisticsResponses: $rawStatisticsResponses,
         );
 
         if ($statisticsFailure === null && $coverageFailure === null) {

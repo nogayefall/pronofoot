@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { createRuleTestPayload, parseCorrectScoreOdds } from '../src/adminData.js'
+import { createRuleTestPayload, parseCorrectScoreOdds, teamStatisticsRows } from '../src/adminData.js'
 
 test('parseCorrectScoreOdds reads decimal comma and dot formats', () => {
   assert.deepEqual(parseCorrectScoreOdds('0-0 = 7,50\n1-0 : 8.60\n0-1 = 9,80'), {
@@ -40,4 +40,17 @@ test('createRuleTestPayload validates the score, vitality and required correct-s
   assert.throws(() => createRuleTestPayload({ ...fields, homeScore: '-1' }), /scores doivent être/)
   assert.throws(() => createRuleTestPayload({ ...fields, vitalityScore: '101' }), /vitalité doit être/)
   assert.throws(() => createRuleTestPayload({ ...fields, oddsChangePercent: 'stable' }), /variation des cotes/)
+})
+
+test('teamStatisticsRows formats raw team statistics and never turns missing values into zero', () => {
+  assert.deepEqual(teamStatisticsRows({
+    home: { shots: 5, shots_on_target: 3, corners: 0, possession: 40 },
+    away: { shots: 9, shots_on_target: null, possession: 60 },
+  }), [
+    { key: 'shots', label: 'Tirs', home: '5', away: '9' },
+    { key: 'shots_on_target', label: 'Tirs cadrés', home: '3', away: 'Non disponible' },
+    { key: 'corners', label: 'Corners', home: '0', away: 'Non disponible' },
+    { key: 'possession', label: 'Possession', home: '40 %', away: '60 %' },
+  ])
+  assert.deepEqual(teamStatisticsRows(null), [])
 })

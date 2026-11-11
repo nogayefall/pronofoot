@@ -31,6 +31,8 @@ final class AdminDashboardController extends Controller
                     'homeScore' => $snapshot?->home_score,
                     'awayScore' => $snapshot?->away_score,
                     'vitality' => $snapshot?->vitality_score,
+                    'teamStatistics' => $this->teamStatistics($snapshot?->statistics),
+                    'statisticsCapturedAt' => $snapshot?->statistics_captured_at?->toIso8601String(),
                     'capturedAt' => $snapshot?->captured_at?->toIso8601String(),
                 ];
             });
@@ -74,5 +76,29 @@ final class AdminDashboardController extends Controller
             ],
             'providerStatus' => $providerStatus,
         ]);
+    }
+
+    /**
+     * Statistiques brutes par équipe ; une valeur absente reste null et n’est jamais remplacée par 0.
+     *
+     * @param  array<string, mixed>|null  $statistics
+     * @return array{home: array<string, int|float|null>, away: array<string, int|float|null>}|null
+     */
+    private function teamStatistics(?array $statistics): ?array
+    {
+        if (! is_array($statistics['home'] ?? null) && ! is_array($statistics['away'] ?? null)) {
+            return null;
+        }
+
+        $teamStatistics = [];
+        foreach (['home', 'away'] as $side) {
+            $values = is_array($statistics[$side] ?? null) ? $statistics[$side] : [];
+            foreach (['shots', 'shots_on_target', 'corners', 'possession'] as $key) {
+                $value = $values[$key] ?? null;
+                $teamStatistics[$side][$key] = is_int($value) || is_float($value) ? $value : null;
+            }
+        }
+
+        return $teamStatistics;
     }
 }

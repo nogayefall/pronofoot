@@ -5,7 +5,7 @@ namespace App\Providers\Data;
 final readonly class FootballMatch
 {
     /**
-     * @param  array<string, int|float|null>  $statistics
+     * @param  array<string, int|float|null|array<string, int|float|null>>  $statistics  Fake : valeurs plates ; API-Football : clés home et away, chacune avec shots, shots_on_target, corners et possession.
      * @param  array<string, int|float>  $methodScores
      * @param  array<string, int|float>  $exactScoreOdds
      */
@@ -33,5 +33,7 @@ final readonly class FootballMatch
         public ?bool $statisticsCoverage = null,
         public bool $statisticsCoverageFallback = false,
         public ?int $statisticsCoverageSeason = null,
+        public ?int $homeTeamId = null,
+        public ?int $awayTeamId = null,
     ) {}
 }

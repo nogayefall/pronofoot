@@ -237,12 +237,117 @@ class ProviderPilotsTest extends TestCase
         $this->assertSame('Liechtenstein U19', $match->awayTeam);
         $this->assertSame(4, $match->homeScore);
         $this->assertSame(1, $match->awayScore);
+        $this->assertSame([], $match->statistics);
+        $this->assertSame(10361, $match->homeTeamId);
+        $this->assertSame(10369, $match->awayTeamId);
+    }
+
+    public function test_api_football_mapper_reads_the_four_covered_statistics_by_team_id(): void
+    {
+        $statisticsResponse = file_get_contents(database_path('fixtures/api-football/fixtures-statistics-covered.json'));
+        $this->assertNotFalse($statisticsResponse);
+
+        $feed = (new ApiFootballMapper)->mapFootball(
+            rawResponse: $this->liveResponseFor1644163(),
+            rawStatisticsResponse: $statisticsResponse,
+            statisticsMatchId: '1644163',
+        );
+
+        $this->assertTrue($feed->statisticsAvailable);
+        $this->assertStringContainsString('La vitalité n’est pas calculée', $feed->statusMessage);
+        $match = $feed->matches[0];
         $this->assertSame([
-            'shots' => null,
-            'shots_on_target' => null,
-            'possession' => null,
-            'corners' => null,
+            'home' => ['shots' => 5, 'shots_on_target' => 3, 'corners' => 2, 'possession' => 40],
+            'away' => ['shots' => 9, 'shots_on_target' => 1, 'corners' => 1, 'possession' => 60],
         ], $match->statistics);
+        $this->assertNull($match->vitalityScore);
+        $this->assertSame([], $feed->matches[1]->statistics);
+    }
+
+    public function test_api_football_mapper_uses_team_ids_not_response_order(): void
+    {
+        $payload = json_decode(
+            (string) file_get_contents(database_path('fixtures/api-football/fixtures-statistics-covered.json')),
+            true,
+            flags: JSON_THROW_ON_ERROR,
+        );
+        $payload['response'] = array_reverse($payload['response']);
+
+        $feed = (new ApiFootballMapper)->mapFootball(
+            rawResponse: $this->liveResponseFor1644163(),
+            rawStatisticsResponses: ['1644163' => json_encode($payload, JSON_THROW_ON_ERROR)],
+        );
+
+        $this->assertSame(5, $feed->matches[0]->statistics['home']['shots']);
+        $this->assertSame(9, $feed->matches[0]->statistics['away']['shots']);
+    }
+
+    public function test_api_football_mapper_keeps_missing_or_null_statistics_unavailable_instead_of_zero(): void
+    {
+        $payload = json_decode(
+            (string) file_get_contents(database_path('fixtures/api-football/fixtures-statistics-covered.json')),
+            true,
+            flags: JSON_THROW_ON_ERROR,
+        );
+        $payload['response'][0]['statistics'] = array_values(array_filter(
+            $payload['response'][0]['statistics'],
+            fn (array $statistic): bool => $statistic['type'] !== 'Corner Kicks',
+        ));
+        foreach ($payload['response'][0]['statistics'] as $index => $statistic) {
+            if (in_array($statistic['type'], ['Total Shots', 'Ball Possession'], true)) {
+                $payload['response'][0]['statistics'][$index]['value'] = null;
+            }
+        }
+        unset($payload['response'][1]);
+
+        $feed = (new ApiFootballMapper)->mapFootball(
+            rawResponse: $this->liveResponseFor1644163(),
+            rawStatisticsResponses: ['1644163' => json_encode($payload, JSON_THROW_ON_ERROR)],
+        );
+
+        $this->assertSame([
+            'home' => ['shots' => null, 'shots_on_target' => 3, 'corners' => null, 'possession' => null],
+            'away' => ['shots' => null, 'shots_on_target' => null, 'corners' => null, 'possession' => null],
+        ], $feed->matches[0]->statistics);
+    }
+
+    public function test_api_football_mapper_ignores_statistics_of_unknown_team_ids(): void
+    {
+        $payload = json_decode(
+            (string) file_get_contents(database_path('fixtures/api-football/fixtures-statistics-covered.json')),
+            true,
+            flags: JSON_THROW_ON_ERROR,
+        );
+        $payload['response'][0]['team']['id'] = 1;
+        $payload['response'][1]['team']['id'] = 2;
+
+        $feed = (new ApiFootballMapper)->mapFootball(
+            rawResponse: $this->liveResponseFor1644163(),
+            rawStatisticsResponses: ['1644163' => json_encode($payload, JSON_THROW_ON_ERROR)],
+        );
+
+        $this->assertSame([], $feed->matches[0]->statistics);
+        $this->assertFalse($feed->statisticsAvailable);
+    }
+
+    private function liveResponseFor1644163(): string
+    {
+        return json_encode(['response' => [
+            [
+                'fixture' => ['id' => 1644163, 'status' => ['long' => 'Halftime', 'elapsed' => 45]],
+                'league' => ['id' => 1191, 'name' => 'Ligue fictive', 'season' => 2026],
+                'teams' => [
+                    'home' => ['id' => 21698, 'name' => 'Malmö FF W'],
+                    'away' => ['id' => 1898, 'name' => 'Ajax W'],
+                ],
+                'goals' => ['home' => 0, 'away' => 0],
+            ],
+            [
+                'fixture' => ['id' => 2, 'status' => ['long' => 'First Half', 'elapsed' => 10]],
+                'teams' => ['home' => ['id' => 3, 'name' => 'A'], 'away' => ['id' => 4, 'name' => 'B']],
+                'goals' => ['home' => 0, 'away' => 0],
+            ],
+        ]], JSON_THROW_ON_ERROR);
     }
 
     public function test_api_football_mapper_keeps_missing_null_scores_and_minutes_unavailable(): void

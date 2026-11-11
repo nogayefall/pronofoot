@@ -1,6 +1,6 @@
 # PronoFoot — Avancement de la Phase 1
 
-Dernière mise à jour : 8 novembre 2026
+Dernière mise à jour : 11 novembre 2026
 
 ## Références et périmètre
 
@@ -95,7 +95,7 @@ L’ordre appliqué est celui de `Claude.md` :
 - Pilotes `fake` rejouables depuis `backend/database/fixtures/football.json`, couvrant une situation candidate, les refus d’écart et de vitalité, l’absence de donnée de tendance, un but entre deux instantanés, des statistiques manquantes et une panne d’API.
 - Sélection des pilotes par `ODDS_DRIVER` et `FOOTBALL_DRIVER`. Le mode fictif est marqué « MODE SIMULATION : données fictives » et ne produit aucun appel réseau.
 - Le pilote réel Odds n’invente pas de marché de score exact : le catalogue officiel consulté ne le documente pas ; `feasibility:test` l’affiche comme non disponible et ne tente aucune substitution.
-- Le mapper API-Football convertit les champs fournis pour `odds/live?bet=23` : identifiant et état du match, score, indicateurs, horodatage et cotes exactes non suspendues. Les statistiques restent indisponibles ; le branchement complet du fournisseur réel et les quotas restent à valider.
+- Le mapper API-Football convertit les champs fournis pour `odds/live?bet=23` : identifiant et état du match, score, indicateurs, horodatage et cotes exactes non suspendues. Les statistiques sont mappées depuis le 11 novembre 2026 (voir « Statistiques réelles API-Football ») ; le branchement complet du fournisseur réel et les quotas restent à valider.
 - Les fixtures `backend/database/fixtures/api-football/odds_live_bets.json` (266 marchés) et `odds_live_bet23.json` sont fournies par le client depuis le Live tester d’API-Football. Les tableaux de bord affichaient les réponses sans virgules et le client les a converties en JSON valide : le contenu est identique, mais ce ne sont pas des copies octet par octet des réponses HTTP. Le test confirme que le marché `id: 23` se nomme `Final Score`.
 - `php artisan feasibility:test` affiche la disponibilité, les matchs en direct, les marchés, les statistiques et les quotas connus. Le calcul indicatif des appels exige les fréquences confirmées fournies par options ; l’hypothèse d’un appel par match est signalée et ne prétend pas connaître le regroupement ou le coût réel.
 - `php artisan feasibility:test --capture` enregistre les corps de réponses dans `backend/storage/feasibility/`, sans enregistrer les clés d’accès. Ce dossier est ignoré par Git.
@@ -137,6 +137,16 @@ L’ordre appliqué est celui de `Claude.md` :
 - En-têtes de sécurité ajoutés ; le cookie de session devient Secure en production par défaut. Les canaux/API réels restent non vérifiés et sans appels réels.
 - `backend/public/admin-assets/hot` est ignoré par Git. Le guide [`DEPLOIEMENT.md`](./DEPLOIEMENT.md) décrit Nginx, Supervisor, HTTPS, sauvegardes, rotation et contrôles sans effectuer de déploiement.
 - Test du quota nul et tests des API admin ajoutés.
+
+### Statistiques réelles API-Football (11 novembre 2026)
+
+- Capture du match couvert 1644163 copiée sans modification dans `backend/database/fixtures/api-football/fixtures-statistics-covered.json`.
+- `ApiFootballMapper` lit uniquement `Total Shots`, `Shots on Goal`, `Corner Kicks` et `Ball Possession` (`"40%"` → `40`). Chaque entrée est associée au domicile ou à l’extérieur par son `team.id`, comparé aux identifiants d’équipes de `fixtures?live=all`, et non par l’ordre de la réponse. Une valeur absente ou `null` reste non disponible, jamais 0 ; une équipe inconnue est ignorée.
+- Le pilote réel transmet au mapper la réponse de chaque match interrogé, et non plus seulement la première.
+- Format réel : `statistics.home` et `statistics.away`, chacun avec `shots`, `shots_on_target`, `corners` et `possession`. Les scénarios fake gardent leurs valeurs agrégées ; l’interface ne les présente pas comme des valeurs par équipe.
+- Page **Matchs suivis** : une fiche par match suivi affiche ces quatre valeurs brutes par équipe. La vitalité n’est pas calculée ; sans valeur fournie, elle est affichée « Non calculable : normalisation non définie ».
+- Cotes bet 23 dans `odds-live-bet23-20261111-184704-489376.json` (seule capture contenant ces matchs) : 1638318, 1644157, 1644159 et 1644160 ont des cotes non suspendues et un statut non arrêté. 1644163 et 1644162 ont des cotes non suspendues, mais sont à la mi-temps avec `status.stopped = true` ; le mapper les écarte donc dans cette capture.
+- Vérification : `php artisan test` — 105 tests réussis, 559 assertions ; `vendor\bin\pint --test` — réussi ; `npm test` — 4 tests réussis ; `npm run lint` — réussi ; `npm run build` — réussi.
 
 ## Guide de démarrage et de test local
 

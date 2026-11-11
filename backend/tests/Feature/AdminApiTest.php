@@ -264,6 +264,53 @@ class AdminApiTest extends TestCase
             ->assertJsonCount(0, 'activeAlerts');
     }
 
+    public function test_dashboard_exposes_raw_team_statistics_without_filling_missing_values(): void
+    {
+        $match = TrackedMatch::query()->create([
+            'provider' => 'real',
+            'provider_match_id' => '1644163',
+            'home_team' => 'Malmö FF W',
+            'away_team' => 'Ajax W',
+            'is_active' => true,
+        ]);
+        $match->snapshots()->create([
+            'statistics' => [
+                'home' => ['shots' => 5, 'shots_on_target' => 3, 'corners' => 2, 'possession' => 40],
+                'away' => ['shots' => 9, 'shots_on_target' => null, 'corners' => 1, 'possession' => 60],
+            ],
+            'vitality_score' => null,
+            'statistics_captured_at' => now(),
+            'captured_at' => now(),
+        ]);
+
+        $this->getJson(route('admin.api.dashboard'))
+            ->assertOk()
+            ->assertJsonPath('trackedMatches.0.teamStatistics.home.shots', 5)
+            ->assertJsonPath('trackedMatches.0.teamStatistics.home.possession', 40)
+            ->assertJsonPath('trackedMatches.0.teamStatistics.away.shots_on_target', null)
+            ->assertJsonPath('trackedMatches.0.teamStatistics.away.possession', 60)
+            ->assertJsonPath('trackedMatches.0.vitality', null);
+    }
+
+    public function test_dashboard_does_not_present_aggregate_fake_statistics_as_team_statistics(): void
+    {
+        $match = TrackedMatch::query()->create([
+            'provider' => 'fake',
+            'provider_match_id' => 'fake-flat',
+            'home_team' => 'Home',
+            'away_team' => 'Away',
+            'is_active' => true,
+        ]);
+        $match->snapshots()->create([
+            'statistics' => ['shots' => 8, 'shots_on_target' => 4, 'possession' => 56, 'corners' => 3],
+            'captured_at' => now(),
+        ]);
+
+        $this->getJson(route('admin.api.dashboard'))
+            ->assertOk()
+            ->assertJsonPath('trackedMatches.0.teamStatistics', null);
+    }
+
     public function test_admin_api_is_protected(): void
     {
         auth()->logout();

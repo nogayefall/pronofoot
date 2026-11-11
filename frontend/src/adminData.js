@@ -116,3 +116,29 @@ export async function requestAdminApi(path, csrfToken, { method = 'GET', body } 
 
   return result
 }
+
+const TEAM_STATISTICS = [
+  ['shots', 'Tirs'],
+  ['shots_on_target', 'Tirs cadrés'],
+  ['corners', 'Corners'],
+  ['possession', 'Possession'],
+]
+
+/**
+ * Lignes brutes par équipe. Une valeur absente ou null reste « Non disponible », jamais 0.
+ */
+export function teamStatisticsRows(teamStatistics) {
+  if (!teamStatistics || typeof teamStatistics !== 'object') return []
+
+  const format = (key, value) => {
+    if (typeof value !== 'number' || !Number.isFinite(value)) return 'Non disponible'
+    return key === 'possession' ? `${value} %` : String(value)
+  }
+
+  return TEAM_STATISTICS.map(([key, label]) => ({
+    key,
+    label,
+    home: format(key, teamStatistics.home?.[key]),
+    away: format(key, teamStatistics.away?.[key]),
+  }))
+}

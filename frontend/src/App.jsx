@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { createRuleTestPayload, requestAdminApi } from './adminData'
+import { createRuleTestPayload, requestAdminApi, teamStatisticsRows } from './adminData'
 import './App.css'
 
 const navigation = [
@@ -452,6 +452,18 @@ function App() {
                       : null
                   return <tr key={match.providerMatchId}><td>{match.homeTeam} – {match.awayTeam}<small>{match.kickoffAt ? formatDate(match.kickoffAt) : 'Horaire non disponible'}</small></td><td>{match.competition}</td><td>{match.status}{match.minute === null ? '' : ` · ${match.minute}′`}</td><td>{match.homeScore ?? '—'} – {match.awayScore ?? '—'}</td><td>{match.exactScoreMarketAvailable ? 'oui' : 'non'}</td><td>{statisticsStatus}{statisticsWarning && <small>{statisticsWarning}</small>}</td><td>{match.tracked ? 'Suivi' : 'Non suivi'}</td><td><button className="secondary-button compact-button" type="button" disabled={isBusy || (!match.tracked && (!eligible || matchesData.quotaRemaining === 0))} onClick={() => void toggleMatch(match)}>{match.tracked ? 'Retirer' : eligible ? 'Suivre' : 'Indisponible'}</button></td></tr>
                 })}</tbody></table></div> : <EmptyState icon="search" title="Aucune rencontre disponible" message="Le fournisseur n’a retourné aucun match pour le moment." />}
+              </section>
+              <section className="content-panel" aria-labelledby="tracked-statistics-title">
+                <div className="panel-heading"><div><h2 id="tracked-statistics-title">Fiches des matchs suivis</h2><p>Statistiques brutes du dernier relevé, par équipe. Elles ne sont pas converties en vitalité.</p></div></div>
+                {trackedMatches.length ? trackedMatches.map((match) => {
+                  const rows = teamStatisticsRows(match.teamStatistics)
+                  return <article className="match-sheet" key={match.id}>
+                    <h3>{match.homeTeam} – {match.awayTeam}</h3>
+                    <p className="field-help">Statistiques relevées : {match.statisticsCapturedAt ? formatDate(match.statisticsCapturedAt) : 'non disponible'}</p>
+                    {rows.length ? <div className="table-scroll"><table className="data-table"><thead><tr><th>Statistique</th><th>{match.homeTeam}</th><th>{match.awayTeam}</th></tr></thead><tbody>{rows.map((row) => <tr key={row.key}><td>{row.label}</td><td>{row.home}</td><td>{row.away}</td></tr>)}</tbody></table></div> : <p>Statistiques par équipe non disponibles.</p>}
+                    <p className="simulation-line"><span>Vitalité</span><strong>{match.vitality ?? 'Non calculable : normalisation non définie'}</strong></p>
+                  </article>
+                }) : <EmptyState icon="ball" title="Aucun match suivi" message="Suivez une rencontre pour afficher sa fiche." />}
               </section>
             </>
           )}

@@ -15,6 +15,9 @@ final class ApiFootballMapper
         return $this->mapFootball($rawResponse);
     }
 
+    /**
+     * @param  array<string, string>  $rawStatisticsResponses  Réponses fixtures/statistics brutes, indexées par identifiant de match.
+     */
     public function mapFootball(
         string $rawResponse,
         ?string $rawStatisticsResponse = null,
@@ -23,7 +26,13 @@ final class ApiFootballMapper
         ?int $requestsRemaining = null,
         ?int $requestsLimit = null,
         ?string $rawCoverageResponse = null,
+        array $rawStatisticsResponses = [],
     ): FootballFeed {
+        $statisticsResponses = $rawStatisticsResponses;
+        if ($rawStatisticsResponse !== null && $statisticsMatchId !== null) {
+            $statisticsResponses[$statisticsMatchId] ??= $rawStatisticsResponse;
+        }
+
         try {
             $payload = json_decode($rawResponse, true, flags: JSON_THROW_ON_ERROR);
         } catch (JsonException) {
@@ -88,6 +97,9 @@ final class ApiFootballMapper
                     $statisticsCoverage = $leagueCoverage['seasons'][(string) $coverageSeason] ?? null;
                 }
             }
+            $homeTeamId = $this->teamId($teams['home']['id'] ?? null);
+            $awayTeamId = $this->teamId($teams['away']['id'] ?? null);
+            $rawMatchStatistics = $statisticsResponses[(string) $fixtureId] ?? null;
             $matches[] = new FootballMatch(
                 providerMatchId: (string) $fixtureId,
                 homeTeam: $this->availableString($teams['home']['name'] ?? null),
@@ -97,23 +109,24 @@ final class ApiFootballMapper
                 homeScore: is_numeric($goals['home'] ?? null) ? (int) $goals['home'] : null,
                 awayScore: is_numeric($goals['away'] ?? null) ? (int) $goals['away'] : null,
                 competition: $this->availableString($league['name'] ?? null),
-                statistics: [
-                    'shots' => null,
-                    'shots_on_target' => null,
-                    'possession' => null,
-                    'corners' => null,
-                ],
+                statistics: $rawMatchStatistics === null
+                    ? []
+                    : $this->teamStatistics($rawMatchStatistics, $homeTeamId, $awayTeamId),
                 leagueId: $leagueId,
                 statisticsCoverage: $statisticsCoverage,
                 statisticsCoverageFallback: $coverageFallback,
                 statisticsCoverageSeason: $coverageSeason,
+                homeTeamId: $homeTeamId,
+                awayTeamId: $awayTeamId,
             );
         }
 
-        $statisticsAvailable = $rawStatisticsResponse === null
+        $statisticsAvailable = $statisticsResponses === []
             ? null
-            : false;
-        $statisticsMessage = $this->statisticsStatusMessage($rawStatisticsResponse);
+            : collect($matches)->contains(fn (FootballMatch $match): bool => $this->hasStatisticValue($match->statistics));
+        $statisticsMessage = $statisticsAvailable === true
+            ? 'Statistiques API-Football lues par équipe : tirs, tirs cadrés, corners et possession. La vitalité n’est pas calculée.'
+            : $this->statisticsStatusMessage($statisticsResponses === [] ? null : (string) reset($statisticsResponses));
 
         return new FootballFeed(
             driver: 'real',
@@ -321,6 +334,130 @@ final class ApiFootballMapper
             return 'Les statistiques du match échantillon ne sont pas disponibles : API-Football a renvoyé results=0.';
         }
 
-        return 'Les statistiques sont non disponibles : la capture ne fournit pas de réponse non vide permettant de vérifier leur structure.';
+        return 'Les statistiques sont non disponibles : aucune valeur de tirs, tirs cadrés, corners ou possession n’est associée aux équipes du match.';
+    }
+
+    /**
+     * Lit uniquement les quatre statistiques retenues, associées au domicile et à l’extérieur par team.id.
+     *
+     * @return array{}|array{home: array{shots: int|float|null, shots_on_target: int|float|null, corners: int|float|null, possession: int|float|null}, away: array{shots: int|float|null, shots_on_target: int|float|null, corners: int|float|null, possession: int|float|null}}
+     */
+    private function teamStatistics(string $rawStatisticsResponse, ?int $homeTeamId, ?int $awayTeamId): array
+    {
+        try {
+            $payload = json_decode($rawStatisticsResponse, true, flags: JSON_THROW_ON_ERROR);
+        } catch (JsonException) {
+            return [];
+        }
+
+        if (! is_array($payload) || ! is_array($payload['response'] ?? null)) {
+            return [];
+        }
+
+        $byTeam = [];
+        foreach ($payload['response'] as $entry) {
+            if (! is_array($entry) || ! is_array($entry['statistics'] ?? null)) {
+                continue;
+            }
+
+            $teamId = $this->teamId($entry['team']['id'] ?? null);
+            if ($teamId !== null) {
+                $byTeam[$teamId] = $entry['statistics'];
+            }
+        }
+
+        $home = $homeTeamId === null ? null : ($byTeam[$homeTeamId] ?? null);
+        $away = $awayTeamId === null ? null : ($byTeam[$awayTeamId] ?? null);
+        if ($home === null && $away === null) {
+            return [];
+        }
+
+        return [
+            'home' => $this->readStatistics($home ?? []),
+            'away' => $this->readStatistics($away ?? []),
+        ];
+    }
+
+    /**
+     * @param  array<int, mixed>  $statistics
+     * @return array{shots: int|float|null, shots_on_target: int|float|null, corners: int|float|null, possession: int|float|null}
+     */
+    private function readStatistics(array $statistics): array
+    {
+        $types = [
+            'Total Shots' => 'shots',
+            'Shots on Goal' => 'shots_on_target',
+            'Corner Kicks' => 'corners',
+            'Ball Possession' => 'possession',
+        ];
+        $values = array_fill_keys(array_values($types), null);
+
+        foreach ($statistics as $statistic) {
+            if (! is_array($statistic) || ! is_string($statistic['type'] ?? null)) {
+                continue;
+            }
+
+            $key = $types[$statistic['type']] ?? null;
+            if ($key === null) {
+                continue;
+            }
+
+            $values[$key] = $key === 'possession'
+                ? $this->percentage($statistic['value'] ?? null)
+                : $this->count($statistic['value'] ?? null);
+        }
+
+        return $values;
+    }
+
+    private function count(mixed $value): ?int
+    {
+        if (is_int($value) && $value >= 0) {
+            return $value;
+        }
+
+        return is_string($value) && ctype_digit($value) ? (int) $value : null;
+    }
+
+    private function percentage(mixed $value): int|float|null
+    {
+        if (is_string($value) && preg_match('/^\s*(\d{1,3}(?:\.\d+)?)\s*%\s*$/', $value, $matches) === 1) {
+            $number = (float) $matches[1];
+        } elseif (is_int($value) || is_float($value)) {
+            $number = (float) $value;
+        } else {
+            return null;
+        }
+
+        if ($number < 0 || $number > 100) {
+            return null;
+        }
+
+        return floor($number) === $number ? (int) $number : $number;
+    }
+
+    private function teamId(mixed $value): ?int
+    {
+        if (is_int($value) && $value > 0) {
+            return $value;
+        }
+
+        return is_string($value) && ctype_digit($value) && (int) $value > 0 ? (int) $value : null;
+    }
+
+    /**
+     * @param  array<string, mixed>  $statistics
+     */
+    private function hasStatisticValue(array $statistics): bool
+    {
+        foreach (['home', 'away'] as $side) {
+            foreach (is_array($statistics[$side] ?? null) ? $statistics[$side] : [] as $value) {
+                if ($value !== null) {
+                    return true;
+                }
+            }
+        }
+
+        return false;
     }
 }
