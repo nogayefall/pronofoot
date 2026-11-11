@@ -35,6 +35,7 @@ const settingLabels = {
   'rules.minimum_convergence_score': 'Convergence minimale',
   'tendance_source': 'Source de tendance (à confirmer)',
   'tendance_seuil_stable': 'Seuil de tendance stable (à confirmer)',
+  ecart_negatif_comportement: 'Comportement d’un écart négatif (à confirmer)',
   'rules.vitality_normalization_references': 'Références de normalisation de la vitalité (à confirmer)',
 }
 
@@ -52,6 +53,7 @@ const settingDescriptions = {
   'rules.minimum_convergence_score': 'Niveau minimal de convergence requis.',
   tendance_source: 'Valeur de cote utilisée pour calculer la tendance.',
   tendance_seuil_stable: 'Variation maximale considérée comme stable.',
+  ecart_negatif_comportement: 'À définir après confirmation du sens d’une baisse de cote.',
   'rules.vitality_normalization_references': 'Valeurs de référence utilisées pour calculer la vitalité.',
 }
 
@@ -305,7 +307,8 @@ function App() {
       ? await adminRequest(`/admin/api/matches/${match.trackedId}`, 'DELETE')
       : await adminRequest('/admin/api/matches', 'POST', { provider_match_id: match.providerMatchId })
     if (result) {
-      setActionMessage(match.tracked ? 'Rencontre retirée du suivi.' : 'Rencontre ajoutée au suivi.')
+      const warnings = result.warnings?.length ? ` ${result.warnings.join(' ')}` : ''
+      setActionMessage(match.tracked ? 'Rencontre retirée du suivi.' : `Rencontre ajoutée au suivi.${warnings}`)
       await loadMatches()
       await loadDashboard()
     }
@@ -439,7 +442,16 @@ function App() {
               <PageHeading eyebrow="SUIVI EN DIRECT" title="Matchs suivis" description="Choisissez les rencontres à surveiller selon le flux disponible." action={<span className="count-badge">{trackedMatches.length} suivis</span>} />
               <div className="notice notice-neutral"><span className="notice-icon"><Icon name="clock" size={18} /></span><div><strong>{matchesData?.message ?? 'Le flux sera consulté à l’ouverture de cette page.'}</strong><p>Quota restant : {matchesData?.quotaRemaining ?? 'inconnu'}. Aucun match ne peut être suivi si le fournisseur indique un quota nul.</p></div></div>
               <section className="content-panel matches-panel"><div className="panel-heading"><div><h2>Rencontres disponibles</h2><p>Les données fictives sont identifiées en haut de page.</p></div><button className="secondary-button" type="button" onClick={() => void loadMatches()}>Actualiser</button></div>
-                {matchesData?.matches?.length ? <div className="table-scroll"><table className="data-table"><thead><tr><th>Rencontre</th><th>Compétition</th><th>État</th><th>Score</th><th>Suivi</th><th>Action</th></tr></thead><tbody>{matchesData.matches.map((match) => <tr key={match.providerMatchId}><td>{match.homeTeam} – {match.awayTeam}<small>{match.kickoffAt ? formatDate(match.kickoffAt) : 'Horaire non disponible'}</small></td><td>{match.competition}</td><td>{match.status}{match.minute === null ? '' : ` · ${match.minute}′`}</td><td>{match.homeScore ?? '—'} – {match.awayScore ?? '—'}</td><td>{match.tracked ? 'Suivi' : 'Non suivi'}</td><td><button className="secondary-button compact-button" type="button" disabled={isBusy || (!match.tracked && matchesData.quotaRemaining === 0)} onClick={() => void toggleMatch(match)}>{match.tracked ? 'Retirer' : 'Suivre'}</button></td></tr>)}</tbody></table></div> : <EmptyState icon="search" title="Aucune rencontre disponible" message="Le fournisseur n’a retourné aucun match pour le moment." />}
+                {matchesData?.matches?.length ? <div className="table-scroll"><table className="data-table"><thead><tr><th>Rencontre</th><th>Compétition</th><th>État</th><th>Score</th><th>Cotes score exact</th><th>Statistiques</th><th>Suivi</th><th>Action</th></tr></thead><tbody>{matchesData.matches.map((match) => {
+                  const eligible = match.exactScoreMarketAvailable && match.statisticsCoverage !== false
+                  const statisticsStatus = match.statisticsCoverage === null ? 'inconnu' : match.statisticsCoverage ? 'oui' : 'non'
+                  const statisticsWarning = match.statisticsCoverage === null
+                    ? 'Statistiques non confirmées'
+                    : match.statisticsCoverageFallback
+                      ? `Saison courante utilisée (${match.statisticsCoverageSeason ?? 'année inconnue'})`
+                      : null
+                  return <tr key={match.providerMatchId}><td>{match.homeTeam} – {match.awayTeam}<small>{match.kickoffAt ? formatDate(match.kickoffAt) : 'Horaire non disponible'}</small></td><td>{match.competition}</td><td>{match.status}{match.minute === null ? '' : ` · ${match.minute}′`}</td><td>{match.homeScore ?? '—'} – {match.awayScore ?? '—'}</td><td>{match.exactScoreMarketAvailable ? 'oui' : 'non'}</td><td>{statisticsStatus}{statisticsWarning && <small>{statisticsWarning}</small>}</td><td>{match.tracked ? 'Suivi' : 'Non suivi'}</td><td><button className="secondary-button compact-button" type="button" disabled={isBusy || (!match.tracked && (!eligible || matchesData.quotaRemaining === 0))} onClick={() => void toggleMatch(match)}>{match.tracked ? 'Retirer' : eligible ? 'Suivre' : 'Indisponible'}</button></td></tr>
+                })}</tbody></table></div> : <EmptyState icon="search" title="Aucune rencontre disponible" message="Le fournisseur n’a retourné aucun match pour le moment." />}
               </section>
             </>
           )}

@@ -62,12 +62,16 @@ final class RuleEngine
             }
         }
 
+        $negativeGapAbstention = $this->hasNegativeDirectionalGap($rules)
+            || $filters['gap']->reason === F121C::NEGATIVE_GAP_REASON;
         $shouldAlert = $hasCandidate
             && $filtersPassed
+            && ! $negativeGapAbstention
             && $convergenceScore !== null
             && $convergenceScore > $configuration->minimumConvergenceScore;
 
         $reason = match (true) {
+            $negativeGapAbstention => F121C::NEGATIVE_GAP_REASON,
             ! $hasCandidate => 'Aucune règle active n’a produit de signal.',
             ! $filtersPassed => 'Au moins un des trois filtres de sécurité n’est pas validé.',
             $convergenceScore === null => 'La convergence ne peut pas être calculée sans les scores et poids définis.',
@@ -82,6 +86,21 @@ final class RuleEngine
             filters: $filters,
             reason: $reason,
         );
+    }
+
+    /**
+     * @param  array<string, RuleResult>  $rules
+     */
+    private function hasNegativeDirectionalGap(array $rules): bool
+    {
+        foreach (['F121-C', 'F121-C.2'] as $ruleId) {
+            $rule = $rules[$ruleId] ?? null;
+            if ($rule?->reason === F121C::NEGATIVE_GAP_REASON) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     public function suggestedExactScoreKey(RuleInput $input, RuleConfiguration $configuration): ?string

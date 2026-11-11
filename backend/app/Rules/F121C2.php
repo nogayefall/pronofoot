@@ -7,6 +7,15 @@ final class F121C2
     public function evaluate(RuleInput $input, RuleResult $directionalResult): RuleResult
     {
         $details = $directionalResult->details;
+        if ($directionalResult->reason === F121C::NEGATIVE_GAP_REASON) {
+            return new RuleResult(
+                ruleId: 'F121-C.2',
+                verdict: RuleVerdict::Abstain,
+                reason: F121C::NEGATIVE_GAP_REASON,
+                details: $details,
+            );
+        }
+
         $homeGap = $details['homeGap'] ?? null;
         $awayGap = $details['awayGap'] ?? null;
 

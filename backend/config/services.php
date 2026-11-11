@@ -52,6 +52,7 @@ return [
     ],
 
     'football_api' => [
+        'base_url' => env('API_FOOTBALL_BASE_URL', 'https://v3.football.api-sports.io'),
         'probe_url' => env('API_FOOTBALL_PROBE_URL'),
         'api_key' => env('API_FOOTBALL_API_KEY'),
         'api_key_header' => env('API_FOOTBALL_API_KEY_HEADER'),

@@ -37,6 +37,34 @@ class RuleEngineTest extends TestCase
         $this->assertTrue($result->shouldAlert);
     }
 
+    public function test_f121_c_abstains_when_the_selected_gap_is_negative(): void
+    {
+        $result = (new RuleEngine)->evaluate(
+            new RuleInput(
+                homeScore: 0,
+                awayScore: 0,
+                exactScoreOdds: ['0-0' => 7.5, '1-0' => 6.5, '0-1' => 9.8],
+                vitalityScore: 61,
+                oddsChangePercent: -1.0,
+                methodScores: ['F121-C' => 82],
+            ),
+            new RuleConfiguration(
+                trendSource: 'cote_suggeree',
+                stableOddsChangePercent: 3.0,
+                methodWeights: ['F121-C' => 1.0],
+            ),
+        );
+
+        $this->assertSame('home', $result->rules['F121-C']->details['selectedTeam']);
+        $this->assertSame(-1.0, $result->rules['F121-C']->details['selectedGap']);
+        $this->assertSame(RuleVerdict::Abstain, $result->rules['F121-C']->verdict);
+        $this->assertSame('écart négatif : F121-E à confirmer', $result->rules['F121-C']->reason);
+        $this->assertFalse($result->filters['gap']->passed);
+        $this->assertSame('écart négatif : F121-E à confirmer', $result->filters['gap']->reason);
+        $this->assertSame('écart négatif : F121-E à confirmer', $result->reason);
+        $this->assertFalse($result->shouldAlert);
+    }
+
     public function test_f121_c_two_follows_the_leader_when_the_leader_is_not_the_smallest_gap(): void
     {
         $result = (new RuleEngine)->evaluate(

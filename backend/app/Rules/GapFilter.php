@@ -17,6 +17,17 @@ final class GapFilter
             return new FilterResult(false, 'Aucun écart directionnel exploitable.');
         }
 
+        if ((float) $selectedGap < 0) {
+            return new FilterResult(
+                passed: false,
+                reason: F121C::NEGATIVE_GAP_REASON,
+                details: [
+                    'selectedTeam' => $selectedTeam,
+                    'selectedGap' => (float) $selectedGap,
+                ],
+            );
+        }
+
         $limit = $configuration->maximumDirectionalGap;
         $currentOdds = $input->exactScoreOdds["{$input->homeScore}-{$input->awayScore}"] ?? null;
         if ($input->homeScore === 0 && $input->awayScore === 0

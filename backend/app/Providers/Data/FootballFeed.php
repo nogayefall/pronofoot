@@ -18,5 +18,8 @@ final readonly class FootballFeed
         public ?int $requestsRemaining = null,
         public ?string $rawResponse = null,
         public array $simulationSettings = [],
+        public ?string $statisticsMatchId = null,
+        public ?string $rawStatisticsResponse = null,
+        public ?int $requestsLimit = null,
     ) {}
 }

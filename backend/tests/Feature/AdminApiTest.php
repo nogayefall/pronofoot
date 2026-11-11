@@ -7,7 +7,10 @@ use App\Models\RuleProfile;
 use App\Models\TrackedMatch;
 use App\Models\User;
 use App\Providers\Contracts\FootballProvider;
+use App\Providers\Contracts\OddsProvider;
 use App\Providers\Data\FootballFeed;
+use App\Providers\Data\FootballMatch;
+use App\Providers\Data\OddsFeed;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
@@ -35,7 +38,10 @@ class AdminApiTest extends TestCase
             ->assertOk()
             ->assertJsonPath('simulation', true)
             ->assertJsonCount(7, 'matches')
-            ->assertJsonPath('matches.6.status', 'upcoming');
+            ->assertJsonPath('matches.6.status', 'upcoming')
+            ->assertJsonPath('matches.0.exactScoreMarketAvailable', true)
+            ->assertJsonPath('matches.0.statisticsCoverage', true)
+            ->assertJsonPath('matches.5.statisticsCoverage', null);
         $matchId = $response->json('matches.0.providerMatchId');
 
         $created = $this->postJson(route('admin.api.matches.store'), [
@@ -50,6 +56,84 @@ class AdminApiTest extends TestCase
 
         $this->deleteJson(route('admin.api.matches.destroy', $trackedMatchId))->assertOk();
         $this->assertDatabaseHas('tracked_matches', ['id' => $trackedMatchId, 'is_active' => false]);
+    }
+
+    public function test_match_with_unknown_statistics_coverage_can_be_tracked_with_warning(): void
+    {
+        $this->postJson(route('admin.api.matches.store'), [
+            'provider_match_id' => 'fake-missing-statistics',
+        ])->assertCreated()
+            ->assertJsonPath('warnings.0', 'Statistiques non confirmées.');
+
+        $this->assertDatabaseCount('tracked_matches', 1);
+    }
+
+    public function test_match_with_false_statistics_coverage_cannot_be_tracked(): void
+    {
+        $footballProvider = \Mockery::mock(FootballProvider::class);
+        $footballProvider->shouldReceive('getLiveMatches')->once()->andReturn(new FootballFeed(
+            driver: 'real',
+            reachable: true,
+            statisticsAvailable: null,
+            statusMessage: 'Test',
+            matches: [
+                new FootballMatch(
+                    providerMatchId: 'live-uncovered',
+                    homeTeam: 'Home',
+                    awayTeam: 'Away',
+                    status: 'First Half',
+                    statisticsCoverage: false,
+                ),
+            ],
+        ));
+        $oddsProvider = \Mockery::mock(OddsProvider::class);
+        $oddsProvider->shouldNotReceive('getLiveOdds');
+        $this->app->instance(FootballProvider::class, $footballProvider);
+        $this->app->instance(OddsProvider::class, $oddsProvider);
+
+        $this->postJson(route('admin.api.matches.store'), [
+            'provider_match_id' => 'live-uncovered',
+        ])->assertUnprocessable()
+            ->assertJsonValidationErrors('provider_match_id');
+
+        $this->assertDatabaseCount('tracked_matches', 0);
+    }
+
+    public function test_match_cannot_be_tracked_without_a_non_suspended_exact_score_market(): void
+    {
+        $footballProvider = \Mockery::mock(FootballProvider::class);
+        $footballProvider->shouldReceive('getLiveMatches')->once()->andReturn(new FootballFeed(
+            driver: 'real',
+            reachable: true,
+            statisticsAvailable: null,
+            statusMessage: 'Test',
+            matches: [
+                new FootballMatch(
+                    providerMatchId: 'live-1',
+                    homeTeam: 'Home',
+                    awayTeam: 'Away',
+                    status: 'First Half',
+                    statisticsCoverage: true,
+                ),
+            ],
+        ));
+        $oddsProvider = \Mockery::mock(OddsProvider::class);
+        $oddsProvider->shouldReceive('getLiveOdds')->once()->andReturn(new OddsFeed(
+            driver: 'real',
+            reachable: true,
+            exactScoreMarketAvailable: false,
+            overUnderMarketAvailable: null,
+            statusMessage: 'No market',
+        ));
+        $this->app->instance(FootballProvider::class, $footballProvider);
+        $this->app->instance(OddsProvider::class, $oddsProvider);
+
+        $this->postJson(route('admin.api.matches.store'), [
+            'provider_match_id' => 'live-1',
+        ])->assertUnprocessable()
+            ->assertJsonValidationErrors('provider_match_id');
+
+        $this->assertDatabaseCount('tracked_matches', 0);
     }
 
     public function test_match_cannot_be_added_when_provider_quota_is_zero(): void
@@ -94,9 +178,19 @@ class AdminApiTest extends TestCase
             'settings' => ['tendance_source' => 'cote_au_hasard'],
         ])->assertUnprocessable();
 
+        $this->assertDatabaseHas('settings', [
+            'key' => 'ecart_negatif_comportement',
+            'value' => null,
+            'needs_confirmation' => true,
+        ]);
+        $this->patchJson(route('admin.api.settings.update'), [
+            'settings' => ['ecart_negatif_comportement' => ''],
+        ])->assertOk();
+
         $this->postJson(route('admin.api.settings.reset'))->assertOk();
         $this->assertDatabaseHas('settings', ['key' => 'tendance_source', 'value' => null]);
         $this->assertDatabaseHas('settings', ['key' => 'tendance_seuil_stable', 'value' => null]);
+        $this->assertDatabaseHas('settings', ['key' => 'ecart_negatif_comportement', 'value' => null]);
     }
 
     public function test_rule_profile_only_accepts_defined_rules_and_persists_weights(): void

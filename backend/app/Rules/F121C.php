@@ -4,6 +4,8 @@ namespace App\Rules;
 
 final class F121C
 {
+    public const NEGATIVE_GAP_REASON = 'écart négatif : F121-E à confirmer';
+
     public function evaluate(RuleInput $input): RuleResult
     {
         $currentScoreKey = "{$input->homeScore}-{$input->awayScore}";
@@ -39,9 +41,13 @@ final class F121C
 
         return new RuleResult(
             ruleId: 'F121-C',
-            verdict: $selectedTeam === null ? RuleVerdict::Abstain : RuleVerdict::Candidate,
+            verdict: $selectedTeam === null || ($selectedGap !== null && $selectedGap < 0)
+                ? RuleVerdict::Abstain
+                : RuleVerdict::Candidate,
             score: $input->methodScores['F121-C'] ?? null,
-            reason: $selectedTeam === null ? 'Les deux écarts sont égaux; aucune direction n’est définie.' : null,
+            reason: $selectedTeam === null
+                ? 'Les deux écarts sont égaux; aucune direction n’est définie.'
+                : ($selectedGap !== null && $selectedGap < 0 ? self::NEGATIVE_GAP_REASON : null),
             details: [
                 'currentOdds' => (float) $currentOdds,
                 'homeNextOdds' => (float) $homeNextOdds,

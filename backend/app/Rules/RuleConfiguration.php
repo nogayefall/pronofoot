@@ -22,6 +22,7 @@ final readonly class RuleConfiguration
         public float $minimumConvergenceScore = 75.0,
         public array $methodWeights = [],
         public ?string $conditionalOverSuggestion = null,
+        public ?string $negativeGapBehavior = null,
     ) {
         foreach ([
             'maximumDirectionalGap' => $maximumDirectionalGap,

@@ -28,6 +28,7 @@ final class SettingsController extends Controller
         'rules.minimum_convergence_score' => '75',
         'tendance_source' => null,
         'tendance_seuil_stable' => null,
+        'ecart_negatif_comportement' => null,
         'rules.vitality_normalization_references' => null,
     ];
 

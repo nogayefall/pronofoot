@@ -10,8 +10,12 @@ final class FakeFootballProvider implements FootballProvider
 {
     public function __construct(private readonly FakeFixtureLoader $fixtures) {}
 
-    public function getLiveMatches(int $scanNumber = 0, bool $includeStatistics = true): FootballFeed
-    {
+    public function getLiveMatches(
+        int $scanNumber = 0,
+        bool $includeStatistics = true,
+        ?int $statisticsMatchLimit = 1,
+        bool $includeCoverage = false,
+    ): FootballFeed {
         $fixture = $this->fixtures->load();
         $matches = [];
 
@@ -28,6 +32,7 @@ final class FakeFootballProvider implements FootballProvider
             }
 
             $statistics = $includeStatistics ? ($data['statistics'] ?? []) : [];
+            $coverageStatistics = is_array($data['statistics'] ?? null) ? $data['statistics'] : [];
             $matches[] = new FootballMatch(
                 providerMatchId: (string) $match['id'],
                 homeTeam: (string) ($match['home_team'] ?? 'Équipe domicile fictive'),
@@ -42,6 +47,7 @@ final class FakeFootballProvider implements FootballProvider
                 statistics: is_array($statistics) ? $statistics : [],
                 vitalityScore: $includeStatistics && is_numeric($data['vitality_score'] ?? null) ? (float) $data['vitality_score'] : null,
                 methodScores: is_array($data['method_scores'] ?? null) ? $data['method_scores'] : [],
+                statisticsCoverage: $this->statisticsCoverage($coverageStatistics),
             );
         }
 
@@ -64,5 +70,20 @@ final class FakeFootballProvider implements FootballProvider
                 ? $fixture['simulation_settings']
                 : [],
         );
+    }
+
+    /**
+     * @param  array<string, mixed>  $statistics
+     */
+    private function statisticsCoverage(array $statistics): ?bool
+    {
+        if ($statistics === []) {
+            return null;
+        }
+
+        return count(array_intersect(
+            ['shots', 'shots_on_target', 'possession', 'corners'],
+            array_keys($statistics),
+        )) === 4;
     }
 }

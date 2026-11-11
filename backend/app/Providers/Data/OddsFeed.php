@@ -17,5 +17,7 @@ final readonly class OddsFeed
         public ?int $requestsUsed = null,
         public ?int $requestsRemaining = null,
         public ?string $rawResponse = null,
+        public ?int $matchesWithExactScoreMarket = null,
+        public ?int $requestsLimit = null,
     ) {}
 }

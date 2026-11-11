@@ -39,6 +39,9 @@ final class FeasibilityCapture
                     'driver' => $feed->driver,
                     'status' => $feed->statusMessage,
                     'raw_response' => $payload,
+                    'raw_statistics_response' => $feed instanceof FootballFeed && $feed->rawStatisticsResponse !== null
+                        ? $this->redact($feed->rawStatisticsResponse)
+                        : null,
                 ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR);
             } catch (JsonException $exception) {
                 throw new RuntimeException('Impossible d’encoder une capture de faisabilité.', previous: $exception);

@@ -47,6 +47,9 @@ final class FakeOddsProvider implements OddsProvider
             matches: $matches,
             requestsUsed: 0,
             rawResponse: $this->fixtures->raw(),
+            matchesWithExactScoreMarket: collect($matches)->filter(
+                fn (OddsMatch $match): bool => $match->exactScoreOdds !== [],
+            )->count(),
         );
     }
 }

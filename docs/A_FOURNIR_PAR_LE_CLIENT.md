@@ -8,6 +8,7 @@
 - Confirmer que la tendance porte bien sur la cote suggérée (cote du score exact de l’équipe ciblée, entre l’instantané actuel et celui d’il y a deux minutes).
 - Préciser quelle variation maximale définit une tendance stable (3 % est cité comme exemple, sans confirmation).
 - Le choix entre les deux définitions contradictoires de F121-E.
+- **Un écart négatif (cote du score suivant inférieure à la cote actuelle), qu'est-ce que ça signifie et que doit faire le système ?**
 - Les formules de F121-K, F121-T, F121-X, F122, F124 et F126.
 - Les situations supplémentaires auxquelles F121-D s’applique et les conditions du choix Over 4.5 / Over 5.5.
 - La confirmation des bornes inclusives ou strictes lorsque le cahier des charges ne les précise pas.
@@ -16,12 +17,14 @@
 
 Sans confirmation d’un paramètre nécessaire, le comportement reste l’abstention : aucune alerte n’est créée.
 
+Le paramètre `ecart_negatif_comportement` reste vide et à confirmer. Tant que le client n’a pas répondu, le moteur s’abstient avec le motif `écart négatif : F121-E à confirmer`.
+
 ## Sources et pilotes réels
 
 - Les références utilisées pour les cadences et seuils sont les PDF `PRONOFOOT_CDC_Phase1_Signaux_Live.pdf` et `PRONOFOOT_CDC_V9.1.pdf`. Les 15 secondes / 120 secondes après but proviennent du TRD, pas des valeurs de cadence citées dans le CDC Phase 1.
 - **The Odds API :** confirmer auprès du fournisseur, pour le compte et le sport ciblés, la présence du marché de scores exacts en direct. Le [catalogue officiel des marchés](https://the-odds-api.com/sports-odds-data/betting-markets.html) consulté ne documente pas ce marché ; le pilote réel refuse de l’inventer et la commande de faisabilité le signale comme non disponible. Une clé seule ne suffit pas à lever ce blocage.
-- **API-Football :** fournir une clé, une URL de requête et le nom de l’en-tête d’authentification confirmés dans la documentation officielle du compte. Le mapper actuel est explicitement `NON VÉRIFIÉ` et ne lit aucun champ de réponse.
-- Fournir dix réponses brutes représentatives d’API-Football obtenues avec consentement, sans données personnelles ou secrets, pour définir et tester son mapper.
+- **API-Football :** fournir une clé conservée dans `.env`. La documentation confirme l’URL `https://v3.football.api-sports.io` et l’en-tête `x-apisports-key`. Les captures `fixtures-live.json` (27 matchs), `fixtures-statistics.json` (`results: 0`, réponse vide) et `odds-live-bet-23.json` sont disponibles dans `backend/database/fixtures/api-football/`. La liste live et les cotes bet 23 sont mappées ; les statistiques ne le sont pas tant qu’une réponse non vide n’a pas confirmé leur structure.
+- Fournir une capture `fixtures/statistics?fixture=…` d’un match dont les statistiques sont disponibles, incluant tirs totaux, tirs cadrés, possession et corners. Le test de faisabilité actuel ne prélève qu’un match pour limiter les appels.
 - Fournir un compte et un destinataire WhatsApp Business autorisés, ainsi qu’un modèle de message approuvé si nécessaire.
 - Fournir, si le repli est retenu, un bot Telegram et un identifiant de conversation, conservés uniquement dans `.env`.
 - Confirmer les détails du modèle WhatsApp et du compte Meta avec la documentation officielle. Les canaux réels restent `NON VÉRIFIÉS` : aucun appel ni format réel n’est branché.

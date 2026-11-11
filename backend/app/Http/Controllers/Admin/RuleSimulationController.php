@@ -23,6 +23,7 @@ class RuleSimulationController extends Controller
             'odds_change_percent' => ['required', 'numeric'],
             'tendance_source' => ['nullable', 'in:cote_suggeree'],
             'tendance_seuil_stable' => ['nullable', 'numeric', 'min:0'],
+            'ecart_negatif_comportement' => ['nullable', 'string'],
         ]);
 
         $input = new RuleInput(
@@ -41,6 +42,7 @@ class RuleSimulationController extends Controller
                 stableOddsChangePercent: isset($validated['tendance_seuil_stable'])
                     ? (float) $validated['tendance_seuil_stable']
                     : null,
+                negativeGapBehavior: $validated['ecart_negatif_comportement'] ?? null,
             ),
         );
 

@@ -477,6 +477,7 @@ final class ScanService
             stableOddsChangePercent: $this->settings->nullableFloat($settings, 'tendance_seuil_stable'),
             minimumConvergenceScore: $this->settings->decimal($settings, 'rules.minimum_convergence_score'),
             methodWeights: $methodWeights,
+            negativeGapBehavior: $this->settings->nullableString($settings, 'ecart_negatif_comportement'),
         );
     }
 

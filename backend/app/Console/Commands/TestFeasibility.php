@@ -45,19 +45,24 @@ class TestFeasibility extends Command
         $this->newLine();
         $this->line('Odds : '.$this->availability($odds->reachable).' — '.$odds->statusMessage);
         $this->line('Matchs live côté Odds : '.count($odds->matches));
+        $matchesWithMarket = $odds->matchesWithExactScoreMarket
+            ?? count(array_filter($odds->matches, fn ($match): bool => $match->exactScoreOdds !== []));
+        $this->line('Matchs ayant le marché 23 : '.$matchesWithMarket);
         $this->line('Marché des scores exacts en direct : '.($odds->exactScoreMarketAvailable ? 'oui' : 'non'));
         $this->line('Marché Over/Under : '.$this->availability($odds->overUnderMarketAvailable));
-        $this->line('Quota Odds : '.$this->quota($odds->requestsUsed, $odds->requestsRemaining, $odds->driver));
+        $this->line('Quota Odds : '.$this->quota($odds->requestsUsed, $odds->requestsRemaining, $odds->requestsLimit, $odds->driver));
         $this->newLine();
         $this->line('Football : '.$this->availability($football->reachable).' — '.$football->statusMessage);
         $this->line('Matchs live Football : '.count($football->matches));
-        $this->line('Statistiques tirs / tirs cadrés / possession / corners : '.$this->availability($football->statisticsAvailable));
-        $this->line('Quota Football : '.$this->quota($football->requestsUsed, $football->requestsRemaining, $football->driver));
+        $this->line('Match échantillon statistiques : '.($football->statisticsMatchId ?? 'aucun'));
+        $this->line('Statistiques lues sur un match : '.$this->availability($football->statisticsAvailable));
+        $this->line('Quota Football : '.$this->quota($football->requestsUsed, $football->requestsRemaining, $football->requestsLimit, $football->driver));
         $this->newLine();
 
         $this->displayEstimate(
             (int) $trackedMatches,
             $odds->driver,
+            $football->driver,
             $oddsInterval,
             $statsInterval,
         );
@@ -97,7 +102,7 @@ class TestFeasibility extends Command
     private function loadFootball(FootballProvider $provider): FootballFeed
     {
         try {
-            return $provider->getLiveMatches();
+            return $provider->getLiveMatches(statisticsMatchLimit: 1);
         } catch (ProviderUnavailable $exception) {
             Log::warning('Fournisseur Football indisponible.', ['reason' => $exception->getMessage()]);
 
@@ -119,7 +124,7 @@ class TestFeasibility extends Command
         };
     }
 
-    private function quota(?int $used, ?int $remaining, string $driver): string
+    private function quota(?int $used, ?int $remaining, ?int $limit, string $driver): string
     {
         if ($driver === 'fake') {
             return '0 (simulation, aucun appel réseau)';
@@ -129,29 +134,44 @@ class TestFeasibility extends Command
             return 'non mesuré';
         }
 
-        return sprintf('%s consommé(s), %s restant(s)', $used ?? 'inconnu', $remaining ?? 'inconnu');
+        $quota = sprintf('%s consommé(s), %s restant(s)', $used ?? 'inconnu', $remaining ?? 'inconnu');
+
+        return $limit === null ? $quota : "{$quota} sur {$limit}";
     }
 
     private function displayEstimate(
         int $matches,
         string $oddsDriver,
+        string $footballDriver,
         ?int $oddsInterval,
         ?int $statsInterval,
     ): void {
-        $this->line("Estimation pour {$matches} matchs suivis (1 requête par match et par cycle, regroupement non déduit) :");
+        $this->line("Estimation de consommation pour {$matches} matchs suivis :");
 
-        if ($oddsDriver === 'real' && $oddsInterval !== null) {
+        if ($oddsDriver === 'api_football' && $oddsInterval !== null) {
+            $calls = (int) ceil(3600 / $oddsInterval);
+            $this->line("  Odds/live bet 23 : environ {$calls} appel(s)/heure (un appel pour tous les matchs retournés).");
+        } elseif ($oddsDriver === 'real' && $oddsInterval !== null) {
             $this->line('  Odds : non applicable tant que le marché de score exact n’est pas disponible.');
         } elseif ($oddsInterval !== null) {
             $calls = (int) ceil($matches * 3600 / $oddsInterval);
-            $this->line("  Odds : environ {$calls} appel(s)/heure, sur la fréquence explicitement fournie.");
+            $this->line("  Odds : environ {$calls} appel(s)/heure sur la fréquence fournie.");
         } else {
             $this->line('  Odds : non calculable ; fréquence non confirmée (option --odds-interval).');
         }
 
         if ($statsInterval !== null) {
-            $calls = (int) ceil($matches * 3600 / $statsInterval);
-            $this->line("  Football/statistiques : environ {$calls} appel(s)/heure, sur la fréquence explicitement fournie.");
+            if ($footballDriver === 'real') {
+                $liveCalls = (int) ceil(3600 / $statsInterval);
+                $sampleStatisticsCalls = (int) ceil(3600 / $statsInterval);
+                $statisticsCalls = (int) ceil($matches * 3600 / $statsInterval);
+                $this->line("  Football/fixtures live : environ {$liveCalls} appel(s)/heure.");
+                $this->line("  Football/statistiques (échantillon actuel d’un match) : environ {$sampleStatisticsCalls} appel(s)/heure.");
+                $this->line("  Football/statistiques (couverture de {$matches} matchs) : environ {$statisticsCalls} appel(s)/heure (un par match et par cycle).");
+            } else {
+                $calls = (int) ceil($matches * 3600 / $statsInterval);
+                $this->line("  Football/statistiques : environ {$calls} appel(s)/heure sur la fréquence fournie.");
+            }
         } else {
             $this->line('  Football/statistiques : non calculable ; fréquence non confirmée (option --stats-interval).');
         }
