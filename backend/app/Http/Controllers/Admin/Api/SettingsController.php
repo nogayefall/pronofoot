@@ -30,6 +30,7 @@ final class SettingsController extends Controller
         'tendance_seuil_stable' => null,
         'ecart_negatif_comportement' => null,
         'rules.vitality_normalization_references' => null,
+        'scan.quota_alert_threshold' => null,
     ];
 
     public function index(): JsonResponse

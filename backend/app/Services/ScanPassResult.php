@@ -12,5 +12,6 @@ final readonly class ScanPassResult
         public int $goalsDetected,
         public int $errors,
         public int $nextPollIntervalSeconds,
+        public bool $quotaStopped = false,
     ) {}
 }

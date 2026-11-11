@@ -50,6 +50,7 @@ final class ScanService
         $statisticsInterval = $this->settings->integer($settingValues, 'scan.statistics_interval_seconds');
         $goalInterval = $this->settings->integer($settingValues, 'scan.goal_interval_seconds');
         $goalWindow = $this->settings->integer($settingValues, 'scan.goal_window_seconds');
+        $quotaAlertThreshold = $this->settings->nullableInteger($settingValues, 'scan.quota_alert_threshold');
         $expiredAlerts = $this->expireAlerts($now);
         $trackedMatches = TrackedMatch::query()->where('is_active', true)->get();
 
@@ -60,7 +61,7 @@ final class ScanService
         $includeStatistics = $forceRefresh
             || $this->lastStatisticsFetchAt === null
             || $this->lastStatisticsFetchAt->addSeconds($statisticsInterval)->lessThanOrEqualTo($now);
-        $footballFeed = $this->fetchFootball($scanNumber, $includeStatistics, $trackedMatches, $now);
+        $footballFeed = $this->fetchFootball($scanNumber, $includeStatistics, $trackedMatches, $quotaAlertThreshold, $now);
         if ($footballFeed === null) {
             return new ScanPassResult(
                 count($trackedMatches),
@@ -75,6 +76,11 @@ final class ScanService
 
         if ($includeStatistics) {
             $this->lastStatisticsFetchAt = $now;
+        }
+
+        if ($footballFeed->quotaThresholdReached
+            || QuotaGuard::reached($footballFeed->requestsRemaining, $quotaAlertThreshold)) {
+            return $this->stopForQuota($trackedMatches, $footballFeed->requestsRemaining, $quotaAlertThreshold, $expiredAlerts, $settingValues, $now);
         }
 
         if ($footballFeed->driver === 'fake') {
@@ -133,6 +139,13 @@ final class ScanService
         }
 
         $oddsFeed = $this->cachedOddsFeed;
+        $quotaStopped = $oddsDue
+            && $oddsFeed !== null
+            && QuotaGuard::reached($oddsFeed->requestsRemaining, $quotaAlertThreshold);
+        if ($quotaStopped) {
+            $this->logQuotaStop($oddsFeed->requestsRemaining, $quotaAlertThreshold);
+        }
+
         if ($oddsFeed !== null) {
             $this->rememberProviderStatus('odds', [
                 'driver' => $oddsFeed->driver,
@@ -150,7 +163,7 @@ final class ScanService
 
         foreach ($trackedMatches as $trackedMatch) {
             $footballMatch = $footballMatches[$trackedMatch->provider_match_id] ?? null;
-            if ($footballMatch === null || $footballMatch->status !== 'live') {
+            if ($footballMatch === null || ! $this->isInPlay($footballMatch)) {
                 $this->recordIncident($trackedMatch, 'football_data_missing', 'Les données du match en direct ne sont pas disponibles.', $now);
                 $errors++;
 
@@ -174,6 +187,32 @@ final class ScanService
                 $now,
             );
             $snapshotsStored++;
+
+            $statisticsFailure = $footballFeed->statisticsFailures[$trackedMatch->provider_match_id] ?? null;
+            if ($includeStatistics && $statisticsFailure !== null) {
+                $this->recordIncident(
+                    $trackedMatch,
+                    'statistics_unavailable',
+                    'Statistiques indisponibles : '.$statisticsFailure.' Aucune vitalité ni alerte pour ce match.',
+                    $now,
+                    $snapshot,
+                );
+                $errors++;
+
+                continue;
+            }
+
+            if ($oddsMatch?->stopped === true || $footballMatch->stopped === true) {
+                $this->recordIncident(
+                    $trackedMatch,
+                    'match_stopped',
+                    'Match arrêté (mi-temps ou interruption) : aucune alerte ; les statistiques sont conservées.',
+                    $now,
+                    $snapshot,
+                );
+
+                continue;
+            }
 
             if ($oddsFeed === null || $oddsMatch === null) {
                 $this->recordIncident(
@@ -250,7 +289,53 @@ final class ScanService
             $goalCount,
             $errors,
             $this->nextPollInterval($settingValues, $now),
+            $quotaStopped,
         );
+    }
+
+    /**
+     * @param  Collection<int, TrackedMatch>  $trackedMatches
+     * @param  array<string, int|float|bool|array|string|null>  $settingValues
+     */
+    private function stopForQuota(
+        Collection $trackedMatches,
+        ?int $requestsRemaining,
+        ?int $quotaAlertThreshold,
+        int $expiredAlerts,
+        array $settingValues,
+        CarbonImmutable $now,
+    ): ScanPassResult {
+        $reason = $this->logQuotaStop($requestsRemaining, $quotaAlertThreshold);
+        foreach ($trackedMatches as $trackedMatch) {
+            $this->recordIncident($trackedMatch, 'quota_threshold_reached', $reason, $now);
+        }
+
+        return new ScanPassResult(
+            count($trackedMatches),
+            0,
+            0,
+            $expiredAlerts,
+            0,
+            count($trackedMatches),
+            $this->nextPollInterval($settingValues, $now),
+            true,
+        );
+    }
+
+    private function logQuotaStop(?int $requestsRemaining, ?int $quotaAlertThreshold): string
+    {
+        $reason = QuotaGuard::message($requestsRemaining, $quotaAlertThreshold);
+        Log::warning($reason, [
+            'requests_remaining' => $requestsRemaining,
+            'quota_alert_threshold' => $quotaAlertThreshold,
+        ]);
+
+        return $reason;
+    }
+
+    private function isInPlay(FootballMatch $footballMatch): bool
+    {
+        return $footballMatch->inPlay ?? $footballMatch->status === 'live';
     }
 
     /**
@@ -278,10 +363,17 @@ final class ScanService
         int $scanNumber,
         bool $includeStatistics,
         Collection $trackedMatches,
+        ?int $quotaAlertThreshold,
         CarbonImmutable $now,
     ): ?FootballFeed {
         try {
-            $feed = $this->footballProvider->getLiveMatches($scanNumber, $includeStatistics);
+            $feed = $this->footballProvider->getLiveMatches(
+                scanNumber: $scanNumber,
+                includeStatistics: $includeStatistics,
+                statisticsMatchLimit: null,
+                statisticsMatchIds: $trackedMatches->pluck('provider_match_id')->map(fn ($id): string => (string) $id)->values()->all(),
+                quotaAlertThreshold: $quotaAlertThreshold,
+            );
         } catch (ProviderUnavailable $exception) {
             $this->rememberProviderStatus('football', [
                 'driver' => config('services.pronofoot.football_driver'),

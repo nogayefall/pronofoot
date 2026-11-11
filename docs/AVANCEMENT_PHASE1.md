@@ -148,6 +148,16 @@ L’ordre appliqué est celui de `Claude.md` :
 - Cotes bet 23 dans `odds-live-bet23-20261111-184704-489376.json` (seule capture contenant ces matchs) : 1638318, 1644157, 1644159 et 1644160 ont des cotes non suspendues et un statut non arrêté. 1644163 et 1644162 ont des cotes non suspendues, mais sont à la mi-temps avec `status.stopped = true` ; le mapper les écarte donc dans cette capture.
 - Vérification : `php artisan test` — 105 tests réussis, 559 assertions ; `vendor\bin\pint --test` — réussi ; `npm test` — 4 tests réussis ; `npm run lint` — réussi ; `npm run build` — réussi.
 
+### Statistiques limitées aux matchs suivis (11 novembre 2026)
+
+- Le scan demande `fixtures/statistics` uniquement pour les matchs suivis actifs, un appel par match, à la cadence `scan.statistics_interval_seconds`. Un match live non suivi ne déclenche jamais d’appel statistiques. La commande de faisabilité garde son échantillon d’un match.
+- Quota : le quota restant est relu après chaque appel. Le scan s’arrête proprement (aucun appel supplémentaire, motif `quota_threshold_reached` au journal et dans le log Laravel, `scan:run` se termine) lorsque le quota est nul ou inférieur à `scan.quota_alert_threshold`. **Ce seuil n’est défini dans aucun document : il est vide par défaut et doit être fourni par le client.**
+- Échec des statistiques d’un match (connexion, HTTP, champ `errors`) : ce match est consigné `statistics_unavailable`, sans vitalité ni alerte ; les autres matchs continuent.
+- Match arrêté (`status.stopped = true` dans `odds/live`, par exemple la mi-temps) : ses cotes et statistiques sont conservées dans l’instantané, mais il est consigné `match_stopped` et ne reçoit aucune alerte. Le mapper ne les écarte plus du flux de cotes.
+- Un match API-Football est considéré en cours selon les codes « In Play » de la documentation (`1H`, `HT`, `2H`, `ET`, `BT`, `P`, `SUSP`, `INT`, `LIVE`).
+- Tests `ScanRealStatisticsTest` avec `Http::fake` : 10 matchs live, 3 suivis, exactement 3 appels statistiques.
+- Vérification : `php artisan test` — 113 tests réussis, 604 assertions ; `vendor\bin\pint --test` — réussi ; `npm test` — 4 tests réussis ; `npm run lint` et `npm run build` — réussis.
+
 ## Guide de démarrage et de test local
 
 ### 1. Démarrer les deux serveurs et ouvrir la connexion

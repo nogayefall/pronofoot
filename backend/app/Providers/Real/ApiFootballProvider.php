@@ -4,6 +4,7 @@ namespace App\Providers\Real;
 
 use App\Providers\Contracts\FootballProvider;
 use App\Providers\Data\FootballFeed;
+use App\Services\QuotaGuard;
 use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Http\Client\Response;
 use Illuminate\Support\Facades\Cache;
@@ -19,6 +20,8 @@ final class ApiFootballProvider implements FootballProvider
         bool $includeStatistics = true,
         ?int $statisticsMatchLimit = 1,
         bool $includeCoverage = false,
+        ?array $statisticsMatchIds = null,
+        ?int $quotaAlertThreshold = null,
     ): FootballFeed {
         if ($statisticsMatchLimit !== null && $statisticsMatchLimit < 1) {
             throw new InvalidArgumentException('La limite de matchs statistiques doit être positive.');
@@ -133,14 +136,25 @@ final class ApiFootballProvider implements FootballProvider
             );
         }
 
-        $statisticsMatches = array_slice($liveFeed->matches, 0, $statisticsMatchLimit);
+        $statisticsMatches = $statisticsMatchIds === null
+            ? array_slice($liveFeed->matches, 0, $statisticsMatchLimit)
+            : array_values(array_filter(
+                $liveFeed->matches,
+                fn ($match): bool => in_array($match->providerMatchId, $statisticsMatchIds, true),
+            ));
         $statisticsMatchId = null;
         $rawStatisticsResponse = null;
         $rawStatisticsResponses = [];
-        $statisticsFailure = null;
+        $statisticsFailures = [];
+        $quotaThresholdReached = false;
 
         foreach ($statisticsMatches as $match) {
-            $statisticsMatchId ??= $match->providerMatchId;
+            if (QuotaGuard::reached($requestsRemaining, $quotaAlertThreshold)) {
+                $quotaThresholdReached = true;
+
+                break;
+            }
+
             try {
                 $statisticsResponse = $this->request(
                     $baseUrl.'/fixtures/statistics',
@@ -149,22 +163,34 @@ final class ApiFootballProvider implements FootballProvider
                 );
             } catch (ConnectionException) {
                 $requestsUsed++;
-                $statisticsFailure = 'Échec de connexion au point API-Football fixtures/statistics.';
+                $statisticsFailures[$match->providerMatchId] = 'Échec de connexion au point API-Football fixtures/statistics.';
 
-                break;
+                continue;
             }
 
             $requestsUsed++;
             $requestsRemaining = $this->remaining($statisticsResponse) ?? $requestsRemaining;
             $requestsLimit = $this->limit($statisticsResponse) ?? $requestsLimit;
-            $rawStatisticsResponse ??= $statisticsResponse->body();
             if (! $statisticsResponse->successful()) {
-                $statisticsFailure = "API-Football a répondu HTTP {$statisticsResponse->status()} pour fixtures/statistics.";
+                $statisticsFailures[$match->providerMatchId] = "API-Football a répondu HTTP {$statisticsResponse->status()} pour fixtures/statistics.";
 
-                break;
+                continue;
             }
 
+            $errors = $statisticsResponse->json('errors');
+            if (! empty($errors)) {
+                $statisticsFailures[$match->providerMatchId] = 'API-Football a renvoyé une erreur pour fixtures/statistics.';
+
+                continue;
+            }
+
+            $statisticsMatchId ??= $match->providerMatchId;
+            $rawStatisticsResponse ??= $statisticsResponse->body();
             $rawStatisticsResponses[$match->providerMatchId] = $statisticsResponse->body();
+        }
+
+        if ($statisticsMatchId === null && $statisticsFailures !== []) {
+            $statisticsMatchId = (string) array_key_first($statisticsFailures);
         }
 
         $feed = $this->mapper->mapFootball(
@@ -178,22 +204,30 @@ final class ApiFootballProvider implements FootballProvider
             rawStatisticsResponses: $rawStatisticsResponses,
         );
 
-        if ($statisticsFailure === null && $coverageFailure === null) {
-            return $feed;
-        }
+        $messages = array_filter([
+            $statisticsFailures === [] ? null : sprintf(
+                'Statistiques indisponibles pour %d match(s) : %s',
+                count($statisticsFailures),
+                reset($statisticsFailures),
+            ),
+            $quotaThresholdReached ? QuotaGuard::message($requestsRemaining, $quotaAlertThreshold) : null,
+            $coverageFailure,
+        ]);
 
         return new FootballFeed(
             driver: $feed->driver,
             reachable: $feed->reachable,
-            statisticsAvailable: $statisticsFailure === null ? $feed->statisticsAvailable : false,
-            statusMessage: $statisticsFailure ?? $coverageFailure,
+            statisticsAvailable: $feed->statisticsAvailable ?? ($statisticsFailures !== [] ? false : null),
+            statusMessage: $messages === [] ? $feed->statusMessage : implode(' ', $messages),
             matches: $feed->matches,
             requestsUsed: $feed->requestsUsed,
             requestsRemaining: $feed->requestsRemaining,
             rawResponse: $feed->rawResponse,
-            statisticsMatchId: $feed->statisticsMatchId,
+            statisticsMatchId: $statisticsMatchId,
             rawStatisticsResponse: $rawStatisticsResponse,
             requestsLimit: $feed->requestsLimit,
+            statisticsFailures: $statisticsFailures,
+            quotaThresholdReached: $quotaThresholdReached,
         );
     }
 

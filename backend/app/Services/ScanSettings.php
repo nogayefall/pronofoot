@@ -37,6 +37,23 @@ final class ScanSettings
     /**
      * @param  array<string, int|float|bool|array|string|null>  $settings
      */
+    public function nullableInteger(array $settings, string $key): ?int
+    {
+        $value = $settings[$key] ?? null;
+        if ($value === null) {
+            return null;
+        }
+
+        if (! is_int($value) || $value < 1) {
+            throw new InvalidArgumentException("Le paramètre {$key} doit être un entier strictement positif ou rester à confirmer.");
+        }
+
+        return $value;
+    }
+
+    /**
+     * @param  array<string, int|float|bool|array|string|null>  $settings
+     */
     public function nullableFloat(array $settings, string $key): ?float
     {
         $value = $settings[$key] ?? null;

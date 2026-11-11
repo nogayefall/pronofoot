@@ -44,7 +44,8 @@ class TestFeasibility extends Command
 
         $this->newLine();
         $this->line('Odds : '.$this->availability($odds->reachable).' — '.$odds->statusMessage);
-        $this->line('Matchs live côté Odds : '.count($odds->matches));
+        $stoppedOddsMatches = count(array_filter($odds->matches, fn ($match): bool => $match->stopped === true));
+        $this->line('Matchs live côté Odds : '.count($odds->matches)." (dont {$stoppedOddsMatches} arrêté(s), sans alerte)");
         $matchesWithMarket = $odds->matchesWithExactScoreMarket
             ?? count(array_filter($odds->matches, fn ($match): bool => $match->exactScoreOdds !== []));
         $this->line('Matchs ayant le marché 23 : '.$matchesWithMarket);

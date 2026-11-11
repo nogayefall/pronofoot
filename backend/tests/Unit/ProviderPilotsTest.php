@@ -454,7 +454,7 @@ class ProviderPilotsTest extends TestCase
         $this->assertArrayNotHasKey('6-2', $match->exactScoreOdds);
     }
 
-    public function test_api_football_mapper_ignores_not_started_and_stopped_fixtures(): void
+    public function test_api_football_mapper_ignores_not_started_and_flags_stopped_fixtures(): void
     {
         $rawResponse = file_get_contents(database_path('fixtures/api-football/odds_live_bet23.json'));
         $this->assertNotFalse($rawResponse);
@@ -468,8 +468,12 @@ class ProviderPilotsTest extends TestCase
 
         $feed = (new ApiFootballMapper)->mapOdds($rawResponse);
 
-        $this->assertCount(1, $feed->matches);
-        $this->assertSame('1648706', $feed->matches[0]->providerMatchId);
+        $this->assertCount(2, $feed->matches);
+        $this->assertSame('1581906', $feed->matches[0]->providerMatchId);
+        $this->assertTrue($feed->matches[0]->stopped);
+        $this->assertSame('1648706', $feed->matches[1]->providerMatchId);
+        $this->assertFalse($feed->matches[1]->stopped);
+        $this->assertNotContains('9999999', array_map(fn ($match): string => $match->providerMatchId, $feed->matches));
     }
 
     public function test_api_football_provider_does_not_call_out_when_not_configured(): void

@@ -7,6 +7,7 @@ final readonly class FootballFeed
     /**
      * @param  list<FootballMatch>  $matches
      * @param  array<string, int|float|string|null>  $simulationSettings
+     * @param  array<string, string>  $statisticsFailures  Motif d’échec des statistiques, par identifiant de match.
      */
     public function __construct(
         public string $driver,
@@ -21,5 +22,7 @@ final readonly class FootballFeed
         public ?string $statisticsMatchId = null,
         public ?string $rawStatisticsResponse = null,
         public ?int $requestsLimit = null,
+        public array $statisticsFailures = [],
+        public bool $quotaThresholdReached = false,
     ) {}
 }

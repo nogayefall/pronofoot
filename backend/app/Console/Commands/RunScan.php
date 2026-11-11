@@ -47,6 +47,12 @@ class RunScan extends Command
                     $result->errors,
                 ));
 
+                if ($result->quotaStopped) {
+                    $this->error('Quota API atteint : scan arrêté. Le motif est consigné dans le journal.');
+
+                    return self::FAILURE;
+                }
+
                 if ($maxPasses !== 0 && $pass >= $maxPasses) {
                     break;
                 }

@@ -15,6 +15,8 @@ final class FakeFootballProvider implements FootballProvider
         bool $includeStatistics = true,
         ?int $statisticsMatchLimit = 1,
         bool $includeCoverage = false,
+        ?array $statisticsMatchIds = null,
+        ?int $quotaAlertThreshold = null,
     ): FootballFeed {
         $fixture = $this->fixtures->load();
         $matches = [];
@@ -31,7 +33,9 @@ final class FakeFootballProvider implements FootballProvider
                 continue;
             }
 
-            $statistics = $includeStatistics ? ($data['statistics'] ?? []) : [];
+            $statisticsRequested = $includeStatistics
+                && ($statisticsMatchIds === null || in_array((string) $match['id'], $statisticsMatchIds, true));
+            $statistics = $statisticsRequested ? ($data['statistics'] ?? []) : [];
             $coverageStatistics = is_array($data['statistics'] ?? null) ? $data['statistics'] : [];
             $matches[] = new FootballMatch(
                 providerMatchId: (string) $match['id'],
@@ -45,7 +49,7 @@ final class FakeFootballProvider implements FootballProvider
                 homeScore: isset($data['home_score']) ? (int) $data['home_score'] : null,
                 awayScore: isset($data['away_score']) ? (int) $data['away_score'] : null,
                 statistics: is_array($statistics) ? $statistics : [],
-                vitalityScore: $includeStatistics && is_numeric($data['vitality_score'] ?? null) ? (float) $data['vitality_score'] : null,
+                vitalityScore: $statisticsRequested && is_numeric($data['vitality_score'] ?? null) ? (float) $data['vitality_score'] : null,
                 methodScores: is_array($data['method_scores'] ?? null) ? $data['method_scores'] : [],
                 statisticsCoverage: $this->statisticsCoverage($coverageStatistics),
             );

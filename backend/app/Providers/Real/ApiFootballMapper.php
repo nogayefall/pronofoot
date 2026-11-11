@@ -10,6 +10,11 @@ use JsonException;
 
 final class ApiFootballMapper
 {
+    /**
+     * Codes « In Play » de la documentation API-Football (docs/api-football-documentation.md).
+     */
+    private const IN_PLAY_STATUS_CODES = ['1H', 'HT', '2H', 'ET', 'BT', 'P', 'SUSP', 'INT', 'LIVE'];
+
     public function map(string $rawResponse): FootballFeed
     {
         return $this->mapFootball($rawResponse);
@@ -118,6 +123,9 @@ final class ApiFootballMapper
                 statisticsCoverageSeason: $coverageSeason,
                 homeTeamId: $homeTeamId,
                 awayTeamId: $awayTeamId,
+                inPlay: is_string($status['short'] ?? null)
+                    ? in_array($status['short'], self::IN_PLAY_STATUS_CODES, true)
+                    : null,
             );
         }
 
@@ -281,8 +289,7 @@ final class ApiFootballMapper
 
             $fixtureStatus = $item['fixture']['status'];
             $status = $item['status'];
-            if (strcasecmp((string) ($fixtureStatus['long'] ?? ''), 'Not Started') === 0
-                || ($status['stopped'] ?? false) === true) {
+            if (strcasecmp((string) ($fixtureStatus['long'] ?? ''), 'Not Started') === 0) {
                 continue;
             }
 
@@ -293,6 +300,7 @@ final class ApiFootballMapper
                 minute: is_numeric($fixtureStatus['elapsed'] ?? null) ? (int) $fixtureStatus['elapsed'] : null,
                 homeScore: is_numeric($teams['home']['goals'] ?? null) ? (int) $teams['home']['goals'] : null,
                 awayScore: is_numeric($teams['away']['goals'] ?? null) ? (int) $teams['away']['goals'] : null,
+                stopped: is_bool($status['stopped'] ?? null) ? $status['stopped'] : null,
             );
         }
 

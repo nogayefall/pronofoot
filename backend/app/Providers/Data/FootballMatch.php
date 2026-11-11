@@ -35,5 +35,6 @@ final readonly class FootballMatch
         public ?int $statisticsCoverageSeason = null,
         public ?int $homeTeamId = null,
         public ?int $awayTeamId = null,
+        public ?bool $inPlay = null,
     ) {}
 }

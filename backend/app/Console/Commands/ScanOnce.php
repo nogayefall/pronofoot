@@ -27,6 +27,9 @@ class ScanOnce extends Command
         $this->info("Alertes expirées : {$result->alertsExpired}");
         $this->info("Buts détectés : {$result->goalsDetected}");
         $this->info("Incidents : {$result->errors}");
+        if ($result->quotaStopped) {
+            $this->error('Quota API atteint : scan arrêté. Le motif est consigné dans le journal.');
+        }
 
         return $result->errors === 0 ? self::SUCCESS : self::FAILURE;
     }

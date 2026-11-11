@@ -97,7 +97,7 @@ class FeasibilityCommandTest extends TestCase
         $output = Artisan::output();
 
         $this->assertSame(1, $exitCode);
-        $this->assertStringContainsString('Matchs live côté Odds : 3', $output);
+        $this->assertStringContainsString('Matchs live côté Odds : 12 (dont 9 arrêté(s), sans alerte)', $output);
         $this->assertStringContainsString('Matchs ayant le marché 23 : 13', $output);
         $this->assertStringContainsString('Matchs live Football : 27', $output);
         $this->assertStringContainsString('Match échantillon statistiques : 1635776', $output);

@@ -15,5 +15,6 @@ final readonly class OddsMatch
         public ?int $minute = null,
         public ?int $homeScore = null,
         public ?int $awayScore = null,
+        public ?bool $stopped = null,
     ) {}
 }

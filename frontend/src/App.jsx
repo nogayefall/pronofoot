@@ -37,6 +37,7 @@ const settingLabels = {
   'tendance_seuil_stable': 'Seuil de tendance stable (à confirmer)',
   ecart_negatif_comportement: 'Comportement d’un écart négatif (à confirmer)',
   'rules.vitality_normalization_references': 'Références de normalisation de la vitalité (à confirmer)',
+  'scan.quota_alert_threshold': 'Seuil d’alerte du quota API (à confirmer)',
 }
 
 const settingDescriptions = {
@@ -55,6 +56,7 @@ const settingDescriptions = {
   tendance_seuil_stable: 'Variation maximale considérée comme stable.',
   ecart_negatif_comportement: 'À définir après confirmation du sens d’une baisse de cote.',
   'rules.vitality_normalization_references': 'Valeurs de référence utilisées pour calculer la vitalité.',
+  'scan.quota_alert_threshold': 'Requêtes restantes sous lesquelles le scan s’arrête. Vide : arrêt seulement à quota nul.',
 }
 
 function Icon({ name, size = 20 }) {
