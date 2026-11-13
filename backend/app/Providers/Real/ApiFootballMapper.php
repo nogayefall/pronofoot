@@ -340,6 +340,61 @@ final class ApiFootballMapper
         return "{$name} · {$country}";
     }
 
+    /**
+     * Cote Under 2.5 (total du match) par match, lue dans odds/live?bet=36 « Over/Under Line ».
+     * Format observé dans la capture réelle du 13 novembre 2026 : valeurs « Over »/« Under », handicap texte
+     * (« 2.5 ») égal au total de buts du match, champ suspended. Seule une valeur unique, non suspendue et de cote
+     * positive est retenue ; plusieurs valeurs Under 2.5 pour un même match rendent la cote indisponible.
+     *
+     * @return array<string, float>|null Null si la réponse n’a pas la structure attendue.
+     */
+    public function mapUnder25Odds(string $rawResponse): ?array
+    {
+        try {
+            $payload = json_decode($rawResponse, true, flags: JSON_THROW_ON_ERROR);
+        } catch (JsonException) {
+            return null;
+        }
+
+        if (! is_array($payload) || ! is_array($payload['response'] ?? null)) {
+            return null;
+        }
+
+        $odds = [];
+        foreach ($payload['response'] as $item) {
+            $fixtureId = $item['fixture']['id'] ?? null;
+            if (! is_array($item) || (! is_int($fixtureId) && ! (is_string($fixtureId) && ctype_digit($fixtureId)))) {
+                continue;
+            }
+
+            $candidates = [];
+            foreach (is_array($item['odds'] ?? null) ? $item['odds'] : [] as $market) {
+                if (! is_array($market) || ($market['id'] ?? null) !== 36 || ! is_array($market['values'] ?? null)) {
+                    continue;
+                }
+
+                foreach ($market['values'] as $value) {
+                    if (is_array($value)
+                        && ($value['value'] ?? null) === 'Under'
+                        && is_numeric($value['handicap'] ?? null)
+                        && (float) $value['handicap'] === 2.5
+                        && ($value['suspended'] ?? null) === false
+                        && is_numeric($value['odd'] ?? null)
+                        && is_finite((float) $value['odd'])
+                        && (float) $value['odd'] > 0) {
+                        $candidates[] = (float) $value['odd'];
+                    }
+                }
+            }
+
+            if (count($candidates) === 1) {
+                $odds[(string) $fixtureId] = $candidates[0];
+            }
+        }
+
+        return $odds;
+    }
+
     private function availableString(mixed $value): string
     {
         return is_string($value) && trim($value) !== '' ? $value : 'Non disponible';

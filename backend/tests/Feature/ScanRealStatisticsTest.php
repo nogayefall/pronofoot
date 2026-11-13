@@ -156,6 +156,34 @@ class ScanRealStatisticsTest extends TestCase
         $this->assertSame(0, Alert::query()->count());
     }
 
+    public function test_real_halftime_under_2_5_in_range_creates_the_f121_e2_alert(): void
+    {
+        Queue::fake();
+        RuleProfile::query()->create([
+            'name' => 'Profil réel',
+            'is_active' => true,
+            'settings' => ['active_rules' => RuleConfiguration::DEFINED_RULES, 'method_weights' => []],
+        ]);
+        $this->fakeApi(stoppedOdds: [109], halftime: [109], under25: [109 => '1.36']);
+
+        $result = app(ScanService::class)->runOnce();
+
+        $this->assertSame(1, $result->alertsCreated);
+        $log = OpportunityLog::query()->where('decision', 'alert')->sole();
+        $this->assertSame('F121-E2', $log->rule_id);
+        $this->assertSame('Over 0.5 buts en 2ème mi-temps', $log->suggested_action);
+        Http::assertSent(fn (Request $request): bool => str_ends_with($request->url(), '/odds/live?bet=36'));
+    }
+
+    public function test_bet_36_is_not_requested_when_no_tracked_match_is_at_halftime(): void
+    {
+        $this->fakeApi();
+
+        app(ScanService::class)->runOnce();
+
+        Http::assertNotSent(fn (Request $request): bool => str_ends_with($request->url(), '/odds/live?bet=36'));
+    }
+
     public function test_quota_is_counted_after_each_statistics_call_and_stops_at_zero(): void
     {
         Queue::fake();
@@ -350,6 +378,7 @@ class ScanRealStatisticsTest extends TestCase
         array $leagues = [],
         array $withoutOdds = [],
         array $coveredLeagues = [],
+        array $under25 = [],
     ): void {
         $statisticsRemaining = $statisticsRemainingStart ?? $liveRemaining - 1;
         $headers = fn (int $remaining): array => array_filter([
@@ -357,7 +386,7 @@ class ScanRealStatisticsTest extends TestCase
             'x-ratelimit-requests-limit' => $limit === null ? null : (string) $limit,
         ], fn (?string $value): bool => $value !== null);
 
-        Http::fake(function (Request $request) use ($failingStatistics, $stoppedOdds, $liveRemaining, $halftime, $leagues, $withoutOdds, $coveredLeagues, $headers, &$statisticsRemaining) {
+        Http::fake(function (Request $request) use ($failingStatistics, $stoppedOdds, $liveRemaining, $halftime, $leagues, $withoutOdds, $coveredLeagues, $under25, $headers, &$statisticsRemaining) {
             $url = $request->url();
             if (str_contains($url, '/fixtures/statistics')) {
                 $fixtureId = (int) $request->data()['fixture'];
@@ -374,6 +403,10 @@ class ScanRealStatisticsTest extends TestCase
 
             if (str_contains($url, '/leagues')) {
                 return Http::response($this->coverageBody($coveredLeagues), 200, $headers(max(0, $statisticsRemaining)));
+            }
+
+            if (str_contains($url, '/odds/live') && (string) ($request->data()['bet'] ?? '') === '36') {
+                return Http::response($this->overUnderBody($under25), 200, $headers(max(0, $statisticsRemaining)));
             }
 
             if (str_contains($url, '/odds/live')) {
@@ -412,6 +445,27 @@ class ScanRealStatisticsTest extends TestCase
             'league' => ['id' => $leagueId],
             'seasons' => [['year' => 2026, 'current' => true, 'coverage' => ['fixtures' => ['statistics_fixtures' => in_array($leagueId, $coveredLeagues, true)]]]],
         ], [39, 140, 135, 78, 61, 2, 3])], JSON_THROW_ON_ERROR);
+    }
+
+    /**
+     * Réponse bet 36 au format de la capture réelle (database/fixtures/api-football/odds-live-bet36.json).
+     *
+     * @param  array<int, string>  $under25  Cote Under 2.5 par match.
+     */
+    private function overUnderBody(array $under25): string
+    {
+        return json_encode(['errors' => [], 'response' => array_map(fn (int $id): array => [
+            'fixture' => ['id' => $id, 'status' => ['long' => 'Halftime', 'elapsed' => 45]],
+            'status' => ['stopped' => true, 'blocked' => false, 'finished' => false],
+            'odds' => [[
+                'id' => 36,
+                'name' => 'Over/Under Line',
+                'values' => [
+                    ['value' => 'Over', 'odd' => '2.9', 'handicap' => '2.5', 'main' => true, 'suspended' => false],
+                    ['value' => 'Under', 'odd' => $under25[$id], 'handicap' => '2.5', 'main' => true, 'suspended' => false],
+                ],
+            ]],
+        ], array_keys($under25))], JSON_THROW_ON_ERROR);
     }
 
     private function snapshot(string $providerMatchId, array $odds, CarbonImmutable $capturedAt): void

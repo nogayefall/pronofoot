@@ -784,6 +784,95 @@ class ProviderPilotsTest extends TestCase
         Http::assertSent(fn (Request $request): bool => str_ends_with($request->url(), '/odds/live?bet=23'));
     }
 
+    public function test_api_football_mapper_reads_under_2_5_from_the_real_bet_36_capture(): void
+    {
+        $raw = file_get_contents(database_path('fixtures/api-football/odds-live-bet36.json'));
+        $this->assertNotFalse($raw);
+
+        $odds = (new ApiFootballMapper)->mapUnder25Odds($raw);
+
+        $this->assertSame(1.875, $odds['1528970'], 'Liechtenstein – Azerbaïdjan, mi-temps, ligne principale 2.5.');
+        $this->assertSame(1.5, $odds['1545614'], 'Ligne 2.5 non principale (main=false) : la cote reste lisible.');
+        $this->assertSame(1.6, $odds['1604915']);
+        $this->assertArrayNotHasKey('1528965', $odds, 'Serbie – Allemagne : aucune ligne 2.5 proposée.');
+        $this->assertArrayNotHasKey('1545870', $odds, '3 buts marqués : plus de ligne 2.5.');
+        $this->assertCount(11, $odds);
+    }
+
+    public function test_api_football_mapper_never_guesses_between_duplicate_or_suspended_under_2_5_values(): void
+    {
+        $payload = json_decode((string) file_get_contents(database_path('fixtures/api-football/odds-live-bet36.json')), true, flags: JSON_THROW_ON_ERROR);
+        foreach ($payload['response'] as $index => $item) {
+            foreach ($item['odds'][0]['values'] as $valueIndex => $value) {
+                if ($value['value'] !== 'Under' || $value['handicap'] !== '2.5') {
+                    continue;
+                }
+                if ($item['fixture']['id'] === 1528970) {
+                    $payload['response'][$index]['odds'][0]['values'][] = [...$value, 'odd' => '1.9', 'main' => false];
+                }
+                if ($item['fixture']['id'] === 1604915) {
+                    $payload['response'][$index]['odds'][0]['values'][$valueIndex]['suspended'] = true;
+                }
+            }
+        }
+
+        $odds = (new ApiFootballMapper)->mapUnder25Odds(json_encode($payload, JSON_THROW_ON_ERROR));
+
+        $this->assertArrayNotHasKey('1528970', $odds);
+        $this->assertArrayNotHasKey('1604915', $odds);
+        $this->assertNull((new ApiFootballMapper)->mapUnder25Odds('{"unexpected":true}'));
+    }
+
+    public function test_api_football_odds_provider_adds_under_2_5_only_when_requested(): void
+    {
+        config()->set('services.football_api.api_key', 'test-api-key');
+        config()->set('services.football_api.base_url', 'https://api.example.test');
+        $bet23 = json_encode(['response' => [[
+            'fixture' => ['id' => 1528970, 'status' => ['long' => 'Halftime', 'elapsed' => 45]],
+            'status' => ['stopped' => true, 'blocked' => false, 'finished' => false],
+            'teams' => ['home' => ['goals' => 0], 'away' => ['goals' => 1]],
+            'odds' => [['id' => 23, 'name' => 'Final Score', 'values' => [['value' => '0-1', 'odd' => '2.1', 'suspended' => false]]]],
+        ]]], JSON_THROW_ON_ERROR);
+        Http::fake([
+            'https://api.example.test/odds/live?bet=23' => Http::response($bet23, 200, ['x-ratelimit-requests-remaining' => '50']),
+            'https://api.example.test/odds/live?bet=36' => Http::response(
+                (string) file_get_contents(database_path('fixtures/api-football/odds-live-bet36.json')),
+                200,
+                ['x-ratelimit-requests-remaining' => '49'],
+            ),
+        ]);
+        $provider = app(ApiFootballOddsProvider::class);
+
+        $withoutUnder = $provider->getLiveOdds();
+        $this->assertNull($withoutUnder->matches[0]->under25Odds);
+        Http::assertSentCount(1);
+
+        $withUnder = $provider->getLiveOdds(includeUnder25: true);
+        $this->assertSame(1.875, $withUnder->matches[0]->under25Odds);
+        $this->assertSame(['0-1' => 2.1], $withUnder->matches[0]->exactScoreOdds);
+        $this->assertSame(2, $withUnder->requestsUsed);
+        $this->assertSame(49, $withUnder->requestsRemaining);
+        Http::assertSent(fn (Request $request): bool => str_ends_with($request->url(), '/odds/live?bet=36'));
+    }
+
+    public function test_bet_36_failure_keeps_exact_score_odds_and_leaves_under_2_5_unavailable(): void
+    {
+        config()->set('services.football_api.api_key', 'test-api-key');
+        config()->set('services.football_api.base_url', 'https://api.example.test');
+        $bet23 = (string) file_get_contents(database_path('fixtures/api-football/odds-live-bet-23.json'));
+        Http::fake([
+            'https://api.example.test/odds/live?bet=23' => Http::response($bet23, 200),
+            'https://api.example.test/odds/live?bet=36' => Http::response('{"errors":["panne"]}', 500),
+        ]);
+
+        $feed = app(ApiFootballOddsProvider::class)->getLiveOdds(includeUnder25: true);
+
+        $this->assertTrue($feed->exactScoreMarketAvailable);
+        $this->assertNotEmpty($feed->matches);
+        $this->assertNull($feed->matches[0]->under25Odds);
+        $this->assertStringContainsString('Cote Under 2.5 indisponible : API-Football a répondu HTTP 500', $feed->statusMessage);
+    }
+
     public function test_odds_driver_can_select_api_football(): void
     {
         config()->set('services.pronofoot.odds_driver', 'api_football');

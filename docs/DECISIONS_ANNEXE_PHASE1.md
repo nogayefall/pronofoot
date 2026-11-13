@@ -27,7 +27,7 @@ Source : `docs/PRONOFOOT_Annexe_Phase1_Corrigee.pdf` (novembre 2026, « décisio
 2. **Baisse exactement égale à 5 %** : non tranchée par l’annexe, traitée comme une abstention.
 3. **Scores couverts par F121-D** : le CDC cite 2-3 et 3-2 ; la situation 9 de l’annexe attend Over 4.5 à 2-2. La liste `rules.open_match_scores` vaut donc 2-2, 2-3 et 3-2, et doit être confirmée.
 4. **Seuil 0-0 (F121-R)** : la règle du CDC (cote du 0-0 sous 2.50, écart requis sous 1.00) est conservée pour l’alerte Haute ; l’annexe ne la remet pas en cause.
-5. **Cote Under 2.5 réelle** : le pari API-Football « Over/Under Line » (id 36) n’apparaît dans aucune capture. Seul le pilote fictif fournit cette cote. Lancer `php artisan api-football:capture --fixture=<id> --bet36` pendant un match en direct, puis brancher le pilote réel après lecture de la vraie réponse.
+5. **Cote Under 2.5 réelle** : branchée d’après la capture réelle `backend/database/fixtures/api-football/odds-live-bet36.json` (13 novembre 2026, 43 matchs). Le pari 36 « Over/Under Line » donne des valeurs `Over`/`Under` avec un `handicap` texte égal au total de buts du match (la ligne principale est toujours au-dessus des buts déjà marqués). Seule une valeur `Under` 2.5 unique et non suspendue est retenue ; la ligne 2.5 n’est pas toujours proposée (11 matchs sur 43). Le pari 36 n’est demandé (un appel de plus) que si un match suivi est à la mi-temps. Le champ `main` n’est pas utilisé : il vaut true, false ou est absent sans doublon dans la capture ; deux valeurs Under 2.5 pour un même match rendent la cote indisponible.
 
 ## Quota et matchs surveillés (annexe, sections 5 et 6)
 

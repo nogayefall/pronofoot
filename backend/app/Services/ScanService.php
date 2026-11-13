@@ -144,7 +144,12 @@ final class ScanService
             $this->lastOddsFetchAt = null;
 
             try {
-                $oddsFeed = $this->oddsProvider->getLiveOdds($scanNumber);
+                $halftimeTracked = $trackedMatches->contains(function (TrackedMatch $trackedMatch) use ($footballMatches): bool {
+                    $match = $footballMatches[$trackedMatch->provider_match_id] ?? null;
+
+                    return $match instanceof FootballMatch && strcasecmp($match->status, 'Halftime') === 0;
+                });
+                $oddsFeed = $this->oddsProvider->getLiveOdds($scanNumber, includeUnder25: $halftimeTracked);
                 $this->rememberProviderStatus('odds', [
                     'driver' => $oddsFeed->driver,
                     'requestsUsed' => $oddsFeed->requestsUsed,

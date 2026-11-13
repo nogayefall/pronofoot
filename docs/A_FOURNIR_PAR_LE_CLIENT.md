@@ -30,7 +30,7 @@ Sans confirmation d’un paramètre nécessaire, le comportement reste l’abste
 ## Sources et pilotes réels
 
 - **API-Football :** clé fournie et conservée dans `.env`. Liste live, statistiques par équipe et cotes de score exact (bet 23) sont mappées sur de vraies réponses. Un scan réel a été effectué le 13 novembre 2026 (voir `AVANCEMENT_PHASE1.md`).
-- **Cote Under 2.5 (pari 36 « Over/Under Line »)** nécessaire à F121-E2 : aucune réponse réelle n’a encore été capturée. Le 13 novembre 2026, aucun match des ligues suivies n’était en cours. Lancer pendant un match de ces ligues : `php artisan api-football:capture --fixture=<id> --bet36`. Le pilote réel ne sera écrit qu’après lecture de cette réponse ; d’ici là, F121-E2 ne peut pas déclencher d’alerte en réel.
+- **Cote Under 2.5 (pari 36 « Over/Under Line »)** : capturée le 13 novembre 2026 et branchée pour F121-E2. Elle n’est demandée que lorsqu’un match suivi est à la mi-temps.
 - **The Odds API :** le catalogue officiel des marchés ne documente pas les scores exacts en direct ; le pilote réel refuse de l’inventer. API-Football (`ODDS_DRIVER=api_football`) le remplace.
 - Fournir un compte et un destinataire WhatsApp Business autorisés, ainsi qu’un modèle de message approuvé si nécessaire.
 - Fournir, si le repli est retenu, un bot Telegram et un identifiant de conversation, conservés uniquement dans `.env`.

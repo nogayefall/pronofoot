@@ -17,7 +17,7 @@ const ruleDescriptions = [
   { id: 'F121-C.2', title: 'Avantage de deux buts', status: 'Disponible', detail: 'Suit le leader lorsque son avantage atteint au moins deux buts.' },
   { id: 'F121-D', title: 'Match ouvert', status: 'Disponible', detail: 'Cotes des scores suivants ≤ 8.00 : Over 4.5. Liste des scores concernés à confirmer (2-2 ajouté d’après la situation 9).' },
   { id: 'F121-E1', title: 'Écart négatif', status: 'Disponible', detail: 'Cote du prochain but inférieure à celle du score actuel : alerte critique.' },
-  { id: 'F121-E2', title: 'Signal mi-temps', status: 'Partiel', detail: 'Under 2.5 entre 1.15 et 1.40 à la mi-temps : Over 0.5 en 2e mi-temps. Cote réelle en attente de la capture bet 36.' },
+  { id: 'F121-E2', title: 'Signal mi-temps', status: 'Disponible', detail: 'Under 2.5 (total du match, pari API-Football 36) entre 1.15 et 1.40 à la mi-temps : Over 0.5 en 2e mi-temps.' },
   { id: 'F121-K · T · X', title: 'Écarts et tendance', status: 'Non défini', detail: 'La formule exacte doit être fournie avant activation.' },
   { id: 'F122 · F124 · F126', title: 'Règles complémentaires', status: 'Non défini', detail: 'Formules métier à confirmer par le client.' },
 ]

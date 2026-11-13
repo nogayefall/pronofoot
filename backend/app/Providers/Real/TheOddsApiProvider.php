@@ -7,7 +7,7 @@ use App\Providers\Data\OddsFeed;
 
 final class TheOddsApiProvider implements OddsProvider
 {
-    public function getLiveOdds(int $scanNumber = 0): OddsFeed
+    public function getLiveOdds(int $scanNumber = 0, bool $includeUnder25 = false): OddsFeed
     {
         return new OddsFeed(
             driver: 'real',
