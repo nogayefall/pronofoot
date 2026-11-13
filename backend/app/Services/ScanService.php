@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Jobs\SendAlertNotification;
 use App\Jobs\SendQuotaNotification;
+use App\Logging\SecretRedactor;
 use App\Models\Alert;
 use App\Models\MatchSnapshot;
 use App\Models\OpportunityLog;
@@ -26,8 +27,9 @@ use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use Throwable;
 
-final class ScanService
+class ScanService
 {
     private ?CarbonImmutable $lastOddsFetchAt = null;
 
@@ -198,137 +200,142 @@ final class ScanService
         $errors = 0;
 
         foreach ($trackedMatches as $trackedMatch) {
-            $footballMatch = $footballMatches[$trackedMatch->provider_match_id] ?? null;
-            if ($footballMatch === null || ! $this->isInPlay($footballMatch)) {
-                $this->recordIncident($trackedMatch, 'football_data_missing', $footballMatch === null ? 'Match introuvable dans le flux en direct.' : 'Match non en cours selon le flux (statut : '.$footballMatch->status.').', $now);
-                $errors++;
+            try {
+                $footballMatch = $footballMatches[$trackedMatch->provider_match_id] ?? null;
+                if ($footballMatch === null || ! $this->isInPlay($footballMatch)) {
+                    $this->recordIncident($trackedMatch, 'football_data_missing', $footballMatch === null ? 'Match introuvable dans le flux en direct.' : 'Match non en cours selon le flux (statut : '.$footballMatch->status.').', $now);
+                    $errors++;
 
-                continue;
-            }
+                    continue;
+                }
 
-            if ($footballMatch->homeScore === null || $footballMatch->awayScore === null || $footballMatch->minute === null) {
-                $this->recordIncident($trackedMatch, 'football_data_missing', 'Le score ou la minute du match est indisponible.', $now);
-                $errors++;
+                if ($footballMatch->homeScore === null || $footballMatch->awayScore === null || $footballMatch->minute === null) {
+                    $this->recordIncident($trackedMatch, 'football_data_missing', 'Le score ou la minute du match est indisponible.', $now);
+                    $errors++;
 
-                continue;
-            }
+                    continue;
+                }
 
-            $oddsMatch = $oddsMatches[$trackedMatch->provider_match_id] ?? null;
-            $isDue = in_array($trackedMatch->id, $dueMatchIds, true);
-            $snapshot = $this->storeSnapshot(
-                $trackedMatch,
-                $footballMatch,
-                $oddsMatch,
-                $isDue,
-                $statisticsInterval,
-                $vitalityScale,
-                $now,
-            );
-            $snapshotsStored++;
-
-            if (! $isDue) {
-                $this->refreshTrendForClassification($trackedMatch, $snapshot, $footballMatch, $oddsMatch, $settingValues, $now);
-
-                continue;
-            }
-
-            $trackedMatch->forceFill(['last_scanned_at' => $now])->save();
-            $statisticsFailure = $footballFeed->statisticsFailures[$trackedMatch->provider_match_id] ?? null;
-            if ($statisticsFailure !== null) {
-                $this->recordIncident(
+                $oddsMatch = $oddsMatches[$trackedMatch->provider_match_id] ?? null;
+                $isDue = in_array($trackedMatch->id, $dueMatchIds, true);
+                $snapshot = $this->storeSnapshot(
                     $trackedMatch,
-                    'statistics_unavailable',
-                    'Statistiques indisponibles : '.$statisticsFailure.' Aucune vitalité ni alerte pour ce match.',
-                    $now,
-                    $snapshot,
-                );
-                $errors++;
-
-                continue;
-            }
-
-            $halftime = strcasecmp($footballMatch->status, 'Halftime') === 0;
-            if (! $halftime && ($oddsMatch?->stopped === true || $footballMatch->stopped === true)) {
-                $this->recordIncident(
-                    $trackedMatch,
-                    'match_stopped',
-                    'Match arrêté par le fournisseur : aucune alerte, statistiques conservées.',
-                    $now,
-                    $snapshot,
-                );
-
-                continue;
-            }
-
-            if ($oddsFeed === null || $oddsMatch === null) {
-                $this->recordIncident(
-                    $trackedMatch,
-                    $oddsFeed === null ? $oddsFailureEventType : 'odds_data_missing',
-                    $oddsUnavailableReason ?? 'Les cotes de scores exacts à jour sont indisponibles ; aucune donnée précédente n’est réutilisée.',
-                    $now,
-                    $snapshot,
-                );
-                $errors++;
-
-                continue;
-            }
-
-            if ($profile === null) {
-                $this->recordOpportunity(
-                    $trackedMatch,
-                    $snapshot,
-                    null,
-                    'evaluation',
-                    'no_alert',
-                    'Aucun profil de règles actif n’est configuré.',
+                    $footballMatch,
+                    $oddsMatch,
+                    $isDue,
+                    $statisticsInterval,
+                    $vitalityScale,
                     $now,
                 );
+                $snapshotsStored++;
 
-                continue;
-            }
+                if (! $isDue) {
+                    $this->refreshTrendForClassification($trackedMatch, $snapshot, $footballMatch, $oddsMatch, $settingValues, $now);
 
-            $snapshotAge = $snapshot->statistics_captured_at === null
-                ? null
-                : CarbonImmutable::instance($snapshot->statistics_captured_at);
-            $vitality = $snapshotAge !== null
-                && $snapshotAge->addSeconds($statisticsInterval)->greaterThanOrEqualTo($now)
-                ? $snapshot->vitality_score
-                : null;
-            $configuration = $this->ruleConfigurationFactory->make($profile, $settingValues);
-            $input = new RuleInput(
-                homeScore: $footballMatch->homeScore,
-                awayScore: $footballMatch->awayScore,
-                exactScoreOdds: $oddsMatch->exactScoreOdds,
-                vitalityScore: $vitality,
-                methodScores: $footballMatch->methodScores,
-                halftime: $halftime,
-                under25Odds: $oddsMatch->under25Odds,
-            );
-            $suggestedScoreKey = $this->ruleEngine->suggestedExactScoreKey($input, $configuration);
-            $trendChange = $this->calculateTrendChange(
-                $trackedMatch,
-                $oddsMatch->exactScoreOdds,
-                $suggestedScoreKey,
-                $this->settings->nullableString($settingValues, 'tendance_source'),
-                $this->settings->nullableFloat($settingValues, 'tendance_seuil_stable'),
-                $now,
-            );
-            $snapshot->forceFill(['odds_change_percent' => $trendChange])->save();
-            $result = $this->ruleEngine->evaluate(
-                new RuleInput(
+                    continue;
+                }
+
+                $trackedMatch->forceFill(['last_scanned_at' => $now])->save();
+                $statisticsFailure = $footballFeed->statisticsFailures[$trackedMatch->provider_match_id] ?? null;
+                if ($statisticsFailure !== null) {
+                    $this->recordIncident(
+                        $trackedMatch,
+                        'statistics_unavailable',
+                        'Statistiques indisponibles : '.$statisticsFailure.' Aucune vitalité ni alerte pour ce match.',
+                        $now,
+                        $snapshot,
+                    );
+                    $errors++;
+
+                    continue;
+                }
+
+                $halftime = strcasecmp($footballMatch->status, 'Halftime') === 0;
+                if (! $halftime && ($oddsMatch?->stopped === true || $footballMatch->stopped === true)) {
+                    $this->recordIncident(
+                        $trackedMatch,
+                        'match_stopped',
+                        'Match arrêté par le fournisseur : aucune alerte, statistiques conservées.',
+                        $now,
+                        $snapshot,
+                    );
+
+                    continue;
+                }
+
+                if ($oddsFeed === null || $oddsMatch === null) {
+                    $this->recordIncident(
+                        $trackedMatch,
+                        $oddsFeed === null ? $oddsFailureEventType : 'odds_data_missing',
+                        $oddsUnavailableReason ?? 'Les cotes de scores exacts à jour sont indisponibles ; aucune donnée précédente n’est réutilisée.',
+                        $now,
+                        $snapshot,
+                    );
+                    $errors++;
+
+                    continue;
+                }
+
+                if ($profile === null) {
+                    $this->recordOpportunity(
+                        $trackedMatch,
+                        $snapshot,
+                        null,
+                        'evaluation',
+                        'no_alert',
+                        'Aucun profil de règles actif n’est configuré.',
+                        $now,
+                    );
+
+                    continue;
+                }
+
+                $snapshotAge = $snapshot->statistics_captured_at === null
+                    ? null
+                    : CarbonImmutable::instance($snapshot->statistics_captured_at);
+                $vitality = $snapshotAge !== null
+                    && $snapshotAge->addSeconds($statisticsInterval)->greaterThanOrEqualTo($now)
+                    ? $snapshot->vitality_score
+                    : null;
+                $configuration = $this->ruleConfigurationFactory->make($profile, $settingValues);
+                $input = new RuleInput(
                     homeScore: $footballMatch->homeScore,
                     awayScore: $footballMatch->awayScore,
                     exactScoreOdds: $oddsMatch->exactScoreOdds,
                     vitalityScore: $vitality,
-                    oddsChangePercent: $trendChange,
                     methodScores: $footballMatch->methodScores,
                     halftime: $halftime,
                     under25Odds: $oddsMatch->under25Odds,
-                ),
-                $configuration,
-            );
+                );
+                $suggestedScoreKey = $this->ruleEngine->suggestedExactScoreKey($input, $configuration);
+                $trendChange = $this->calculateTrendChange(
+                    $trackedMatch,
+                    $oddsMatch->exactScoreOdds,
+                    $suggestedScoreKey,
+                    $this->settings->nullableString($settingValues, 'tendance_source'),
+                    $this->settings->nullableFloat($settingValues, 'tendance_seuil_stable'),
+                    $now,
+                );
+                $snapshot->forceFill(['odds_change_percent' => $trendChange])->save();
+                $result = $this->ruleEngine->evaluate(
+                    new RuleInput(
+                        homeScore: $footballMatch->homeScore,
+                        awayScore: $footballMatch->awayScore,
+                        exactScoreOdds: $oddsMatch->exactScoreOdds,
+                        vitalityScore: $vitality,
+                        oddsChangePercent: $trendChange,
+                        methodScores: $footballMatch->methodScores,
+                        halftime: $halftime,
+                        under25Odds: $oddsMatch->under25Odds,
+                    ),
+                    $configuration,
+                );
 
-            $alertsCreated += $this->recordDecision($trackedMatch, $snapshot, $profile, $result, $footballMatch, $now);
+                $alertsCreated += $this->recordDecision($trackedMatch, $snapshot, $profile, $result, $footballMatch, $now);
+            } catch (Throwable $exception) {
+                $errors++;
+                $this->recordProcessingError($trackedMatch, $exception, $now);
+            }
         }
 
         return new ScanPassResult(
@@ -1017,6 +1024,29 @@ final class ScanService
         }
 
         return false;
+    }
+
+    /**
+     * Une erreur inattendue sur un match est consignée sans interrompre le passage ; le message est expurgé des secrets.
+     */
+    private function recordProcessingError(TrackedMatch $trackedMatch, Throwable $exception, CarbonImmutable $now): void
+    {
+        $message = SecretRedactor::fromEnvironment()->redact(class_basename($exception).' : '.$exception->getMessage());
+        Log::error('Erreur pendant le traitement d’un match ; le scan continue.', [
+            'tracked_match_id' => $trackedMatch->id,
+            'error' => $message,
+        ]);
+
+        try {
+            $this->recordIncident(
+                $trackedMatch,
+                'match_processing_error',
+                'Erreur pendant le traitement du match, ignoré à ce passage : '.mb_substr($message, 0, 300),
+                $now,
+            );
+        } catch (Throwable) {
+            // La base peut être indisponible : l’erreur reste dans le journal applicatif.
+        }
     }
 
     private function recordIncident(

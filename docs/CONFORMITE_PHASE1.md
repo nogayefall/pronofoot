@@ -39,3 +39,16 @@ Tests automatiques : `backend/tests/Feature/AcceptanceCriteriaTest.php`, `backen
 3. Attendre une alerte (Journal, décision « alert »).
 4. Comparer l’heure de détection (Journal, colonne date) et l’heure d’envoi (`alerts.sent_at`, ou la ligne correspondante dans `storage/logs/laravel.log`). L’écart doit rester sous 60 secondes.
 5. Refaire la mesure avec WhatsApp quand le canal réel sera branché.
+
+## Robustesse de `scan:run` en continu
+
+Tests : `backend/tests/Feature/ScanRobustnessTest.php`.
+
+| Exigence | Statut | Mise en œuvre |
+|---|---|---|
+| Pas de fuite de mémoire | Conforme (test) | Journal des requêtes désactivé, `gc_collect_cycles()` à chaque passage ; 60 passages fictifs ajoutent moins de 4 Mo. Garde-fou `--max-memory=256` : arrêt propre, Supervisor relance un processus neuf. |
+| Reconnexion à la base après une coupure | Conforme (test) | Une coupure détectée (« server has gone away », etc.) provoque `DB::purge()` puis `DB::reconnect()` ; le passage suivant repart. À vérifier aussi manuellement : arrêter MySQL pendant `scan:run`, le redémarrer, constater la reprise. |
+| Une exception sur un match n’arrête pas la boucle | Conforme (test) | Erreur isolée par match (incident `match_processing_error` au Journal) et par passage (pause `--error-backoff`, puis reprise). |
+| Arrêt propre sur signal | Conforme (test pour `scan:stop`) ; signaux **à vérifier sur le serveur Linux** | SIGTERM, SIGINT et SIGQUIT (extension pcntl, absente sous Windows) ou `php artisan scan:stop` : arrêt après le passage en cours. Supervisor envoie SIGTERM (`stopwaitsecs=60`). |
+| Reprise après redémarrage sans alerte en double | Conforme (test) | Le dédoublonnage s’appuie sur les alertes actives en base, pas sur la mémoire du processus. |
+| Aucun jeton ni clé dans les journaux | Conforme (test) | Processeur `SecretRedactor` sur les canaux `single`, `daily` et `stderr` : toute valeur d’une variable d’environnement dont le nom contient KEY, TOKEN, SECRET ou PASSWORD, ainsi que la clé d’application, devient `[masqué]`. Les clés API sont envoyées en en-tête, jamais dans l’URL. |

@@ -25,6 +25,7 @@ class ScanOnce extends Command
         'statistics_unavailable' => 'statistiques indisponibles',
         'match_stopped' => 'match arrêté',
         'quota_threshold_reached' => 'quota API atteint',
+        'match_processing_error' => 'erreur de traitement',
     ];
 
     public function handle(ScanService $scanner): int
