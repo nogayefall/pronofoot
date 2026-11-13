@@ -32,6 +32,18 @@ class AdministratorAuthenticationTest extends TestCase
             ->assertRedirect(route('admin.dashboard'));
     }
 
+    public function test_test_administrator_can_be_deleted_before_delivery(): void
+    {
+        $this->createAdministrator(['email' => 'admin-test@pronofoot.local']);
+        $client = $this->createAdministrator(['email' => 'client@example.test']);
+
+        $this->artisan('admin:delete-test')->expectsOutputToContain('Compte de test supprimé')->assertExitCode(0);
+        $this->artisan('admin:delete-test')->expectsOutputToContain('Aucun compte de test')->assertExitCode(0);
+
+        $this->assertDatabaseMissing('users', ['email' => 'admin-test@pronofoot.local']);
+        $this->assertDatabaseHas('users', ['id' => $client->id]);
+    }
+
     public function test_local_test_administrator_can_sign_in_with_only_email_and_password(): void
     {
         $this->useLocalEnvironment();

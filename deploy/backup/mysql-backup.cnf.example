@@ -1,0 +1,7 @@
+# Copier vers /etc/pronofoot/mysql-backup.cnf, renseigner le compte de sauvegarde, puis :
+#   chown root:root /etc/pronofoot/mysql-backup.cnf && chmod 600 /etc/pronofoot/mysql-backup.cnf
+# Droits suffisants pour ce compte : SELECT, SHOW VIEW, TRIGGER, LOCK TABLES, EVENT sur la base pronofoot.
+[client]
+user=pronofoot_backup
+password=
+host=127.0.0.1
