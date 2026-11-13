@@ -133,7 +133,7 @@ final class ApiFootballMapper
             ? null
             : collect($matches)->contains(fn (FootballMatch $match): bool => $this->hasStatisticValue($match->statistics));
         $statisticsMessage = $statisticsAvailable === true
-            ? 'Statistiques API-Football lues par équipe : tirs, tirs cadrés, corners et possession. La vitalité n’est pas calculée.'
+            ? 'Statistiques API-Football lues par équipe : tirs, tirs cadrés, corners et possession. La vitalité est calculée par le scan selon le barème de l’annexe.'
             : $this->statisticsStatusMessage($statisticsResponses === [] ? null : (string) reset($statisticsResponses));
 
         return new FootballFeed(

@@ -254,7 +254,7 @@ class ProviderPilotsTest extends TestCase
         );
 
         $this->assertTrue($feed->statisticsAvailable);
-        $this->assertStringContainsString('La vitalité n’est pas calculée', $feed->statusMessage);
+        $this->assertStringContainsString('La vitalité est calculée par le scan', $feed->statusMessage);
         $match = $feed->matches[0];
         $this->assertSame([
             'home' => ['shots' => 5, 'shots_on_target' => 3, 'corners' => 2, 'possession' => 40],
