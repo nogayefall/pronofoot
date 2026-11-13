@@ -5,6 +5,8 @@ namespace App\Http\Controllers\Admin\Api;
 use App\Http\Controllers\Controller;
 use App\Models\Setting;
 use App\Models\SettingChange;
+use App\Rules\RuleConfiguration;
+use App\Rules\VitalityCalculator;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -23,13 +25,18 @@ final class SettingsController extends Controller
         'rules.maximum_directional_gap' => '1.50',
         'rules.zero_zero_odds_wait_threshold' => '2.50',
         'rules.zero_zero_gap_threshold' => '1.00',
-        'rules.upcoming_score_odds_limit' => '7.00',
-        'rules.minimum_vitality' => '40',
+        'rules.upcoming_score_odds_limit' => '8.00',
+        'rules.minimum_vitality' => '41',
         'rules.minimum_convergence_score' => '75',
-        'tendance_source' => null,
-        'tendance_seuil_stable' => null,
-        'ecart_negatif_comportement' => null,
-        'rules.vitality_normalization_references' => null,
+        'tendance_source' => 'cote_suggeree',
+        'tendance_seuil_stable' => '5',
+        'rules.vitality_normalization_references' => '{"shots":[[15,30],[8,20],[3,10]],"shots_on_target":[[6,30],[3,20],[1,10]],"possession":[[60,20],[50,10]],"corners":[[8,20],[4,10]]}',
+        'rules.halftime_under25_min' => '1.15',
+        'rules.halftime_under25_max' => '1.40',
+        'rules.open_match_scores' => '["2-2","2-3","3-2"]',
+        'alerts.level_negative_gap' => 'Critique',
+        'alerts.level_positive_gap' => 'Haute',
+        'rules.decision_pipeline' => '["F121-E2","F121-D","designation","vitality","trend","gap"]',
         'scan.quota_alert_threshold' => null,
     ];
 
@@ -147,7 +154,7 @@ final class SettingsController extends Controller
             'decimal' => $this->decimal($setting, $value),
             'boolean' => $this->boolean($value),
             'string' => $this->string($setting, $value),
-            'json' => $this->json($value),
+            'json' => $this->json($setting, $value),
             default => throw new InvalidArgumentException('Type de paramètre non pris en charge.'),
         };
     }
@@ -199,11 +206,18 @@ final class SettingsController extends Controller
     /**
      * @return array<mixed>
      */
-    private function json(mixed $value): array
+    private function json(Setting $setting, mixed $value): array
     {
         if (! is_array($value)) {
             throw new InvalidArgumentException('La valeur JSON doit être un objet ou un tableau.');
         }
+
+        match ($setting->key) {
+            'rules.vitality_normalization_references' => (new VitalityCalculator)->assertValidScale($value),
+            'rules.decision_pipeline' => new RuleConfiguration(pipeline: array_values($value)),
+            'rules.open_match_scores' => new RuleConfiguration(openMatchScores: array_values($value)),
+            default => null,
+        };
 
         return $value;
     }

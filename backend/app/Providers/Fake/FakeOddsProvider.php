@@ -24,7 +24,7 @@ final class FakeOddsProvider implements OddsProvider
             $snapshot = $timeline[min(max($scanNumber, 0), count($timeline) - 1)];
             $football = $snapshot['football'] ?? null;
             $odds = $snapshot['odds'] ?? null;
-            if (! is_array($football) || ($football['status'] ?? null) !== 'live' || ! is_array($odds)) {
+            if (! is_array($football) || ! in_array($football['status'] ?? null, ['live', 'halftime'], true) || ! is_array($odds)) {
                 continue;
             }
 
@@ -35,6 +35,8 @@ final class FakeOddsProvider implements OddsProvider
                 minute: isset($football['minute']) ? (int) $football['minute'] : null,
                 homeScore: isset($football['home_score']) ? (int) $football['home_score'] : null,
                 awayScore: isset($football['away_score']) ? (int) $football['away_score'] : null,
+                stopped: ($football['status'] ?? null) === 'halftime',
+                under25Odds: is_numeric($odds['under_2_5_odds'] ?? null) ? (float) $odds['under_2_5_odds'] : null,
             );
         }
 

@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Admin\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\RuleProfile;
+use App\Rules\RuleConfiguration;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -11,7 +12,7 @@ use Illuminate\Validation\ValidationException;
 
 final class RuleProfileController extends Controller
 {
-    private const AVAILABLE_RULES = ['F121-C', 'F121-C.2', 'F121-D'];
+    private const AVAILABLE_RULES = RuleConfiguration::DEFINED_RULES;
 
     public function show(): JsonResponse
     {

@@ -2,31 +2,40 @@
 
 namespace App\Rules;
 
+/**
+ * Tendance de la cote du score suggéré : seule une baisse strictement supérieure au seuil valide le filtre.
+ * Stable (variation inférieure au seuil) ou hausse : abstention. Baisse exactement égale au seuil : à confirmer, abstention.
+ */
 final class TrendFilter
 {
     public function evaluate(RuleInput $input, RuleConfiguration $configuration): FilterResult
     {
         $change = $input->oddsChangePercent;
-        $tolerance = $configuration->stableOddsChangePercent;
+        $threshold = $configuration->stableOddsChangePercent;
         if ($configuration->trendSource !== 'cote_suggeree'
-            || $tolerance === null
+            || $threshold === null
             || $change === null
             || ! is_finite($change)) {
             return new FilterResult(false, 'La tendance est non calculable : sa source, son seuil ou un instantané valide manque.');
         }
 
-        if ($change < 0) {
-            return new FilterResult(true, details: ['oddsChangePercent' => $change, 'trend' => 'falling']);
+        $details = ['oddsChangePercent' => $change, 'thresholdPercent' => $threshold];
+        if (abs($change + $threshold) < 1e-9) {
+            return new FilterResult(
+                false,
+                'Baisse exactement égale au seuil : cas à confirmer par le client, abstention.',
+                [...$details, 'trend' => 'threshold'],
+            );
         }
 
-        if (abs($change) <= $tolerance) {
-            return new FilterResult(true, details: ['oddsChangePercent' => $change, 'trend' => 'stable']);
+        if ($change < -$threshold) {
+            return new FilterResult(true, details: [...$details, 'trend' => 'falling']);
         }
 
         return new FilterResult(
             false,
-            'La tendance n’est ni baissière ni stable selon le seuil configuré.',
-            ['oddsChangePercent' => $change, 'stableTolerancePercent' => $tolerance],
+            $change > 0 ? 'La cote monte : abstention.' : 'La cote est stable : abstention.',
+            [...$details, 'trend' => $change > 0 ? 'rising' : 'stable'],
         );
     }
 }

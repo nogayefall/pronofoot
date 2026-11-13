@@ -182,9 +182,7 @@ class AdministratorAuthenticationTest extends TestCase
                 'away_score' => 0,
                 'exact_score_odds' => ['0-0' => 7.5, '1-0' => 8.6, '0-1' => 9.8],
                 'vitality_score' => 61,
-                'odds_change_percent' => -1,
-                'tendance_source' => 'cote_suggeree',
-                'tendance_seuil_stable' => 3,
+                'odds_change_percent' => -6,
             ])
             ->assertOk()
             ->assertJsonPath('rules.F121-C.verdict', 'candidate')
@@ -192,7 +190,9 @@ class AdministratorAuthenticationTest extends TestCase
             ->assertJsonPath('filters.gap.passed', true)
             ->assertJsonPath('filters.trend.passed', true)
             ->assertJsonPath('filters.vitality.passed', true)
-            ->assertJsonPath('decision.shouldAlert', false)
+            ->assertJsonPath('decision.shouldAlert', true)
+            ->assertJsonPath('decision.level', 'Haute')
+            ->assertJsonPath('decision.selection', 'home')
             ->assertJsonPath('decision.convergenceScore', null)
             ->assertJsonPath('simulationOnly', true);
     }

@@ -4,8 +4,10 @@ namespace Tests\Feature;
 
 use App\Models\Alert;
 use App\Models\OpportunityLog;
+use App\Models\RuleProfile;
 use App\Models\Setting;
 use App\Models\TrackedMatch;
+use App\Rules\RuleConfiguration;
 use App\Services\ScanService;
 use Carbon\CarbonImmutable;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -70,7 +72,7 @@ class ScanRealStatisticsTest extends TestCase
             $snapshot->statistics['home'],
         );
         $this->assertNotNull($snapshot->statistics_captured_at);
-        $this->assertNull($snapshot->vitality_score);
+        $this->assertSame(60.0, $snapshot->vitality_score, 'Tirs 14 : 20 pts, cadrés 4 : 20 pts, possession 60 : 20 pts, corners 3 : 0 pt.');
     }
 
     public function test_statistics_follow_the_configured_interval(): void
@@ -127,6 +129,25 @@ class ScanRealStatisticsTest extends TestCase
         $log = OpportunityLog::query()->where('tracked_match_id', $match->id)->sole();
         $this->assertSame('match_stopped', $log->event_type);
         $this->assertSame('no_alert', $log->decision);
+        $this->assertSame(0, Alert::query()->count());
+    }
+
+    public function test_real_halftime_match_keeps_statistics_and_waits_for_under_2_5_odds(): void
+    {
+        RuleProfile::query()->create([
+            'name' => 'Profil réel',
+            'is_active' => true,
+            'settings' => ['active_rules' => RuleConfiguration::DEFINED_RULES, 'method_weights' => []],
+        ]);
+        $this->fakeApi(stoppedOdds: [109], halftime: [109]);
+
+        app(ScanService::class)->runOnce();
+
+        $match = TrackedMatch::query()->where('provider_match_id', '109')->firstOrFail();
+        $this->assertSame(9, $match->snapshots()->firstOrFail()->statistics['away']['shots']);
+        $log = OpportunityLog::query()->where('tracked_match_id', $match->id)->sole();
+        $this->assertSame('no_alert', $log->decision);
+        $this->assertStringContainsString('Under 2.5', $log->reason);
         $this->assertSame(0, Alert::query()->count());
     }
 
@@ -194,12 +215,12 @@ class ScanRealStatisticsTest extends TestCase
             'home_team' => 'France U17',
             'away_team' => 'Armenia U17',
         ]);
-        $this->fakeApi(stoppedOdds: [109], halftime: [109]);
+        $this->fakeApi(stoppedOdds: [109]);
 
         $this->artisan('scan:once')
             ->expectsOutputToContain('Incidents : 2')
             ->expectsOutputToContain('Avenir du Nord – Union du Sud : données du match manquantes — Match introuvable dans le flux en direct.')
-            ->expectsOutputToContain('France U17 – Armenia U17 : match arrêté — Match arrêté à la mi-temps : aucune alerte, statistiques conservées.')
+            ->expectsOutputToContain('France U17 – Armenia U17 : match arrêté — Match arrêté par le fournisseur : aucune alerte, statistiques conservées.')
             ->assertExitCode(1);
     }
 

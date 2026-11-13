@@ -19,30 +19,31 @@ class RuleSimulationController extends Controller
             'away_score' => ['required', 'integer', 'min:0'],
             'exact_score_odds' => ['required', 'array', 'min:1', 'max:200'],
             'exact_score_odds.*' => ['required', 'numeric', 'gt:0'],
-            'vitality_score' => ['required', 'numeric', 'between:0,100'],
-            'odds_change_percent' => ['required', 'numeric'],
+            'vitality_score' => ['nullable', 'numeric', 'between:0,100'],
+            'odds_change_percent' => ['nullable', 'numeric'],
             'tendance_source' => ['nullable', 'in:cote_suggeree'],
             'tendance_seuil_stable' => ['nullable', 'numeric', 'min:0'],
-            'ecart_negatif_comportement' => ['nullable', 'string'],
+            'halftime' => ['nullable', 'boolean'],
+            'under_2_5_odds' => ['nullable', 'numeric', 'gt:0'],
         ]);
 
         $input = new RuleInput(
             homeScore: (int) $validated['home_score'],
             awayScore: (int) $validated['away_score'],
             exactScoreOdds: array_map('floatval', $validated['exact_score_odds']),
-            vitalityScore: (float) $validated['vitality_score'],
-            oddsChangePercent: (float) $validated['odds_change_percent'],
+            vitalityScore: isset($validated['vitality_score']) ? (float) $validated['vitality_score'] : null,
+            oddsChangePercent: isset($validated['odds_change_percent']) ? (float) $validated['odds_change_percent'] : null,
+            halftime: (bool) ($validated['halftime'] ?? false),
+            under25Odds: isset($validated['under_2_5_odds']) ? (float) $validated['under_2_5_odds'] : null,
         );
 
         $result = $ruleEngine->evaluate(
             $input,
             new RuleConfiguration(
-                activeRules: ['F121-C', 'F121-C.2', 'F121-D'],
-                trendSource: $validated['tendance_source'] ?? null,
+                trendSource: $validated['tendance_source'] ?? 'cote_suggeree',
                 stableOddsChangePercent: isset($validated['tendance_seuil_stable'])
                     ? (float) $validated['tendance_seuil_stable']
-                    : null,
-                negativeGapBehavior: $validated['ecart_negatif_comportement'] ?? null,
+                    : 5.0,
             ),
         );
 
@@ -51,6 +52,11 @@ class RuleSimulationController extends Controller
             'filters' => $this->serializeFilters($result),
             'decision' => [
                 'shouldAlert' => $result->shouldAlert,
+                'level' => $result->level,
+                'rule' => $result->decisiveRule,
+                'selection' => $result->selection,
+                'suggestedAction' => $result->suggestedAction,
+                'steps' => $result->steps,
                 'convergenceScore' => $result->convergenceScore,
                 'reason' => $result->reason,
             ],

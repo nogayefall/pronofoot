@@ -14,55 +14,50 @@ class RuleEngineTest extends TestCase
 {
     public function test_f121_c_follows_the_smaller_gap_in_the_documented_zero_zero_example(): void
     {
-        $result = (new RuleEngine)->evaluate(
-            new RuleInput(
-                homeScore: 0,
-                awayScore: 0,
-                exactScoreOdds: ['0-0' => 7.5, '1-0' => 8.6, '0-1' => 9.8],
-                vitalityScore: 61,
-                oddsChangePercent: -1.0,
-                methodScores: ['F121-C' => 82],
-            ),
-            new RuleConfiguration(
-                trendSource: 'cote_suggeree',
-                stableOddsChangePercent: 3.0,
-                methodWeights: ['F121-C' => 1.0],
-            ),
+        $input = fn (float $trend): RuleInput => new RuleInput(
+            homeScore: 0,
+            awayScore: 0,
+            exactScoreOdds: ['0-0' => 7.5, '1-0' => 8.6, '0-1' => 9.8],
+            vitalityScore: 61,
+            oddsChangePercent: $trend,
         );
+        $falling = (new RuleEngine)->evaluate($input(-6.0), new RuleConfiguration);
+        $stable = (new RuleEngine)->evaluate($input(-1.0), new RuleConfiguration);
 
-        $this->assertSame('home', $result->rules['F121-C']->details['selectedTeam']);
-        $this->assertEqualsWithDelta(1.1, $result->rules['F121-C']->details['selectedGap'], 0.0001);
-        $this->assertTrue($result->filters['gap']->passed);
-        $this->assertTrue($result->filters['vitality']->passed);
-        $this->assertTrue($result->shouldAlert);
+        $this->assertSame('home', $falling->rules['F121-C']->details['selectedTeam']);
+        $this->assertEqualsWithDelta(1.1, $falling->rules['F121-C']->details['selectedGap'], 0.0001);
+        $this->assertTrue($falling->filters['gap']->passed);
+        $this->assertTrue($falling->shouldAlert);
+        $this->assertSame('Haute', $falling->level);
+        $this->assertSame('home', $falling->selection);
+        $this->assertFalse($stable->shouldAlert, 'Annexe : une tendance stable donne une abstention.');
     }
 
-    public function test_f121_c_abstains_when_the_selected_gap_is_negative(): void
+    public function test_negative_gap_is_a_critical_alert_through_f121_e1(): void
     {
-        $result = (new RuleEngine)->evaluate(
-            new RuleInput(
-                homeScore: 0,
-                awayScore: 0,
-                exactScoreOdds: ['0-0' => 7.5, '1-0' => 6.5, '0-1' => 9.8],
-                vitalityScore: 61,
-                oddsChangePercent: -1.0,
-                methodScores: ['F121-C' => 82],
-            ),
-            new RuleConfiguration(
-                trendSource: 'cote_suggeree',
-                stableOddsChangePercent: 3.0,
-                methodWeights: ['F121-C' => 1.0],
-            ),
+        $input = new RuleInput(
+            homeScore: 0,
+            awayScore: 0,
+            exactScoreOdds: ['0-0' => 7.5, '1-0' => 6.5, '0-1' => 9.8],
+            vitalityScore: 61,
+            oddsChangePercent: -6.0,
         );
+        $result = (new RuleEngine)->evaluate($input, new RuleConfiguration);
 
-        $this->assertSame('home', $result->rules['F121-C']->details['selectedTeam']);
+        $this->assertSame(RuleVerdict::Candidate, $result->rules['F121-C']->verdict);
         $this->assertSame(-1.0, $result->rules['F121-C']->details['selectedGap']);
-        $this->assertSame(RuleVerdict::Abstain, $result->rules['F121-C']->verdict);
-        $this->assertSame('écart négatif : F121-E à confirmer', $result->rules['F121-C']->reason);
-        $this->assertFalse($result->filters['gap']->passed);
-        $this->assertSame('écart négatif : F121-E à confirmer', $result->filters['gap']->reason);
-        $this->assertSame('écart négatif : F121-E à confirmer', $result->reason);
-        $this->assertFalse($result->shouldAlert);
+        $this->assertSame(RuleVerdict::Candidate, $result->rules['F121-E1']->verdict);
+        $this->assertTrue($result->shouldAlert);
+        $this->assertSame('F121-E1', $result->decisiveRule);
+        $this->assertSame('Critique', $result->level);
+        $this->assertSame('home', $result->selection);
+
+        $withoutE1 = (new RuleEngine)->evaluate($input, new RuleConfiguration(activeRules: ['F121-C', 'F121-C.2']));
+        $this->assertFalse($withoutE1->shouldAlert);
+        $this->assertSame('Écart négatif, mais F121-E1 est inactive.', $withoutE1->reason);
+
+        $customLevel = (new RuleEngine)->evaluate($input, new RuleConfiguration(negativeGapLevel: 'Urgente'));
+        $this->assertSame('Urgente', $customLevel->level);
     }
 
     public function test_f121_c_two_follows_the_leader_when_the_leader_is_not_the_smallest_gap(): void
@@ -73,14 +68,9 @@ class RuleEngineTest extends TestCase
                 awayScore: 0,
                 exactScoreOdds: ['2-0' => 3.0, '3-0' => 4.4, '2-1' => 3.5],
                 vitalityScore: 61,
-                oddsChangePercent: -1.0,
-                methodScores: ['F121-C' => 80],
+                oddsChangePercent: -6.0,
             ),
-            new RuleConfiguration(
-                trendSource: 'cote_suggeree',
-                stableOddsChangePercent: 3.0,
-                methodWeights: ['F121-C' => 1.0],
-            ),
+            new RuleConfiguration,
         );
 
         $this->assertSame('away', $result->rules['F121-C']->details['selectedTeam']);
@@ -125,7 +115,7 @@ class RuleEngineTest extends TestCase
         $this->assertSame(1.0, $result->filters['gap']->details['limit']);
     }
 
-    public function test_f121_d_signals_only_when_both_upcoming_score_odds_are_below_seven(): void
+    public function test_f121_d_signals_when_both_upcoming_score_odds_are_at_most_eight(): void
     {
         $engine = new RuleEngine;
         $configuration = new RuleConfiguration(
@@ -149,7 +139,7 @@ class RuleEngineTest extends TestCase
             new RuleInput(
                 homeScore: 2,
                 awayScore: 3,
-                exactScoreOdds: ['2-3' => 4.0, '3-3' => 7.0, '2-4' => 6.0],
+                exactScoreOdds: ['2-3' => 4.0, '3-3' => 8.0, '2-4' => 6.0],
                 vitalityScore: 61,
                 oddsChangePercent: -1.0,
                 methodScores: ['F121-D' => 82],
@@ -158,13 +148,20 @@ class RuleEngineTest extends TestCase
         );
 
         $this->assertSame(RuleVerdict::Candidate, $candidate->rules['F121-D']->verdict);
-        $this->assertSame('Over 4.5', $candidate->rules['F121-D']->suggestedAction);
+        $this->assertSame('Over 4.5 buts', $candidate->rules['F121-D']->suggestedAction);
         $this->assertTrue($candidate->shouldAlert);
-        $this->assertSame(RuleVerdict::NoSignal, $atThreshold->rules['F121-D']->verdict);
-        $this->assertFalse($atThreshold->shouldAlert);
+        $this->assertSame('F121-D', $candidate->decisiveRule);
+        $this->assertSame(RuleVerdict::Candidate, $atThreshold->rules['F121-D']->verdict);
+
+        $aboveThreshold = $engine->evaluate(
+            new RuleInput(homeScore: 2, awayScore: 3, exactScoreOdds: ['2-3' => 4.0, '3-3' => 8.01, '2-4' => 6.0]),
+            $configuration,
+        );
+        $this->assertSame(RuleVerdict::NoSignal, $aboveThreshold->rules['F121-D']->verdict);
+        $this->assertFalse($aboveThreshold->shouldAlert);
     }
 
-    public function test_f121_d_does_not_guess_which_other_scores_are_high_scores(): void
+    public function test_f121_d_only_applies_to_the_configured_open_match_scores(): void
     {
         $result = (new RuleEngine)->evaluate(
             new RuleInput(
@@ -183,8 +180,14 @@ class RuleEngineTest extends TestCase
             ),
         );
 
-        $this->assertSame(RuleVerdict::NotDefined, $result->rules['F121-D']->verdict);
+        $this->assertSame(RuleVerdict::NoSignal, $result->rules['F121-D']->verdict);
         $this->assertFalse($result->shouldAlert);
+
+        $configured = (new RuleEngine)->evaluate(
+            new RuleInput(homeScore: 3, awayScore: 3, exactScoreOdds: ['3-3' => 4.0, '4-3' => 5.0, '3-4' => 6.0]),
+            new RuleConfiguration(activeRules: ['F121-D'], openMatchScores: ['3-3']),
+        );
+        $this->assertTrue($configured->shouldAlert);
     }
 
     public function test_undefined_and_ambiguous_rules_never_produce_a_candidate(): void
@@ -230,7 +233,7 @@ class RuleEngineTest extends TestCase
         $this->assertFalse($result->shouldAlert);
     }
 
-    public function test_stable_trend_uses_the_configured_tolerance_without_a_hard_coded_value(): void
+    public function test_rising_trend_abstains_and_the_threshold_is_configurable(): void
     {
         $result = (new RuleEngine)->evaluate(
             new RuleInput(
@@ -248,7 +251,14 @@ class RuleEngineTest extends TestCase
             ),
         );
 
-        $this->assertTrue($result->filters['trend']->passed);
+        $this->assertFalse($result->filters['trend']->passed);
+        $this->assertSame('rising', $result->filters['trend']->details['trend']);
+
+        $custom = (new RuleEngine)->evaluate(
+            new RuleInput(homeScore: 0, awayScore: 0, exactScoreOdds: [], oddsChangePercent: -4.0),
+            new RuleConfiguration(stableOddsChangePercent: 3.0),
+        );
+        $this->assertTrue($custom->filters['trend']->passed);
     }
 
     public function test_suggested_exact_score_key_follows_the_active_team_selection(): void
@@ -280,17 +290,11 @@ class RuleEngineTest extends TestCase
         $engine = new RuleEngine;
 
         foreach ([
-            new RuleConfiguration(methodWeights: ['F121-C' => 1.0]),
-            new RuleConfiguration(
-                trendSource: 'cote_suggeree',
-                methodWeights: ['F121-C' => 1.0],
-            ),
-            new RuleConfiguration(
-                stableOddsChangePercent: 3.0,
-                methodWeights: ['F121-C' => 1.0],
-            ),
+            new RuleConfiguration(trendSource: null, stableOddsChangePercent: null),
+            new RuleConfiguration(stableOddsChangePercent: null),
+            new RuleConfiguration(trendSource: null),
         ] as $configuration) {
-            foreach ([-1.0, 0.0] as $change) {
+            foreach ([-10.0, 0.0] as $change) {
                 $result = $engine->evaluate(
                     new RuleInput(
                         homeScore: 0,
@@ -316,15 +320,19 @@ class RuleEngineTest extends TestCase
                 homeScore: 0,
                 awayScore: 0,
                 exactScoreOdds: ['0-0' => 7.5, '1-0' => 8.6, '0-1' => 9.8],
-                vitalityScore: 40,
-                oddsChangePercent: -1.0,
+                vitalityScore: 61,
+                oddsChangePercent: -6.0,
                 methodScores: ['F121-C' => 75],
             ),
-            new RuleConfiguration(methodWeights: ['F121-C' => 1.0]),
+            new RuleConfiguration(
+                methodWeights: ['F121-C' => 1.0],
+                pipeline: [...RuleConfiguration::DEFAULT_PIPELINE, 'convergence'],
+            ),
         );
 
         $this->assertSame(75.0, $result->convergenceScore);
         $this->assertFalse($result->shouldAlert);
+        $this->assertSame('Le score de convergence ne dépasse pas le seuil configuré.', $result->reason);
     }
 
     public function test_rule_engine_has_no_alert_without_configured_method_scores(): void
@@ -335,13 +343,29 @@ class RuleEngineTest extends TestCase
                 awayScore: 0,
                 exactScoreOdds: ['0-0' => 7.5, '1-0' => 8.6, '0-1' => 9.8],
                 vitalityScore: 61,
-                oddsChangePercent: -1.0,
+                oddsChangePercent: -6.0,
             ),
-            new RuleConfiguration(methodWeights: ['F121-C' => 1.0]),
+            new RuleConfiguration(
+                methodWeights: ['F121-C' => 1.0],
+                pipeline: [...RuleConfiguration::DEFAULT_PIPELINE, 'convergence'],
+            ),
         );
 
         $this->assertNull($result->convergenceScore);
         $this->assertFalse($result->shouldAlert);
+        $this->assertSame('La convergence ne peut pas être calculée sans les scores et poids définis.', $result->reason);
+
+        $withoutConvergenceStep = (new RuleEngine)->evaluate(
+            new RuleInput(
+                homeScore: 0,
+                awayScore: 0,
+                exactScoreOdds: ['0-0' => 7.5, '1-0' => 8.6, '0-1' => 9.8],
+                vitalityScore: 61,
+                oddsChangePercent: -6.0,
+            ),
+            new RuleConfiguration,
+        );
+        $this->assertTrue($withoutConvergenceStep->shouldAlert);
     }
 
     public function test_convergence_is_a_weighted_average_and_requires_all_weighted_scores(): void

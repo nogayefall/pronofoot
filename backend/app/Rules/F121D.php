@@ -2,15 +2,21 @@
 
 namespace App\Rules;
 
+/**
+ * F121-D (match ouvert) : score dans la liste configurée et cotes des deux scores suivants inférieures ou égales au seuil.
+ */
 final class F121D
 {
+    public const ACTION = 'Over 4.5 buts';
+
     public function evaluate(RuleInput $input, RuleConfiguration $configuration): RuleResult
     {
-        if (! in_array([$input->homeScore, $input->awayScore], [[2, 3], [3, 2]], true)) {
+        $currentScore = "{$input->homeScore}-{$input->awayScore}";
+        if (! in_array($currentScore, $configuration->openMatchScores, true)) {
             return new RuleResult(
                 ruleId: 'F121-D',
-                verdict: RuleVerdict::NotDefined,
-                reason: 'Les documents donnent les scores 2–3 et 3–2 comme exemples, sans définir les autres scores concernés.',
+                verdict: RuleVerdict::NoSignal,
+                reason: "Le score {$currentScore} ne figure pas dans la liste des scores de match ouvert.",
             );
         }
 
@@ -25,17 +31,15 @@ final class F121D
             );
         }
 
-        $isCandidate = (float) $homeNextOdds < $configuration->upcomingScoreOddsLimit
-            && (float) $awayNextOdds < $configuration->upcomingScoreOddsLimit;
+        $isCandidate = (float) $homeNextOdds <= $configuration->upcomingScoreOddsLimit
+            && (float) $awayNextOdds <= $configuration->upcomingScoreOddsLimit;
 
         return new RuleResult(
             ruleId: 'F121-D',
             verdict: $isCandidate ? RuleVerdict::Candidate : RuleVerdict::NoSignal,
-            suggestedAction: $isCandidate
-                ? ($configuration->conditionalOverSuggestion ?? 'Over 4.5')
-                : null,
+            suggestedAction: $isCandidate ? self::ACTION : null,
             score: $input->methodScores['F121-D'] ?? null,
-            reason: $isCandidate ? null : 'Toutes les cotes des scores suivants ne sont pas sous le seuil configuré.',
+            reason: $isCandidate ? null : 'Une cote des scores suivants dépasse le seuil configuré.',
             details: [
                 'homeNextOdds' => (float) $homeNextOdds,
                 'awayNextOdds' => (float) $awayNextOdds,

@@ -113,10 +113,27 @@ class ScanServiceTest extends TestCase
         $this->assertSame(0, Alert::query()->count());
     }
 
-    public function test_trend_settings_are_persisted_empty_until_client_confirmation(): void
+    public function test_halftime_match_only_receives_the_f121_e2_signal(): void
     {
-        $this->assertNull(Setting::query()->where('key', 'tendance_source')->firstOrFail()->value);
-        $this->assertNull(Setting::query()->where('key', 'tendance_seuil_stable')->firstOrFail()->value);
+        $match = $this->trackedMatch('fake-halftime-signal');
+        $this->activeProfile(['F121-E2', 'F121-D', 'F121-C', 'F121-C.2', 'F121-E1']);
+
+        $result = app(ScanService::class)->runOnce();
+        $log = OpportunityLog::query()->where('decision', 'alert')->sole();
+
+        $this->assertSame(1, $result->alertsCreated);
+        $this->assertSame('F121-E2', $log->rule_id);
+        $this->assertSame('Over 0.5 buts en 2ème mi-temps', $log->suggested_action);
+        $this->assertStringContainsString('Alerte Mi-temps', Alert::query()->sole()->message);
+        $this->assertSame(9, $match->snapshots()->sole()->statistics['shots']);
+    }
+
+    public function test_trend_settings_follow_the_client_annex(): void
+    {
+        $this->assertSame('cote_suggeree', Setting::query()->where('key', 'tendance_source')->firstOrFail()->value);
+        $this->assertSame('5', Setting::query()->where('key', 'tendance_seuil_stable')->firstOrFail()->value);
+        $this->assertSame('41', Setting::query()->where('key', 'rules.minimum_vitality')->firstOrFail()->value);
+        $this->assertSame('8.00', Setting::query()->where('key', 'rules.upcoming_score_odds_limit')->firstOrFail()->value);
     }
 
     public function test_detected_goal_invalidates_alert_and_shortens_the_poll_interval(): void
@@ -253,13 +270,16 @@ class ScanServiceTest extends TestCase
         ]);
     }
 
-    private function activeProfile(): RuleProfile
+    /**
+     * @param  list<string>  $activeRules
+     */
+    private function activeProfile(array $activeRules = ['F121-C']): RuleProfile
     {
         return RuleProfile::query()->create([
             'name' => 'Fake scan test',
             'is_active' => true,
             'settings' => [
-                'active_rules' => ['F121-C'],
+                'active_rules' => $activeRules,
                 'method_weights' => ['F121-C' => 1],
             ],
         ]);

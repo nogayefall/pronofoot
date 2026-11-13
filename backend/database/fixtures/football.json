@@ -254,6 +254,39 @@
           }
         }
       ]
+    },
+    {
+      "id": "fake-halftime-signal",
+      "scenario": "halftime-signal",
+      "home_team": "Rive Gauche",
+      "away_team": "Rive Droite",
+      "competition": "Simulation — Signal mi-temps",
+      "kickoff_at": "2026-11-08T17:15:00+01:00",
+      "timeline": [
+        {
+          "football": {
+            "status": "halftime",
+            "minute": 45,
+            "home_score": 1,
+            "away_score": 0,
+            "statistics": {
+              "shots": 9,
+              "shots_on_target": 3,
+              "possession": 52,
+              "corners": 4
+            },
+            "vitality_score": 50
+          },
+          "odds": {
+            "exact_score_odds": {
+              "1-0": 3.4,
+              "2-0": 6.5,
+              "1-1": 5.8
+            },
+            "under_2_5_odds": 1.36
+          }
+        }
+      ]
     }
   ]
 }

@@ -8,14 +8,14 @@ final class VitalityFilter
     {
         $score = $input->vitalityScore;
         if ($score === null || ! is_finite($score) || $score < 0 || $score > 100) {
-            return new FilterResult(false, 'Un indice de vitalité valide entre 0 et 100 est nécessaire.');
+            return new FilterResult(false, 'Vitalité non calculable : une statistique manque.');
         }
 
         $passed = $score >= $configuration->minimumVitality;
 
         return new FilterResult(
             passed: $passed,
-            reason: $passed ? null : 'La vitalité est inférieure au seuil configuré.',
+            reason: $passed ? null : 'Match « mort » : vitalité inférieure au minimum configuré.',
             details: ['score' => $score, 'minimum' => $configuration->minimumVitality],
         );
     }

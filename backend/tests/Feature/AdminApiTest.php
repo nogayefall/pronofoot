@@ -37,7 +37,7 @@ class AdminApiTest extends TestCase
         $response = $this->getJson(route('admin.api.matches.index'))
             ->assertOk()
             ->assertJsonPath('simulation', true)
-            ->assertJsonCount(7, 'matches')
+            ->assertJsonCount(8, 'matches')
             ->assertJsonPath('matches.6.status', 'upcoming')
             ->assertJsonPath('matches.0.exactScoreMarketAvailable', true)
             ->assertJsonPath('matches.0.statisticsCoverage', true)
@@ -178,19 +178,22 @@ class AdminApiTest extends TestCase
             'settings' => ['tendance_source' => 'cote_au_hasard'],
         ])->assertUnprocessable();
 
-        $this->assertDatabaseHas('settings', [
-            'key' => 'ecart_negatif_comportement',
-            'value' => null,
-            'needs_confirmation' => true,
-        ]);
+        $this->assertDatabaseMissing('settings', ['key' => 'ecart_negatif_comportement']);
+        $this->assertDatabaseHas('settings', ['key' => 'rules.open_match_scores', 'needs_confirmation' => true]);
         $this->patchJson(route('admin.api.settings.update'), [
-            'settings' => ['ecart_negatif_comportement' => ''],
+            'settings' => ['rules.open_match_scores' => ''],
         ])->assertOk();
+        $this->patchJson(route('admin.api.settings.update'), [
+            'settings' => ['rules.decision_pipeline' => ['vitality', 'inconnue']],
+        ])->assertUnprocessable();
+        $this->patchJson(route('admin.api.settings.update'), [
+            'settings' => ['rules.vitality_normalization_references' => ['shots' => [[3, 10], [8, 20]]]],
+        ])->assertUnprocessable();
 
         $this->postJson(route('admin.api.settings.reset'))->assertOk();
-        $this->assertDatabaseHas('settings', ['key' => 'tendance_source', 'value' => null]);
-        $this->assertDatabaseHas('settings', ['key' => 'tendance_seuil_stable', 'value' => null]);
-        $this->assertDatabaseHas('settings', ['key' => 'ecart_negatif_comportement', 'value' => null]);
+        $this->assertDatabaseHas('settings', ['key' => 'tendance_source', 'value' => 'cote_suggeree']);
+        $this->assertDatabaseHas('settings', ['key' => 'tendance_seuil_stable', 'value' => '5']);
+        $this->assertDatabaseHas('settings', ['key' => 'rules.open_match_scores', 'value' => '["2-2","2-3","3-2"]']);
     }
 
     public function test_rule_profile_only_accepts_defined_rules_and_persists_weights(): void

@@ -19,7 +19,7 @@ use App\Rules\EngineResult;
 use App\Rules\RuleConfiguration;
 use App\Rules\RuleEngine;
 use App\Rules\RuleInput;
-use App\Rules\RuleResult;
+use App\Rules\VitalityCalculator;
 use Carbon\CarbonImmutable;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Support\Facades\Cache;
@@ -42,6 +42,7 @@ final class ScanService
         private readonly OddsProvider $oddsProvider,
         private readonly RuleEngine $ruleEngine,
         private readonly ScanSettings $settings,
+        private readonly VitalityCalculator $vitalityCalculator = new VitalityCalculator,
     ) {}
 
     public function runOnce(int $scanNumber = 0, bool $forceRefresh = true): ScanPassResult
@@ -55,6 +56,9 @@ final class ScanService
         $goalInterval = $this->settings->integer($settingValues, 'scan.goal_interval_seconds');
         $goalWindow = $this->settings->integer($settingValues, 'scan.goal_window_seconds');
         $quotaAlertThreshold = $this->settings->nullableInteger($settingValues, 'scan.quota_alert_threshold');
+        $vitalityScale = is_array($settingValues['rules.vitality_normalization_references'] ?? null)
+            ? $settingValues['rules.vitality_normalization_references']
+            : VitalityCalculator::DEFAULT_SCALE;
         $expiredAlerts = $this->expireAlerts($now);
         $trackedMatches = TrackedMatch::query()->where('is_active', true)->get();
 
@@ -189,6 +193,7 @@ final class ScanService
                 $oddsMatch,
                 $includeStatistics,
                 $statisticsInterval,
+                $vitalityScale,
                 $now,
             );
             $snapshotsStored++;
@@ -207,13 +212,12 @@ final class ScanService
                 continue;
             }
 
-            if ($oddsMatch?->stopped === true || $footballMatch->stopped === true) {
+            $halftime = strcasecmp($footballMatch->status, 'Halftime') === 0;
+            if (! $halftime && ($oddsMatch?->stopped === true || $footballMatch->stopped === true)) {
                 $this->recordIncident(
                     $trackedMatch,
                     'match_stopped',
-                    strcasecmp($footballMatch->status, 'Halftime') === 0
-                        ? 'Match arrêté à la mi-temps : aucune alerte, statistiques conservées.'
-                        : 'Match arrêté par le fournisseur : aucune alerte, statistiques conservées.',
+                    'Match arrêté par le fournisseur : aucune alerte, statistiques conservées.',
                     $now,
                     $snapshot,
                 );
@@ -262,6 +266,8 @@ final class ScanService
                 exactScoreOdds: $oddsMatch->exactScoreOdds,
                 vitalityScore: $vitality,
                 methodScores: $footballMatch->methodScores,
+                halftime: $halftime,
+                under25Odds: $oddsMatch->under25Odds,
             );
             $suggestedScoreKey = $this->ruleEngine->suggestedExactScoreKey($input, $configuration);
             $trendChange = $this->calculateTrendChange(
@@ -281,6 +287,8 @@ final class ScanService
                     vitalityScore: $vitality,
                     oddsChangePercent: $trendChange,
                     methodScores: $footballMatch->methodScores,
+                    halftime: $halftime,
+                    under25Odds: $oddsMatch->under25Odds,
                 ),
                 $configuration,
             );
@@ -520,6 +528,7 @@ final class ScanService
         ?OddsMatch $oddsMatch,
         bool $includeStatistics,
         int $statisticsInterval,
+        array $vitalityScale,
         CarbonImmutable $now,
     ): MatchSnapshot {
         $previous = $trackedMatch->snapshots()->latest('captured_at')->first();
@@ -534,7 +543,9 @@ final class ScanService
             ? $footballMatch->statistics
             : ($statisticsAreFresh ? ($previous?->statistics ?? []) : []);
         $vitality = $includeStatistics
-            ? ($footballMatch->statistics !== [] ? $footballMatch->vitalityScore : null)
+            ? ($footballMatch->statistics !== []
+                ? ($footballMatch->vitalityScore ?? $this->vitalityCalculator->calculate($statistics, $vitalityScale)['score'] ?? null)
+                : null)
             : ($statisticsAreFresh ? $previous?->vitality_score : null);
 
         $trackedMatch->forceFill(['status' => $footballMatch->status])->save();
@@ -560,7 +571,7 @@ final class ScanService
     private function ruleConfiguration(RuleProfile $profile, array $settings): RuleConfiguration
     {
         $profileSettings = $profile->settings ?? [];
-        $activeRules = $profileSettings['active_rules'] ?? ['F121-C', 'F121-C.2', 'F121-D'];
+        $activeRules = $profileSettings['active_rules'] ?? RuleConfiguration::DEFINED_RULES;
         $methodWeights = $profileSettings['method_weights'] ?? [];
 
         if (! is_array($activeRules) || ! is_array($methodWeights)) {
@@ -578,8 +589,28 @@ final class ScanService
             stableOddsChangePercent: $this->settings->nullableFloat($settings, 'tendance_seuil_stable'),
             minimumConvergenceScore: $this->settings->decimal($settings, 'rules.minimum_convergence_score'),
             methodWeights: $methodWeights,
-            negativeGapBehavior: $this->settings->nullableString($settings, 'ecart_negatif_comportement'),
+            openMatchScores: $this->stringList($settings, 'rules.open_match_scores', ['2-2', '2-3', '3-2']),
+            halftimeUnderMinimum: $this->settings->decimal($settings, 'rules.halftime_under25_min'),
+            halftimeUnderMaximum: $this->settings->decimal($settings, 'rules.halftime_under25_max'),
+            negativeGapLevel: $this->settings->nullableString($settings, 'alerts.level_negative_gap') ?? 'Critique',
+            positiveGapLevel: $this->settings->nullableString($settings, 'alerts.level_positive_gap') ?? 'Haute',
+            pipeline: $this->stringList($settings, 'rules.decision_pipeline', RuleConfiguration::DEFAULT_PIPELINE),
         );
+    }
+
+    /**
+     * @param  array<string, int|float|bool|array|string|null>  $settings
+     * @param  list<string>  $default
+     * @return list<string>
+     */
+    private function stringList(array $settings, string $key, array $default): array
+    {
+        $value = $settings[$key] ?? null;
+        if (! is_array($value)) {
+            return $default;
+        }
+
+        return array_values(array_map('strval', $value));
     }
 
     /**
@@ -630,7 +661,8 @@ final class ScanService
         FootballMatch $footballMatch,
         CarbonImmutable $now,
     ): int {
-        if (! $result->shouldAlert) {
+        $selection = $result->selection ?? $result->suggestedAction;
+        if (! $result->shouldAlert || $result->decisiveRule === null || $selection === null) {
             $this->recordOpportunity(
                 $trackedMatch,
                 $snapshot,
@@ -646,48 +678,25 @@ final class ScanService
             return 0;
         }
 
-        $alertsCreated = 0;
-        $candidates = array_filter(
-            $result->rules,
-            fn (RuleResult $rule): bool => $rule->verdict->value === 'candidate',
-        );
-
-        foreach ($candidates as $rule) {
-            $selection = (string) ($rule->details['selectedTeam'] ?? $rule->suggestedAction ?? '');
-            if ($selection === '') {
-                continue;
-            }
-
-            $alertsCreated += $this->createAlert(
-                $trackedMatch,
-                $snapshot,
-                $profile,
-                $rule,
-                $selection,
-                $result,
-                $footballMatch,
-                $now,
-            );
-        }
-
-        return $alertsCreated;
+        return $this->createAlert($trackedMatch, $snapshot, $profile, $selection, $result, $footballMatch, $now);
     }
 
     private function createAlert(
         TrackedMatch $trackedMatch,
         MatchSnapshot $snapshot,
         RuleProfile $profile,
-        RuleResult $rule,
         string $selection,
         EngineResult $result,
         FootballMatch $footballMatch,
         CarbonImmutable $now,
     ): int {
-        return DB::transaction(function () use ($trackedMatch, $snapshot, $profile, $rule, $selection, $result, $footballMatch, $now): int {
+        $ruleId = (string) $result->decisiveRule;
+
+        return DB::transaction(function () use ($trackedMatch, $snapshot, $profile, $ruleId, $selection, $result, $footballMatch, $now): int {
             TrackedMatch::query()->whereKey($trackedMatch->id)->lockForUpdate()->firstOrFail();
             $duplicateExists = OpportunityLog::query()
                 ->where('tracked_match_id', $trackedMatch->id)
-                ->where('rule_id', $rule->ruleId)
+                ->where('rule_id', $ruleId)
                 ->where('selection', $selection)
                 ->where('decision', 'alert')
                 ->whereHas('alert', fn ($query) => $query->whereIn('status', ['queued', 'sent'])
@@ -703,11 +712,11 @@ final class ScanService
                     'duplicate_suppressed',
                     'Une alerte active existe déjà pour ce match, cette règle et cette sélection.',
                     $now,
-                    $rule->ruleId,
+                    $ruleId,
                     $selection,
                     $this->serializeRules($result),
                     $this->serializeFilters($result),
-                    $rule->suggestedAction,
+                    $result->suggestedAction,
                 );
 
                 return 0;
@@ -717,7 +726,7 @@ final class ScanService
                 $this->settings->all(),
                 'alerts.expiration_minutes',
             ));
-            $message = $this->buildAlertMessage($trackedMatch, $snapshot, $profile, $rule, $selection, $result, $footballMatch, $expiresAt);
+            $message = $this->buildAlertMessage($trackedMatch, $snapshot, $result, $footballMatch, $expiresAt);
             $opportunity = $this->recordOpportunity(
                 $trackedMatch,
                 $snapshot,
@@ -726,11 +735,11 @@ final class ScanService
                 'alert',
                 $result->reason,
                 $now,
-                $rule->ruleId,
+                $ruleId,
                 $selection,
                 $this->serializeRules($result),
                 $this->serializeFilters($result),
-                $rule->suggestedAction,
+                $result->suggestedAction,
             );
 
             $alert = $opportunity->alert()->create([
@@ -748,36 +757,32 @@ final class ScanService
     private function buildAlertMessage(
         TrackedMatch $trackedMatch,
         MatchSnapshot $snapshot,
-        RuleProfile $profile,
-        RuleResult $rule,
-        string $selection,
         EngineResult $result,
         FootballMatch $footballMatch,
         CarbonImmutable $expiresAt,
     ): string {
-        $target = match ($selection) {
-            'home' => $trackedMatch->home_team,
-            'away' => $trackedMatch->away_team,
-            default => $rule->suggestedAction ?? $selection,
+        $signal = match ($result->selection) {
+            'home' => "{$result->suggestedAction} : {$trackedMatch->home_team}",
+            'away' => "{$result->suggestedAction} : {$trackedMatch->away_team}",
+            default => (string) $result->suggestedAction,
         };
-        $gap = $rule->details['selectedGap'] ?? null;
-        $gapLabel = is_numeric($gap) ? number_format((float) $gap, 2, ',', ' ') : 'non disponible';
+        $gap = $result->filters['gap']->details['selectedGap'] ?? null;
+        $gapLabel = $result->selection !== null && is_numeric($gap)
+            ? number_format((float) $gap, 2, ',', ' ')
+            : 'non applicable';
         $vitalityLabel = $snapshot->vitality_score === null
-            ? 'à confirmer'
-            : number_format((float) $snapshot->vitality_score, 1, ',', ' ');
+            ? 'non calculable'
+            : number_format((float) $snapshot->vitality_score, 0, ',', ' ').'/100';
         $trendLabel = $snapshot->odds_change_percent === null
             ? 'non calculable'
             : number_format((float) $snapshot->odds_change_percent, 2, ',', ' ').' %';
-        $convergenceLabel = $result->convergenceScore === null
-            ? 'non calculée'
-            : number_format($result->convergenceScore, 1, ',', ' ').' %';
 
         return implode("\n", [
             "Match : {$trackedMatch->home_team} - {$trackedMatch->away_team}",
             "Minute : {$snapshot->minute} | Score : {$snapshot->home_score}-{$snapshot->away_score}",
-            "Signal : {$target} | Règle : {$rule->ruleId}",
-            "Écart : {$gapLabel} | Vitalité : {$vitalityLabel}",
-            "Tendance (hypothèse à confirmer) : {$trendLabel} | Convergence : {$convergenceLabel}",
+            "Alerte {$result->level} | Règle : {$result->decisiveRule}",
+            "Signal : {$signal}",
+            "Écart : {$gapLabel} | Vitalité : {$vitalityLabel} | Tendance : {$trendLabel}",
             'Expiration : '.$expiresAt->format('H:i:s'),
         ]);
     }

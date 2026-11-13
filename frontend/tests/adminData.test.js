@@ -35,7 +35,15 @@ test('createRuleTestPayload validates the score, vitality and required correct-s
     odds_change_percent: -1,
     tendance_source: 'cote_suggeree',
     tendance_seuil_stable: 3,
+    halftime: false,
+    under_2_5_odds: null,
   })
+  assert.equal(createRuleTestPayload({ ...fields, vitalityScore: '', oddsChangePercent: '' }).vitality_score, null)
+  assert.deepEqual(
+    createRuleTestPayload({ ...fields, oddsText: '', halftime: true, under25Odds: '1.36' }).under_2_5_odds,
+    1.36,
+  )
+  assert.throws(() => createRuleTestPayload({ ...fields, under25Odds: '0' }), /Under 2.5/)
   assert.throws(() => createRuleTestPayload({ ...fields, oddsText: '0-0=7.5' }), /cote du score 1-0 est nécessaire/)
   assert.throws(() => createRuleTestPayload({ ...fields, homeScore: '-1' }), /scores doivent être/)
   assert.throws(() => createRuleTestPayload({ ...fields, vitalityScore: '101' }), /vitalité doit être/)

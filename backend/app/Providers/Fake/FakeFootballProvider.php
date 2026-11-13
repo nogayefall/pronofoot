@@ -29,7 +29,7 @@ final class FakeFootballProvider implements FootballProvider
 
             $snapshot = $timeline[min(max($scanNumber, 0), count($timeline) - 1)];
             $data = $snapshot['football'] ?? null;
-            if (! is_array($data) || ! in_array($data['status'] ?? null, ['live', 'upcoming'], true)) {
+            if (! is_array($data) || ! in_array($data['status'] ?? null, ['live', 'halftime', 'upcoming'], true)) {
                 continue;
             }
 
@@ -41,7 +41,7 @@ final class FakeFootballProvider implements FootballProvider
                 providerMatchId: (string) $match['id'],
                 homeTeam: (string) ($match['home_team'] ?? 'Équipe domicile fictive'),
                 awayTeam: (string) ($match['away_team'] ?? 'Équipe extérieure fictive'),
-                status: (string) $data['status'],
+                status: $data['status'] === 'halftime' ? 'Halftime' : (string) $data['status'],
                 scenario: (string) ($match['scenario'] ?? ''),
                 competition: $match['competition'] ?? null,
                 kickoffAt: $match['kickoff_at'] ?? null,
@@ -52,6 +52,7 @@ final class FakeFootballProvider implements FootballProvider
                 vitalityScore: $statisticsRequested && is_numeric($data['vitality_score'] ?? null) ? (float) $data['vitality_score'] : null,
                 methodScores: is_array($data['method_scores'] ?? null) ? $data['method_scores'] : [],
                 statisticsCoverage: $this->statisticsCoverage($coverageStatistics),
+                inPlay: $data['status'] === 'upcoming' ? false : true,
             );
         }
 

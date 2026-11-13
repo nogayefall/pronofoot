@@ -31,6 +31,7 @@ final class ApiFootballResponseCapture
         bool $autoCovered = false,
         ?Closure $beforeRequest = null,
         ?Closure $reviewCandidates = null,
+        bool $includeOverUnderLine = false,
     ): array {
         if ($fixtureId !== null && $autoCovered) {
             throw new RuntimeException('Choisissez soit --fixture, soit --auto-covered, pas les deux.');
@@ -132,6 +133,15 @@ final class ApiFootballResponseCapture
         $paths[] = $this->save($directory, "odds-live-bet23-{$capturedAt}.json", $oddsResponse->body());
         [$quotaRemaining, $quotaLimit] = $this->readQuota($oddsResponse, $quotaRemaining, $quotaLimit);
         $this->assertSuccessful($oddsResponse, 'odds/live?bet=23');
+
+        if ($includeOverUnderLine) {
+            $beforeRequest?->__invoke('odds/live?bet=36', $quotaRemaining);
+            $this->assertQuotaAvailable($quotaRemaining, 'odds/live?bet=36');
+            $overUnderResponse = $this->request($baseUrl.'/odds/live', ['bet' => 36], $apiKey);
+            $paths[] = $this->save($directory, "odds-live-bet36-{$capturedAt}.json", $overUnderResponse->body());
+            [$quotaRemaining, $quotaLimit] = $this->readQuota($overUnderResponse, $quotaRemaining, $quotaLimit);
+            $this->assertSuccessful($overUnderResponse, 'odds/live?bet=36');
+        }
 
         return [
             'live_matches' => $liveMatchCount,

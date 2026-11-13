@@ -2,6 +2,10 @@
 
 namespace App\Rules;
 
+/**
+ * Écart de l’équipe désignée (F121-A/G) : strictement entre 0 et le seuil (1.50, ou 1.00 à 0-0 si la cote du 0-0 est sous 2.50).
+ * Un écart nul ou atteignant le seuil donne une abstention ; un écart négatif relève de F121-E1.
+ */
 final class GapFilter
 {
     public function evaluate(
@@ -17,17 +21,6 @@ final class GapFilter
             return new FilterResult(false, 'Aucun écart directionnel exploitable.');
         }
 
-        if ((float) $selectedGap < 0) {
-            return new FilterResult(
-                passed: false,
-                reason: F121C::NEGATIVE_GAP_REASON,
-                details: [
-                    'selectedTeam' => $selectedTeam,
-                    'selectedGap' => (float) $selectedGap,
-                ],
-            );
-        }
-
         $limit = $configuration->maximumDirectionalGap;
         $currentOdds = $input->exactScoreOdds["{$input->homeScore}-{$input->awayScore}"] ?? null;
         if ($input->homeScore === 0 && $input->awayScore === 0
@@ -36,11 +29,17 @@ final class GapFilter
             $limit = $configuration->zeroZeroGapThreshold;
         }
 
-        $passed = (float) $selectedGap < $limit;
+        $gap = round((float) $selectedGap, 6);
+        $reason = match (true) {
+            $gap < 0 => 'Écart négatif : traité par F121-E1.',
+            $gap == 0.0 => 'Écart nul : abstention.',
+            $gap >= $limit => 'L’écart directionnel atteint ou dépasse le seuil configuré.',
+            default => null,
+        };
 
         return new FilterResult(
-            passed: $passed,
-            reason: $passed ? null : 'L’écart directionnel ne passe pas le seuil configuré.',
+            passed: $reason === null,
+            reason: $reason,
             details: [
                 'selectedTeam' => $selectedTeam,
                 'selectedGap' => (float) $selectedGap,

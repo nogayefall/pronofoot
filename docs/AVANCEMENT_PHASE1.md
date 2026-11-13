@@ -1,6 +1,6 @@
 # PronoFoot — Avancement de la Phase 1
 
-Dernière mise à jour : 11 novembre 2026
+Dernière mise à jour : 13 novembre 2026
 
 ## Références et périmètre
 
@@ -12,6 +12,7 @@ Documents de référence présents dans `docs/` :
 - `PRONOFOOT_CDC_Phase1_Signaux_Live.pdf` : périmètre actuel et règles Phase 1.
 - `PronoFoot Phase 1 – PRD.docx` : objectifs, critères d’acceptation et questions ouvertes.
 - `PronoFoot Phase 1 – TRD.docx` : architecture et ordre de développement.
+- `PRONOFOOT_Annexe_Phase1_Corrigee.pdf` : décisions figées du client (vitalité, tendance, F121-D, F121-E1/E2, quota, matchs surveillés, 10 situations de test). Elle remplace les points « à confirmer » du CDC Phase 1 sur ces sujets ; leur application est détaillée dans [`DECISIONS_ANNEXE_PHASE1.md`](./DECISIONS_ANNEXE_PHASE1.md).
 - `PRONOFOOT_Maquette_Demo_V9.1.pdf` : maquette du produit complet ; les écrans hors Phase 1 sont reportés.
 
 L’ordre appliqué est celui de `Claude.md` :
@@ -158,6 +159,17 @@ L’ordre appliqué est celui de `Claude.md` :
 - Tests `ScanRealStatisticsTest` avec `Http::fake` : 10 matchs live, 3 suivis, exactement 3 appels statistiques.
 - Vérification : `php artisan test` — 113 tests réussis, 604 assertions ; `vendor\bin\pint --test` — réussi ; `npm test` — 4 tests réussis ; `npm run lint` et `npm run build` — réussis.
 
+### Partie A — Règles de l’annexe Phase 1 corrigée (13 novembre 2026)
+
+- **Vitalité** calculée par `VitalityCalculator` avec le barème de l’annexe (paramètre modifiable) : totaux des deux équipes, possession de l’équipe la plus haute, bornes incluses. Minimum 41 ; une statistique manquante rend l’indice non calculable. Exemples Atlético – Osasuna = 40 (mort) et Bayern – Dortmund = 90 (vivant) testés. Le scan calcule la vitalité depuis les statistiques réelles par équipe.
+- **Tendance** sur la cote du score suggéré : baisse de plus de 5 % validée ; stable ou hausse : abstention ; exactement 5 % : abstention à confirmer.
+- **F121-E1** (écart négatif → alerte Critique) et **F121-E2** (Under 2.5 entre 1.15 et 1.40 à la mi-temps → Over 0.5 en 2e MT, seule alerte possible à la mi-temps) remplacent F121-E.
+- **F121-D** : seuil 8.00 inclus, décision Over 4.5, scores couverts en paramètre (2-2, 2-3, 3-2 — 2-2 à confirmer).
+- **Ordre de décision** paramétrable, lu dans les exemples du client et marqué « à confirmer » : E2, D, désignation, vitalité, tendance, écart. Niveaux « Critique » et « Haute » modifiables. La convergence devient une étape facultative, absente de l’ordre par défaut.
+- **Bet 36 (Over/Under Line)** : absent des captures. `php artisan api-football:capture --fixture=<id> --bet36` enregistre la réponse sans la mapper ; le pilote réel de la cote Under 2.5 attend cette capture. Le pilote fictif fournit la cote (scénario `halftime-signal`).
+- Simulateur : mi-temps, cote Under 2.5, vitalité et tendance facultatives, niveau d’alerte et trace de l’ordre de décision.
+- Les 10 situations de l’annexe sont dans `backend/tests/Unit/AnnexSituationsTest.php` : 1, 9 et 10 réussissent avec l’ordre complet ; 2 et 3 réussissent sur les étapes dont l’annexe donne les données ; 4 à 8 sont marquées « en attente du fichier Excel du client ». Les situations 6 et 7 contredisent les règles écrites (voir `DECISIONS_ANNEXE_PHASE1.md`).
+
 ## Guide de démarrage et de test local
 
 ### 1. Démarrer les deux serveurs et ouvrir la connexion
@@ -232,11 +244,11 @@ Dans **Testeur manuel**, utilise :
   0-1 = 9,80
   ```
 - vitalité : `61` ;
-- variation des cotes sur deux minutes : `-1`.
+- variation des cotes sur deux minutes : `-6`.
 
-Clique sur **Évaluer la situation**. Résultats attendus : F121-C sélectionne l’équipe à domicile ; son écart est `1,10`, inférieur à `1,50` ; les filtres d’écart, de tendance à la baisse et de vitalité passent. Aucune alerte réelle n’est envoyée. La convergence reste non calculée sans notes et poids de méthodes.
+Clique sur **Évaluer la situation**. Résultats attendus : F121-C sélectionne l’équipe à domicile ; son écart est `1,10`, entre 0 et `1,50` ; vitalité et baisse de plus de 5 % validées : alerte Haute théorique. Avec une variation de `-1` (stable), la décision devient une abstention. Aucune alerte réelle n’est envoyée.
 
-Pour vérifier le refus du filtre de vitalité, recommence avec `39` : vitalité doit être refusée et aucune alerte ne doit être déclenchée. Pour vérifier le cas 0–0 spécial, utilise une cote 0–0 inférieure à `2,50` et un écart exactement égal à `1,00` : il doit être refusé car le seuil est strictement inférieur.
+Pour vérifier le refus du filtre de vitalité, recommence avec `40` : vitalité doit être refusée et aucune alerte ne doit être déclenchée. Pour vérifier le cas 0–0 spécial, utilise une cote 0–0 inférieure à `2,50` et un écart exactement égal à `1,00` : il doit être refusé car le seuil est strictement inférieur.
 
 ### 5. Lancer les vérifications automatisées
 
@@ -264,12 +276,9 @@ Les tests automatisés ne remplacent pas les dix situations complètes avec déc
 
 ### Règles et décisions client à obtenir
 
-- Fournir les dix situations de test admin complètes et leurs décisions attendues.
-- Trancher les deux définitions contradictoires de F121-E avant son implémentation.
-- Fournir la formule de normalisation de la vitalité, avec exemples chiffrés.
-- Confirmer que la tendance porte bien sur la cote suggérée et la limite de variation correspondant à « tendance stable ».
+- Fournir le fichier Excel des dix situations (vitalité et cote à −2 min manquantes pour les situations 2 à 8) et expliquer les situations 6 et 7.
+- Confirmer l’ordre de décision, le cas d’une baisse exactement égale à 5 % et la liste des scores de F121-D (2-2).
 - Définir les formules manquantes de F121-K, F121-T, F121-X, F122, F124 et F126 avant de les activer.
-- Préciser les cas de F121-D autres que les exemples 2–3 et 3–2, et les conditions éventuelles qui autorisent Over 5.5.
 - Clarifier les bornes exactes des seuils lorsque les documents ne disent que « inférieur » ou « supérieur ».
 - Fournir les clés API, comptes de notification autorisés, domaine et serveur lorsque le client sera prêt à financer et valider une mise en réel.
 
@@ -339,10 +348,10 @@ Ne partage jamais un secret TOTP d’enrôlement, un code à usage unique ou un 
 - Garder `APP_KEY`, mots de passe, secrets TOTP et futures clés API privés. `.env` ne doit pas être versionné.
 - Avant tout déploiement : compte MySQL dédié avec mot de passe fort, HTTPS, configuration de production sans débogage, sauvegardes et procédure de récupération 2FA à définir.
 - Le projet ne passe aucun pari et ne doit pas automatiser cette action.
-### Tendance (hypothèse à confirmer)
+### Tendance
 
 Le calcul préparé compare la cote du score exact de l’équipe ciblée par la règle, entre la cote courante et le dernier instantané dont les données de cotes datent d’au moins deux minutes :
 
 `(cote actuelle − cote à −2 min) / cote à −2 min × 100`
 
-Une variation négative est une baisse ; une variation absolue inférieure ou égale à `tendance_seuil_stable` est stable. La source `cote_suggeree` et le seuil restent vides dans les paramètres persistés jusqu’à confirmation du client. Les scénarios fake les renseignent explicitement pour tester le calcul ; une référence manquante ou trop récente provoque l’abstention.
+Selon l’annexe, seule une baisse strictement supérieure à `tendance_seuil_stable` (5 %) valide la tendance ; une variation stable ou une hausse donne une abstention, et une baisse exactement égale au seuil reste à confirmer (abstention). Une référence manquante ou trop récente provoque l’abstention.

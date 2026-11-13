@@ -54,15 +54,15 @@ class ProviderPilotsTest extends TestCase
         $this->assertTrue($odds->reachable);
         $this->assertTrue($odds->exactScoreMarketAvailable);
         $this->assertTrue($odds->overUnderMarketAvailable);
-        $this->assertCount(7, $football->matches);
+        $this->assertCount(8, $football->matches);
         $this->assertSame(
-            ['candidate-alert', 'gap-filter-refusal', 'vitality-filter-refusal', 'trend-data-missing', 'goal-during-scan', 'statistics-missing', 'upcoming-match'],
+            ['candidate-alert', 'gap-filter-refusal', 'vitality-filter-refusal', 'trend-data-missing', 'goal-during-scan', 'statistics-missing', 'upcoming-match', 'halftime-signal'],
             array_map(fn ($match): ?string => $match->scenario, $football->matches),
         );
-        $this->assertCount(7, array_unique(array_map(fn ($match): string => $match->homeTeam, $football->matches)));
-        $this->assertCount(7, array_unique(array_map(fn ($match): string => $match->awayTeam, $football->matches)));
-        $this->assertCount(7, array_unique(array_map(fn ($match): ?string => $match->competition, $football->matches)));
-        $this->assertCount(7, array_unique(array_map(fn ($match): ?string => $match->kickoffAt, $football->matches)));
+        $this->assertCount(8, array_unique(array_map(fn ($match): string => $match->homeTeam, $football->matches)));
+        $this->assertCount(8, array_unique(array_map(fn ($match): string => $match->awayTeam, $football->matches)));
+        $this->assertCount(8, array_unique(array_map(fn ($match): ?string => $match->competition, $football->matches)));
+        $this->assertCount(8, array_unique(array_map(fn ($match): ?string => $match->kickoffAt, $football->matches)));
         $this->assertSame(
             'Simulation — Scénario but marqué',
             collect($football->matches)->firstWhere('scenario', 'goal-during-scan')->competition,
@@ -93,7 +93,7 @@ class ProviderPilotsTest extends TestCase
                 awayScore: $footballMatch->awayScore,
                 exactScoreOdds: $oddsMatch->exactScoreOdds,
                 vitalityScore: $footballMatch->vitalityScore,
-                oddsChangePercent: -1.0,
+                oddsChangePercent: -6.0,
                 methodScores: ['F121-C' => 82],
             ),
             new RuleConfiguration(
@@ -129,7 +129,7 @@ class ProviderPilotsTest extends TestCase
                     awayScore: $footballMatch->awayScore,
                     exactScoreOdds: $oddsMatch->exactScoreOdds,
                     vitalityScore: $footballMatch->vitalityScore,
-                    oddsChangePercent: $scenario === 'trend-data-missing' ? null : -1.0,
+                    oddsChangePercent: $scenario === 'trend-data-missing' ? null : -6.0,
                     methodScores: ['F121-C' => 82],
                 ),
                 new RuleConfiguration(
@@ -576,6 +576,34 @@ class ProviderPilotsTest extends TestCase
 
         Http::assertSent(fn (Request $request): bool => str_ends_with($request->url(), '/fixtures/statistics?fixture=200'));
         Http::assertSentCount(3);
+    }
+
+    public function test_api_football_capture_can_save_the_over_under_line_bet_without_mapping_it(): void
+    {
+        $this->captureDirectory = storage_path('framework/testing/api-football-capture-'.uniqid('', true));
+        app()->instance(ApiFootballResponseCapture::class, new ApiFootballResponseCapture($this->captureDirectory));
+        config()->set('services.pronofoot.football_driver', 'real');
+        config()->set('services.football_api.api_key', 'test-api-key');
+        config()->set('services.football_api.base_url', 'https://api.example.test');
+        Http::fakeSequence()
+            ->push('{"response":[{"fixture":{"id":200}}]}', 200, ['x-ratelimit-requests-remaining' => '20'])
+            ->push('{"response":[{"statistics":[]}]}', 200, ['x-ratelimit-requests-remaining' => '19'])
+            ->push('{"response":[]}', 200, ['x-ratelimit-requests-remaining' => '18'])
+            ->push('{"response":[{"bet36":"brut"}]}', 200, ['x-ratelimit-requests-remaining' => '17']);
+
+        $this->artisan('api-football:capture', ['--fixture' => '200', '--bet36' => true])
+            ->expectsOutputToContain('Appels API prévus : 4 maximum (dont cotes bet 36).')
+            ->expectsOutputToContain('Quota restant avant odds/live?bet=36 : 18.')
+            ->assertExitCode(0);
+
+        Http::assertSent(fn (Request $request): bool => str_ends_with($request->url(), '/odds/live?bet=36'));
+        Http::assertSentCount(4);
+        $bet36Files = array_filter(
+            File::files($this->captureDirectory),
+            fn ($file): bool => str_starts_with($file->getFilename(), 'odds-live-bet36-'),
+        );
+        $this->assertCount(1, $bet36Files);
+        $this->assertSame('{"response":[{"bet36":"brut"}]}', File::get(array_values($bet36Files)[0]->getPathname()));
     }
 
     public function test_api_football_capture_does_not_spend_requests_after_quota_reaches_zero(): void

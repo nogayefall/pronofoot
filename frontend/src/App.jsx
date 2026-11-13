@@ -15,8 +15,9 @@ const navigation = [
 const ruleDescriptions = [
   { id: 'F121-C', title: 'Écart directionnel', status: 'Disponible', detail: 'Règle configurable selon les seuils validés du CDC.' },
   { id: 'F121-C.2', title: 'Avantage de deux buts', status: 'Disponible', detail: 'Suit le leader lorsque son avantage atteint au moins deux buts.' },
-  { id: 'F121-D', title: 'Score élevé', status: 'Partiel', detail: 'Les situations hors cas documentés restent à confirmer.' },
-  { id: 'F121-E', title: 'Règle de mi-temps / écart', status: 'À confirmer', detail: 'Les documents donnent deux définitions contradictoires.' },
+  { id: 'F121-D', title: 'Match ouvert', status: 'Disponible', detail: 'Cotes des scores suivants ≤ 8.00 : Over 4.5. Liste des scores concernés à confirmer (2-2 ajouté d’après la situation 9).' },
+  { id: 'F121-E1', title: 'Écart négatif', status: 'Disponible', detail: 'Cote du prochain but inférieure à celle du score actuel : alerte critique.' },
+  { id: 'F121-E2', title: 'Signal mi-temps', status: 'Partiel', detail: 'Under 2.5 entre 1.15 et 1.40 à la mi-temps : Over 0.5 en 2e mi-temps. Cote réelle en attente de la capture bet 36.' },
   { id: 'F121-K · T · X', title: 'Écarts et tendance', status: 'Non défini', detail: 'La formule exacte doit être fournie avant activation.' },
   { id: 'F122 · F124 · F126', title: 'Règles complémentaires', status: 'Non défini', detail: 'Formules métier à confirmer par le client.' },
 ]
@@ -33,10 +34,15 @@ const settingLabels = {
   'rules.upcoming_score_odds_limit': 'Limite de cote des scores suivants',
   'rules.minimum_vitality': 'Vitalité minimale',
   'rules.minimum_convergence_score': 'Convergence minimale',
-  'tendance_source': 'Source de tendance (à confirmer)',
-  'tendance_seuil_stable': 'Seuil de tendance stable (à confirmer)',
-  ecart_negatif_comportement: 'Comportement d’un écart négatif (à confirmer)',
-  'rules.vitality_normalization_references': 'Références de normalisation de la vitalité (à confirmer)',
+  'tendance_source': 'Source de tendance',
+  'tendance_seuil_stable': 'Seuil de baisse de la tendance (%)',
+  'rules.vitality_normalization_references': 'Barème de la vitalité',
+  'rules.halftime_under25_min': 'F121-E2 : Under 2.5 minimal',
+  'rules.halftime_under25_max': 'F121-E2 : Under 2.5 maximal',
+  'rules.open_match_scores': 'F121-D : scores de match ouvert (à confirmer)',
+  'alerts.level_negative_gap': 'Niveau d’alerte : écart négatif',
+  'alerts.level_positive_gap': 'Niveau d’alerte : écart sous le seuil',
+  'rules.decision_pipeline': 'Ordre de décision (à confirmer)',
   'scan.quota_alert_threshold': 'Seuil d’alerte du quota API (à confirmer)',
 }
 
@@ -53,9 +59,14 @@ const settingDescriptions = {
   'rules.minimum_vitality': 'Niveau minimal de vitalité requis.',
   'rules.minimum_convergence_score': 'Niveau minimal de convergence requis.',
   tendance_source: 'Valeur de cote utilisée pour calculer la tendance.',
-  tendance_seuil_stable: 'Variation maximale considérée comme stable.',
-  ecart_negatif_comportement: 'À définir après confirmation du sens d’une baisse de cote.',
-  'rules.vitality_normalization_references': 'Valeurs de référence utilisées pour calculer la vitalité.',
+  tendance_seuil_stable: 'Baisse strictement supérieure : validée. Exactement égale : à confirmer (abstention).',
+  'rules.vitality_normalization_references': 'Paliers [minimum inclus, points] par statistique, totaux des deux équipes.',
+  'rules.halftime_under25_min': 'Borne basse incluse de la cote Under 2.5 à la mi-temps.',
+  'rules.halftime_under25_max': 'Borne haute incluse de la cote Under 2.5 à la mi-temps.',
+  'rules.open_match_scores': 'Scores pour lesquels F121-D s’applique.',
+  'alerts.level_negative_gap': 'Libellé d’une alerte F121-E1.',
+  'alerts.level_positive_gap': 'Libellé d’une alerte sur écart positif inférieur au seuil.',
+  'rules.decision_pipeline': 'Étapes : F121-E2, F121-D, designation, vitality, trend, gap, convergence (facultative).',
   'scan.quota_alert_threshold': 'Requêtes restantes sous lesquelles le scan s’arrête. Vide : arrêt seulement à quota nul.',
 }
 
@@ -101,6 +112,24 @@ function EmptyState({ icon, title, message }) {
   )
 }
 
+const decisionStepLabels = {
+  'F121-E2': 'Signal mi-temps (F121-E2)',
+  'F121-D': 'Match ouvert (F121-D)',
+  designation: 'Désignation de l’équipe (F121-C / C.2)',
+  vitality: 'Vitalité',
+  trend: 'Tendance',
+  gap: 'Écart (F121-E1 / seuil)',
+  convergence: 'Convergence',
+}
+
+const decisionOutcomeLabels = {
+  alert: 'Alerte',
+  proposal: 'Alerte proposée',
+  continue: 'Validé',
+  non_applicable: 'Non applicable',
+  abstention: 'Abstention',
+}
+
 function SimulationResult({ result }) {
   const decision = result.decision
   const direction = result.rules['F121-C']?.details?.selectedTeam
@@ -110,8 +139,13 @@ function SimulationResult({ result }) {
     <div className="simulation-result">
       <div className={`simulation-verdict ${decision.shouldAlert ? 'verdict-alert' : 'verdict-neutral'}`}>
         <span className="verdict-mark">{decision.shouldAlert ? '✓' : '—'}</span>
-        <div><strong>{decision.shouldAlert ? 'Signal théorique détecté' : 'Aucun signal'}</strong><p>{decision.reason}</p></div>
+        <div><strong>{decision.shouldAlert ? `Alerte ${decision.level} théorique — ${decision.rule}` : 'Abstention'}</strong><p>{decision.shouldAlert ? `${decision.suggestedAction}${decision.selection ? ` : ${decision.selection === 'home' ? 'équipe à domicile' : 'équipe à l’extérieur'}` : ''}. ` : ''}{decision.reason}</p></div>
       </div>
+      {decision.steps?.length > 0 && <div className="simulation-section"><h3>Ordre de décision (à confirmer)</h3>
+        {decision.steps.map((step) => (
+          <div className="simulation-line" key={step.step}><span>{decisionStepLabels[step.step] ?? step.step}</span><strong>{decisionOutcomeLabels[step.outcome] ?? step.outcome}</strong></div>
+        ))}
+      </div>}
       <div className="simulation-section"><h3>Règles évaluées</h3>
         {Object.values(result.rules).map((rule) => (
           <div className="simulation-line" key={rule.ruleId}><span>{rule.ruleId}</span><strong>{rule.verdict === 'candidate' ? (rule.suggestedAction || directionLabel) : rule.verdict === 'not_defined' ? 'Non définie' : rule.verdict === 'abstain' ? 'Abstention' : 'Aucun signal'}</strong></div>
@@ -122,7 +156,7 @@ function SimulationResult({ result }) {
           <div className="simulation-line" key={filter}><span>{outcome.label}</span><strong className={outcome.passed ? 'filter-passed' : 'filter-failed'}>{outcome.passed ? 'Validé' : 'Refusé'}</strong></div>
         ))}
       </div>
-      <div className="simulation-disclaimer"><Icon name="shield" size={17} /><span>{decision.convergenceScore === null ? 'Convergence non calculée : aucun score de méthode n’est fourni. Simulation sans alerte transmissible.' : `Convergence ${decision.convergenceScore} % — simulation uniquement.`}</span></div>
+      <div className="simulation-disclaimer"><Icon name="shield" size={17} /><span>Simulation uniquement : aucune alerte n’est transmise.</span></div>
     </div>
   )
 }
@@ -161,9 +195,11 @@ function App() {
     awayScore: '0',
     oddsText: '0-0 = 7,50\n1-0 = 8,60\n0-1 = 9,80',
     vitalityScore: '61',
-    oddsChangePercent: '0',
-    tendanceSource: '',
-    tendanceSeuilStable: '',
+    oddsChangePercent: '-6',
+    tendanceSource: 'cote_suggeree',
+    tendanceSeuilStable: '5',
+    halftime: false,
+    under25Odds: '',
   })
   const [testResult, setTestResult] = useState(null)
   const [testError, setTestError] = useState('')
@@ -492,8 +528,9 @@ function App() {
                   <form className="tester-form" onSubmit={testRules}>
                     <div className="form-row"><label>Score à domicile<input min="0" max="20" type="number" value={testFields.homeScore} onChange={updateTestField('homeScore')} required /></label><span className="score-separator">–</span><label>Score à l’extérieur<input min="0" max="20" type="number" value={testFields.awayScore} onChange={updateTestField('awayScore')} required /></label></div>
                     <label>Cotes des scores exacts <span className="label-note">une ligne par score</span><textarea rows="5" spellCheck="false" value={testFields.oddsText} onChange={updateTestField('oddsText')} placeholder={'0-0 = 7,50\n1-0 = 8,60\n0-1 = 9,80'} required /></label>
-                    <div className="form-row form-row-wide"><label>Vitalité (0–100)<input min="0" max="100" step="0.1" type="number" value={testFields.vitalityScore} onChange={updateTestField('vitalityScore')} required /></label><label>Variation des cotes sur 2 min (%)<input step="0.1" type="number" value={testFields.oddsChangePercent} onChange={updateTestField('oddsChangePercent')} required /><span className="field-help">Valeur négative = cotes en baisse.</span></label></div>
-                    <div className="field-grid"><label>Source de tendance<select value={testFields.tendanceSource} onChange={updateTestField('tendanceSource')}><option value="">Non confirmée</option><option value="cote_suggeree">Cote suggérée (hypothèse)</option></select></label><label>Seuil stable (%)<input min="0" step="0.1" type="number" value={testFields.tendanceSeuilStable} onChange={updateTestField('tendanceSeuilStable')} placeholder="À confirmer" /></label></div>
+                    <div className="form-row form-row-wide"><label>Vitalité (0–100)<input min="0" max="100" step="0.1" type="number" value={testFields.vitalityScore} onChange={updateTestField('vitalityScore')} /><span className="field-help">Vide = non calculable.</span></label><label>Variation des cotes sur 2 min (%)<input step="0.01" type="number" value={testFields.oddsChangePercent} onChange={updateTestField('oddsChangePercent')} /><span className="field-help">Valeur négative = cotes en baisse. Vide = non calculable.</span></label></div>
+                    <div className="form-row form-row-wide"><label className="check-row"><input type="checkbox" checked={testFields.halftime} onChange={(event) => setTestFields((previous) => ({ ...previous, halftime: event.target.checked }))} />Match à la mi-temps</label><label>Cote Under 2.5 (total du match)<input min="0" step="0.01" type="number" value={testFields.under25Odds} onChange={updateTestField('under25Odds')} /></label></div>
+                    <div className="field-grid"><label>Source de tendance<select value={testFields.tendanceSource} onChange={updateTestField('tendanceSource')}><option value="cote_suggeree">Cote du score suggéré</option></select></label><label>Seuil de baisse (%)<input min="0" step="0.1" type="number" value={testFields.tendanceSeuilStable} onChange={updateTestField('tendanceSeuilStable')} /></label></div>
                     <p className="format-hint">Format accepté : <code>score = cote</code> ou <code>score : cote</code>. Les paramètres de tendance ne s’appliquent qu’à cette simulation.</p>
                     {testError && <div className="form-error" role="alert">{testError}</div>}
                     <button className="primary-button" type="submit" disabled={isTesting}>{isTesting ? 'Évaluation…' : 'Évaluer la situation'} <Icon name="arrow" size={17} /></button>
@@ -533,7 +570,7 @@ function App() {
               <PageHeading eyebrow="CONFIGURATION" title="Paramètres" description="Modifiez les paramètres enregistrés et consultez leur historique." action={<button className="secondary-button" type="button" onClick={() => void runNotificationTest()} disabled={isBusy}>Tester les notifications</button>} />
               <div className="notice notice-warning"><span className="notice-icon"><Icon name="shield" size={18} /></span><div><strong>Les paramètres à confirmer sont laissés vides</strong><p>La tendance reste abstentionniste tant que les confirmations client ne sont pas renseignées. Aucun pari automatique n’est effectué.</p></div></div>
               <form className="content-panel settings-form" onSubmit={saveSettings}><div className="panel-heading"><div><h2>Paramètres du détecteur</h2><p>Les champs sans valeur ne déclenchent pas de comportement supposé.</p></div></div>
-                {settings.length ? <div className="settings-list">{settings.map((setting) => <label className="setting-row" key={setting.key}><span><strong>{settingLabels[setting.key] ?? setting.key}</strong><small>{settingDescriptions[setting.key] ?? 'Paramètre utilisé par le détecteur.'}{setting.needsConfirmation ? ' · À confirmer' : ''}</small></span>{setting.type === 'boolean' ? <input type="checkbox" checked={settingsDraft[setting.key] === true} onChange={(event) => setSettingsDraft((previous) => ({ ...previous, [setting.key]: event.target.checked }))} /> : setting.type === 'json' ? <textarea rows="3" value={settingsDraft[setting.key] ?? ''} onChange={(event) => setSettingsDraft((previous) => ({ ...previous, [setting.key]: event.target.value }))} placeholder="À confirmer" /> : setting.key === 'tendance_source' ? <select value={settingsDraft[setting.key] ?? ''} onChange={(event) => setSettingsDraft((previous) => ({ ...previous, [setting.key]: event.target.value }))}><option value="">À confirmer</option><option value="cote_suggeree">Cote suggérée (hypothèse)</option></select> : <input type={setting.type === 'integer' || setting.type === 'decimal' ? 'number' : 'text'} min={setting.type === 'integer' || setting.type === 'decimal' ? '0' : undefined} step={setting.type === 'decimal' ? '0.01' : undefined} value={settingsDraft[setting.key] ?? ''} onChange={(event) => setSettingsDraft((previous) => ({ ...previous, [setting.key]: event.target.value }))} placeholder={setting.needsConfirmation ? 'À confirmer' : ''} />}</label>)}</div> : <EmptyState icon="settings" title="Paramètres indisponibles" message="Aucun paramètre enregistré n’a été retourné." />}
+                {settings.length ? <div className="settings-list">{settings.map((setting) => <label className="setting-row" key={setting.key}><span><strong>{settingLabels[setting.key] ?? setting.key}</strong><small>{settingDescriptions[setting.key] ?? 'Paramètre utilisé par le détecteur.'}{setting.needsConfirmation ? ' · À confirmer' : ''}</small></span>{setting.type === 'boolean' ? <input type="checkbox" checked={settingsDraft[setting.key] === true} onChange={(event) => setSettingsDraft((previous) => ({ ...previous, [setting.key]: event.target.checked }))} /> : setting.type === 'json' ? <textarea rows="3" value={settingsDraft[setting.key] ?? ''} onChange={(event) => setSettingsDraft((previous) => ({ ...previous, [setting.key]: event.target.value }))} placeholder="À confirmer" /> : setting.key === 'tendance_source' ? <select value={settingsDraft[setting.key] ?? ''} onChange={(event) => setSettingsDraft((previous) => ({ ...previous, [setting.key]: event.target.value }))}><option value="cote_suggeree">Cote du score suggéré</option></select> : <input type={setting.type === 'integer' || setting.type === 'decimal' ? 'number' : 'text'} min={setting.type === 'integer' || setting.type === 'decimal' ? '0' : undefined} step={setting.type === 'decimal' ? '0.01' : undefined} value={settingsDraft[setting.key] ?? ''} onChange={(event) => setSettingsDraft((previous) => ({ ...previous, [setting.key]: event.target.value }))} placeholder={setting.needsConfirmation ? 'À confirmer' : ''} />}</label>)}</div> : <EmptyState icon="settings" title="Paramètres indisponibles" message="Aucun paramètre enregistré n’a été retourné." />}
                 <div className="form-actions"><button className="primary-button" type="submit" disabled={isBusy || !settings.length}>Enregistrer</button><button className="secondary-button" type="button" onClick={() => void resetSettings()} disabled={isBusy}>Réinitialiser</button></div>
               </form>
               <section className="content-panel"><div className="panel-heading"><div><h2>Historique des modifications</h2><p>Les dernières modifications de paramètres sont conservées.</p></div></div>{settingsHistory.length ? <div className="table-scroll"><table className="data-table"><thead><tr><th>Date</th><th>Paramètre</th><th>Ancienne valeur</th><th>Nouvelle valeur</th><th>Administrateur</th></tr></thead><tbody>{settingsHistory.map((change) => <tr key={change.id}><td>{formatDate(change.changedAt)}</td><td>{settingLabels[change.settingKey] ?? change.settingKey}</td><td>{change.oldValue ?? '—'}</td><td>{change.newValue ?? '—'}</td><td>{change.user}</td></tr>)}</tbody></table></div> : <EmptyState icon="list" title="Aucun changement" message="L’historique se remplira après la première modification." />}</section>

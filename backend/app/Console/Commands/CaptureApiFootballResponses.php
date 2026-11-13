@@ -10,7 +10,8 @@ final class CaptureApiFootballResponses extends Command
 {
     protected $signature = 'api-football:capture
         {--fixture= : Match live à utiliser pour tester les statistiques}
-        {--auto-covered : Chercher automatiquement un match d’une ligue couverte}';
+        {--auto-covered : Chercher automatiquement un match d’une ligue couverte}
+        {--bet36 : Capturer aussi odds/live?bet=36 (Over/Under Line), sans le mapper}';
 
     protected $description = 'Capturer les réponses live API-Football sans les mapper ni exposer la clé.';
 
@@ -37,7 +38,9 @@ final class CaptureApiFootballResponses extends Command
             return self::FAILURE;
         }
 
-        $calls = $autoCovered ? '4 maximum (live, ligues, statistiques, cotes bet 23)' : '3 maximum';
+        $includeOverUnderLine = (bool) $this->option('bet36');
+        $calls = ($autoCovered ? 4 : 3) + ($includeOverUnderLine ? 1 : 0);
+        $calls = $calls.' maximum'.($autoCovered ? ' (live, ligues, statistiques, cotes bet 23'.($includeOverUnderLine ? ', cotes bet 36' : '').')' : ($includeOverUnderLine ? ' (dont cotes bet 36)' : ''));
         $this->line("Appels API prévus : {$calls}.");
         $beforeRequest = function (string $endpoint, ?int $remaining): void {
             $quota = $remaining === null ? 'inconnu (aucun en-tête reçu)' : (string) $remaining;
@@ -60,6 +63,7 @@ final class CaptureApiFootballResponses extends Command
                 $autoCovered,
                 $beforeRequest,
                 $reviewCandidates,
+                $includeOverUnderLine,
             );
         } catch (RuntimeException $exception) {
             $this->error($exception->getMessage());

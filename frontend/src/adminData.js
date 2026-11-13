@@ -39,23 +39,30 @@ export function createRuleTestPayload({
   oddsChangePercent,
   tendanceSource = '',
   tendanceSeuilStable = '',
+  halftime = false,
+  under25Odds = '',
 }) {
   const parsedHomeScore = Number(homeScore)
   const parsedAwayScore = Number(awayScore)
-  const parsedVitality = Number(vitalityScore)
-  const parsedOddsChange = Number(oddsChangePercent)
+  const parsedVitality = vitalityScore === '' ? null : Number(vitalityScore)
+  const parsedOddsChange = oddsChangePercent === '' ? null : Number(oddsChangePercent)
+  const parsedUnder25 = under25Odds === '' ? null : Number(under25Odds)
 
   if (!Number.isInteger(parsedHomeScore) || parsedHomeScore < 0
     || !Number.isInteger(parsedAwayScore) || parsedAwayScore < 0) {
     throw new Error('Les scores doivent être des nombres entiers positifs ou nuls.')
   }
 
-  if (!Number.isFinite(parsedVitality) || parsedVitality < 0 || parsedVitality > 100) {
+  if (parsedVitality !== null && (!Number.isFinite(parsedVitality) || parsedVitality < 0 || parsedVitality > 100)) {
     throw new Error('La vitalité doit être comprise entre 0 et 100.')
   }
 
-  if (!Number.isFinite(parsedOddsChange)) {
+  if (parsedOddsChange !== null && !Number.isFinite(parsedOddsChange)) {
     throw new Error('La variation des cotes sur deux minutes doit être un nombre valide.')
+  }
+
+  if (parsedUnder25 !== null && (!Number.isFinite(parsedUnder25) || parsedUnder25 <= 0)) {
+    throw new Error('La cote Under 2.5 doit être supérieure à zéro.')
   }
 
   const parsedStableThreshold = tendanceSeuilStable === '' ? null : Number(tendanceSeuilStable)
@@ -66,8 +73,8 @@ export function createRuleTestPayload({
     throw new Error('Le seuil de tendance stable doit être un nombre positif ou nul.')
   }
 
-  const exactScoreOdds = parseCorrectScoreOdds(oddsText)
-  const requiredScores = [
+  const exactScoreOdds = halftime && oddsText.trim() === '' ? {} : parseCorrectScoreOdds(oddsText)
+  const requiredScores = halftime ? [] : [
     `${parsedHomeScore}-${parsedAwayScore}`,
     `${parsedHomeScore + 1}-${parsedAwayScore}`,
     `${parsedHomeScore}-${parsedAwayScore + 1}`,
@@ -86,6 +93,8 @@ export function createRuleTestPayload({
     odds_change_percent: parsedOddsChange,
     tendance_source: tendanceSource || null,
     tendance_seuil_stable: parsedStableThreshold,
+    halftime: Boolean(halftime),
+    under_2_5_odds: parsedUnder25,
   }
 }
 
