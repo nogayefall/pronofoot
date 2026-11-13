@@ -19,3 +19,23 @@ Référence : `PRONOFOOT_CDC_V9.1.pdf`, section 4.1. Le constructeur de règles 
 | Convergence dans la décision | Étape à ajouter à la main dans l’ordre JSON | Présent | Paramètre `rules.convergence_enabled`, **désactivé par défaut** : ajoute l’étape « convergence » en fin d’ordre de décision. |
 
 À confirmer : le score de chaque méthode (0–100). Le CDC dit « chaque méthode donne un verdict et un score » sans formule ; en scan réel, aucune méthode ne produit de score, donc le score de confiance reste « non calculé » et l’étape convergence, si on l’active, provoque l’abstention.
+
+## Critères d’acceptation du CDC Phase 1 (section 8)
+
+Tests automatiques : `backend/tests/Feature/AcceptanceCriteriaTest.php`, `backend/tests/Unit/AnnexSituationsTest.php`, `backend/tests/Unit/RuleEngineTest.php`.
+
+| Critère | Statut | Preuve | Remarque |
+|---|---|---|---|
+| Chaque règle est testée avec des cas écrits à l’avance (au moins 10 situations de l’admin, résultat identique) | **Non conforme** (attend le client) | `AnnexSituationsTest` : situations 1, 9 et 10 identiques ; 2 et 3 identiques sur les étapes renseignées | Situations 2 à 8 incomplètes (vitalité, cote à −2 min) ; 6 et 7 contredisent les règles écrites. Fichier Excel attendu. |
+| Alerte reçue en moins de 60 secondes après la détection | **Conforme avec le canal `log`** ; WhatsApp **à confirmer** | `test_alert_is_delivered_through_the_log_channel_less_than_60_seconds_after_detection` : détection et envoi dans le même passage | En production, l’envoi passe par la file : `queue:work` doit tourner (Supervisor). WhatsApp réel n’est pas branché (hors périmètre de cette étape). |
+| Aucune alerte si un des 3 filtres n’est pas validé ; refus noté au Journal | **Conforme** | `test_no_alert_when_a_filter_is_refused_and_the_refusal_is_written_in_the_journal` (écart, vitalité, tendance) | Un match dont l’écart dépasse 2.00 n’est pas scanné (annexe) : il n’a pas de ligne au Journal tant qu’il reste dans cet état. |
+| Le Journal conserve les détections et permet le taux de réussite par règle | **Conforme** | `test_journal_gives_the_success_rate_per_rule` ; page Statistiques | Le résultat (gagné / perdu / annulé) est saisi par l’administrateur dans le Journal ; aucun calcul automatique du résultat d’un pari n’est prévu en Phase 1. |
+| Les paramètres se modifient depuis la page admin et s’appliquent au scan suivant | **Conforme** | `test_settings_changed_in_the_admin_page_apply_to_the_next_scan` | Les paramètres et le profil actif sont relus à chaque passage, sans redémarrer `scan:run`. |
+
+### Procédure manuelle : délai d’alerte en conditions réelles
+
+1. Dans `backend/.env` : `NOTIFICATION_MODE=fake`, `NOTIFICATION_CHANNEL=log`.
+2. Lancer dans deux terminaux : `php artisan scan:run` et `php artisan queue:work --tries=3`.
+3. Attendre une alerte (Journal, décision « alert »).
+4. Comparer l’heure de détection (Journal, colonne date) et l’heure d’envoi (`alerts.sent_at`, ou la ligne correspondante dans `storage/logs/laravel.log`). L’écart doit rester sous 60 secondes.
+5. Refaire la mesure avec WhatsApp quand le canal réel sera branché.
