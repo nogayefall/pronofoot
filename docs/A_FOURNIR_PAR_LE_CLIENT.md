@@ -1,34 +1,41 @@
 # Informations à fournir avant la mise en réel
 
-## Règles et décisions métier
+Dernière mise à jour : 13 novembre 2026, d’après `PRONOFOOT_Annexe_Phase1_Corrigee.pdf`.
 
-- Dix situations de test complètes (score, cotes, statistiques, décision attendue et règle concernée).
-- La formule de normalisation de la vitalité, ses données de référence et des exemples chiffrés.
-- La valeur maximale qui définit une tendance stable sur les deux dernières minutes.
-- Confirmer que la tendance porte bien sur la cote suggérée (cote du score exact de l’équipe ciblée, entre l’instantané actuel et celui d’il y a deux minutes).
-- Préciser quelle variation maximale définit une tendance stable (3 % est cité comme exemple, sans confirmation).
-- Le choix entre les deux définitions contradictoires de F121-E.
-- **Un écart négatif (cote du score suivant inférieure à la cote actuelle), qu'est-ce que ça signifie et que doit faire le système ?**
-- Les formules de F121-K, F121-T, F121-X, F122, F124 et F126.
-- Les situations supplémentaires auxquelles F121-D s’applique et les conditions du choix Over 4.5 / Over 5.5.
-- La confirmation des bornes inclusives ou strictes lorsque le cahier des charges ne les précise pas.
-- Confirmer si les cadences de relance après but du TRD (15 secondes pendant 120 secondes) doivent être conservées en production. Le CDC Phase 1 indique 30 secondes pour les cotes, 60 secondes pour les statistiques et 15 minutes avant expiration sans but.
-- Fournir dix situations complètes avec les cotes, scores, statistiques, règle concernée et verdict attendu pour valider l’acceptation métier.
+## Décisions reçues dans l’annexe (appliquées)
+
+Ces points ne sont plus à fournir : vitalité (barème, bornes incluses, minimum 41), tendance (cote du score suggéré, baisse de plus de 5 %), F121-E remplacée par F121-E1 (écart négatif → alerte Critique) et F121-E2 (Under 2.5 entre 1.15 et 1.40 à la mi-temps), F121-D à 8.00 inclus avec Over 4.5, seuil d’alerte du quota à 10 %, mode économie, arrêt à quota nul, suivi automatique des championnats majeurs. Le détail est dans [`DECISIONS_ANNEXE_PHASE1.md`](./DECISIONS_ANNEXE_PHASE1.md).
+
+## Règles et décisions métier encore à confirmer
+
+- **Fichier Excel des dix situations.** L’annexe annonce un fichier Excel complet, non reçu. Il manque la vitalité et la cote du score suggéré à −2 min pour les situations 2 à 8.
+- **Situations 6 et 7**, contraires aux règles écrites :
+  - situation 6 (Arsenal – Everton, 64′) : écart 3.10 − 2.92 = +0.18, positif, alors que la décision attendue est une alerte Critique ;
+  - situation 7 (Crewe – Wigan) : écart +0.86, inférieur à 1.50, qui donne une alerte Haute selon l’ordre de décision, alors que la décision attendue est une abstention.
+- **Ordre de décision** (E2, D, désignation, vitalité, tendance, écart) : déduit des exemples, pas écrit. Il est paramétrable.
+- **Convergence** : l’annexe ne la mentionne pas ; elle est calculée mais ne bloque plus les alertes. Faut-il la remettre dans l’ordre de décision ?
+- **Baisse exactement égale à 5 %** : traitée comme une abstention.
+- **F121-D à 2-2** : le CDC cite 2-3 et 3-2 ; la situation 9 attend Over 4.5 à 2-2. Quels scores sont des « matchs ouverts » ?
+- **Mode économie** :
+  - un écart entre 1.50 et 2.00 est-il bien « calme » ?
+  - une « baisse de cote » sans seuil suffit-elle à rendre un match chaud ?
+  - l’alerte se déclenche-t-elle à 10 % inclus ?
+  - les fréquences 30 s / 2 min s’appliquent-elles seulement en mode économie ?
+- **Adresse e-mail** pour les alertes de quota : l’annexe cite l’e-mail, il faut une adresse. En attendant, les alertes passent par WhatsApp (Telegram en repli).
+- Les formules de F121-K, F121-T, F121-X, F122, F124 et F126 : ces règles restent « non définies ».
+- Confirmer les cadences de relance après but du TRD (15 secondes pendant 120 secondes).
 
 Sans confirmation d’un paramètre nécessaire, le comportement reste l’abstention : aucune alerte n’est créée.
 
-Le paramètre `ecart_negatif_comportement` reste vide et à confirmer. Tant que le client n’a pas répondu, le moteur s’abstient avec le motif `écart négatif : F121-E à confirmer`.
-
 ## Sources et pilotes réels
 
-- Les références utilisées pour les cadences et seuils sont les PDF `PRONOFOOT_CDC_Phase1_Signaux_Live.pdf` et `PRONOFOOT_CDC_V9.1.pdf`. Les 15 secondes / 120 secondes après but proviennent du TRD, pas des valeurs de cadence citées dans le CDC Phase 1.
-- **The Odds API :** confirmer auprès du fournisseur, pour le compte et le sport ciblés, la présence du marché de scores exacts en direct. Le [catalogue officiel des marchés](https://the-odds-api.com/sports-odds-data/betting-markets.html) consulté ne documente pas ce marché ; le pilote réel refuse de l’inventer et la commande de faisabilité le signale comme non disponible. Une clé seule ne suffit pas à lever ce blocage.
-- **API-Football :** fournir une clé conservée dans `.env`. La documentation confirme l’URL `https://v3.football.api-sports.io` et l’en-tête `x-apisports-key`. Les captures `fixtures-live.json` (27 matchs), `fixtures-statistics.json` (`results: 0`, réponse vide) et `odds-live-bet-23.json` sont disponibles dans `backend/database/fixtures/api-football/`. La liste live et les cotes bet 23 sont mappées ; les statistiques ne le sont pas tant qu’une réponse non vide n’a pas confirmé leur structure.
-- Fournir une capture `fixtures/statistics?fixture=…` d’un match dont les statistiques sont disponibles, incluant tirs totaux, tirs cadrés, possession et corners. Le test de faisabilité actuel ne prélève qu’un match pour limiter les appels.
+- **API-Football :** clé fournie et conservée dans `.env`. Liste live, statistiques par équipe et cotes de score exact (bet 23) sont mappées sur de vraies réponses. Un scan réel a été effectué le 13 novembre 2026 (voir `AVANCEMENT_PHASE1.md`).
+- **Cote Under 2.5 (pari 36 « Over/Under Line »)** nécessaire à F121-E2 : aucune réponse réelle n’a encore été capturée. Le 13 novembre 2026, aucun match des ligues suivies n’était en cours. Lancer pendant un match de ces ligues : `php artisan api-football:capture --fixture=<id> --bet36`. Le pilote réel ne sera écrit qu’après lecture de cette réponse ; d’ici là, F121-E2 ne peut pas déclencher d’alerte en réel.
+- **The Odds API :** le catalogue officiel des marchés ne documente pas les scores exacts en direct ; le pilote réel refuse de l’inventer. API-Football (`ODDS_DRIVER=api_football`) le remplace.
 - Fournir un compte et un destinataire WhatsApp Business autorisés, ainsi qu’un modèle de message approuvé si nécessaire.
 - Fournir, si le repli est retenu, un bot Telegram et un identifiant de conversation, conservés uniquement dans `.env`.
-- Confirmer les détails du modèle WhatsApp et du compte Meta avec la documentation officielle. Les canaux réels restent `NON VÉRIFIÉS` : aucun appel ni format réel n’est branché.
-- Confirmer le budget de requêtes, les limites de quotas et les règles de regroupement des matchs pour chaque API.
-- Fournir un serveur et un nom de domaine lorsque la mise en production sera autorisée. Le guide [`DEPLOIEMENT.md`](./DEPLOIEMENT.md) décrit les prérequis, sans déployer l’application.
+- Les canaux WhatsApp et Telegram réels restent `NON VÉRIFIÉS` : aucun appel ni format réel n’est branché.
+- Confirmer l’offre API-Football retenue : le compte actuel annonce 100 requêtes par jour, ce qui ne permet pas de suivre 30 à 50 matchs en continu (le TRD cite l’offre Pro à 7 500 requêtes par jour).
+- Fournir un serveur et un nom de domaine lorsque la mise en production sera autorisée. Le guide [`DEPLOIEMENT.md`](./DEPLOIEMENT.md) décrit les prérequis, dont `npm run build` sur le serveur.
 
-Les clés API, jetons et identifiants doivent être remis et configurés exclusivement dans `.env`. Ne pas les envoyer dans un dépôt Git, un journal ou un rapport. Les captures `feasibility:test --capture` sont enregistrées localement dans `backend/storage/feasibility/` et masquent les valeurs identifiées comme secrets.
+Les clés API, jetons et identifiants doivent être remis et configurés exclusivement dans `.env`. Ne pas les envoyer dans un dépôt Git, un journal ou un rapport. Les captures sont enregistrées localement dans `backend/storage/feasibility/`, dossier ignoré par Git.

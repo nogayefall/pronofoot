@@ -178,6 +178,16 @@ L’ordre appliqué est celui de `Claude.md` :
 - **Suivi automatique** (`scan.auto_mode`, actif par défaut selon l’annexe) des ligues `scan.auto_league_ids` : Premier League 39, Liga 140, Serie A 135, Bundesliga 78, Ligue 1 61, Ligue des champions 2, Europa League 3. Seuls les matchs live ayant à la fois des cotes de score exact non suspendues et une couverture statistique confirmée sont suivis. La couverture n’est demandée (une fois par heure, en cache) que si un match live appartient à ces ligues. Un match automatique terminé est retiré ; un retrait manuel n’est jamais annulé par le mode automatique. Le Scan Ciblé manuel reste disponible.
 - Le pilote fictif n’a pas de match dans ces ligues : le suivi automatique est testé avec `Http::fake` (`ScanRealStatisticsTest`).
 
+### Premier scan réel et interface en mode réel (13 novembre 2026)
+
+- **Cotes Under 2.5 (pari 36)** : à 20 h 26, 46 matchs étaient en direct, mais aucun dans les ligues suivies (trêve internationale). Aucune capture bet 36 n’a donc été faite ; le pilote réel de F121-E2 reste à écrire après une vraie réponse.
+- **Scan réel** (`php artisan scan:once`, pilotes `real` et `api_football`) sur Serbie – Allemagne (Ligue des nations, 1528965) et Leganés – Burgos (Segunda División, 1570019), choisis pour leurs cotes bet 23 et leur couverture statistique. Trois appels ; quota restant 93/100. Journal :
+  - Serbie 0-2 Allemagne, 42′ : F121-C.2 désigne l’Allemagne, écart 4.00 − 6.50 = −2.50 (candidat F121-E1 Critique) ; vitalité 60 ; tendance non calculable faute d’instantané de plus de deux minutes, donc abstention, conforme à l’ordre de décision.
+  - Leganés 3-0 Burgos, mi-temps : seul F121-E2 est permis ; abstention, car la cote Under 2.5 est indisponible. Statistiques conservées, vitalité 50.
+- Un profil de règles actif (les 5 règles définies, sans poids) a été créé localement pour ce scan ; les anciens matchs suivis, terminés, ont été retirés.
+- Interface : le texte sur les données fictives n’apparaît plus qu’en simulation ; la vitalité et la tendance suivent l’annexe. Le pilote réel lit l’horaire (`fixture.date`) et ajoute le pays à la compétition (« Primera División · Uruguay »).
+- `backend/public/admin-assets/app.js`, `app.css` et `hot` ne sont plus suivis par Git ; `npm run build` est obligatoire sur le serveur (voir `DEPLOIEMENT.md`).
+
 ## Guide de démarrage et de test local
 
 ### 1. Démarrer les deux serveurs et ouvrir la connexion
@@ -284,8 +294,11 @@ Les tests automatisés ne remplacent pas les dix situations complètes avec déc
 
 ### Règles et décisions client à obtenir
 
+- Liste complète et à jour : [`A_FOURNIR_PAR_LE_CLIENT.md`](./A_FOURNIR_PAR_LE_CLIENT.md).
 - Fournir le fichier Excel des dix situations (vitalité et cote à −2 min manquantes pour les situations 2 à 8) et expliquer les situations 6 et 7.
-- Confirmer l’ordre de décision, le cas d’une baisse exactement égale à 5 % et la liste des scores de F121-D (2-2).
+- Confirmer l’ordre de décision, la place de la convergence, le cas d’une baisse exactement égale à 5 % et la liste des scores de F121-D (2-2).
+- Confirmer les points du mode économie (écart entre 1.50 et 2.00, définition d’une baisse de cote, 10 % inclus, fréquences hors économie) et fournir l’adresse e-mail des alertes de quota.
+- Capturer le pari 36 pendant un match des ligues suivies pour brancher la cote Under 2.5 réelle (F121-E2).
 - Définir les formules manquantes de F121-K, F121-T, F121-X, F122, F124 et F126 avant de les activer.
 - Clarifier les bornes exactes des seuils lorsque les documents ne disent que « inférieur » ou « supérieur ».
 - Fournir les clés API, comptes de notification autorisés, domaine et serveur lorsque le client sera prêt à financer et valider une mise en réel.
