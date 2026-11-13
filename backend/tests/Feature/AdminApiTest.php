@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Models\OpportunityLog;
 use App\Models\RuleProfile;
+use App\Models\Setting;
 use App\Models\TrackedMatch;
 use App\Models\User;
 use App\Providers\Contracts\FootballProvider;
@@ -11,6 +12,8 @@ use App\Providers\Contracts\OddsProvider;
 use App\Providers\Data\FootballFeed;
 use App\Providers\Data\FootballMatch;
 use App\Providers\Data\OddsFeed;
+use App\Rules\RuleConfiguration;
+use App\Services\RuleConfigurationFactory;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Cache;
 use Tests\TestCase;
@@ -330,6 +333,90 @@ class AdminApiTest extends TestCase
         ])->assertOk();
         $this->assertDatabaseHas('settings', ['key' => 'scan.auto_league_ids', 'value' => '[39,61]']);
         $this->assertDatabaseHas('settings', ['key' => 'scan.auto_mode', 'value' => '0']);
+    }
+
+    public function test_several_rule_profiles_can_be_created_saved_and_activated_without_default_weights(): void
+    {
+        $first = $this->postJson(route('admin.api.rule-profiles.store'), ['name' => 'Profil A'])
+            ->assertCreated()
+            ->assertJsonPath('created.isActive', true)
+            ->assertJsonPath('created.activeRules', [])
+            ->json('created.id');
+        $second = $this->postJson(route('admin.api.rule-profiles.store'), ['name' => 'Profil B'])
+            ->assertCreated()
+            ->assertJsonPath('created.isActive', false)
+            ->json('created.id');
+        $this->postJson(route('admin.api.rule-profiles.store'), ['name' => 'Profil A'])->assertUnprocessable();
+
+        $this->putJson(route('admin.api.rule-profiles.update', $second), [
+            'active_rules' => ['F121-C', 'F121-E1'],
+            'method_weights' => [],
+            'validation_threshold' => 80,
+        ])->assertOk();
+        $this->putJson(route('admin.api.rule-profiles.update', $second), [
+            'active_rules' => ['F121-C'],
+            'method_weights' => [],
+            'validation_threshold' => 120,
+        ])->assertUnprocessable();
+
+        $this->postJson(route('admin.api.rule-profiles.activate', $second))
+            ->assertOk()
+            ->assertJsonPath('profile.id', $second)
+            ->assertJsonPath('profile.validationThreshold', 80)
+            ->assertJsonCount(2, 'profiles');
+        $this->assertFalse(RuleProfile::query()->findOrFail($first)->is_active);
+        $this->assertSame([], RuleProfile::query()->findOrFail($second)->settings['method_weights']);
+    }
+
+    public function test_testing_a_combination_shows_the_confidence_score_and_applies_the_optional_convergence_step(): void
+    {
+        $profile = RuleProfile::query()->create([
+            'name' => 'Profil de test',
+            'is_active' => true,
+            'settings' => [
+                'active_rules' => RuleConfiguration::DEFINED_RULES,
+                'method_weights' => ['F121-C' => 1.0],
+                'validation_threshold' => 75,
+            ],
+        ]);
+        $payload = [
+            'rule_profile_id' => $profile->id,
+            'home_score' => 0,
+            'away_score' => 0,
+            'exact_score_odds' => ['0-0' => 7.5, '1-0' => 8.6, '0-1' => 9.8],
+            'vitality_score' => 61,
+            'odds_change_percent' => -6,
+            'method_scores' => ['F121-C' => 70],
+        ];
+
+        $this->postJson(route('admin.rule-test'), $payload)
+            ->assertOk()
+            ->assertJsonPath('profile', 'Profil de test')
+            ->assertJsonPath('decision.convergenceScore', 70)
+            ->assertJsonPath('decision.validationThreshold', 75)
+            ->assertJsonPath('decision.convergencePasses', false)
+            ->assertJsonPath('decision.convergenceStep', false)
+            ->assertJsonPath('decision.shouldAlert', true);
+
+        Setting::query()->where('key', 'rules.convergence_enabled')->update(['value' => '1']);
+        $this->postJson(route('admin.rule-test'), $payload)
+            ->assertOk()
+            ->assertJsonPath('decision.convergenceStep', true)
+            ->assertJsonPath('decision.shouldAlert', false)
+            ->assertJsonPath('decision.reason', 'Le score de convergence ne dépasse pas le seuil configuré.');
+
+        $this->postJson(route('admin.rule-test'), [...$payload, 'method_scores' => ['F121-C' => 82]])
+            ->assertJsonPath('decision.convergencePasses', true)
+            ->assertJsonPath('decision.shouldAlert', true);
+    }
+
+    public function test_convergence_step_is_disabled_by_default(): void
+    {
+        $this->assertDatabaseHas('settings', ['key' => 'rules.convergence_enabled', 'value' => '0']);
+        $factory = app(RuleConfigurationFactory::class);
+
+        $this->assertNotContains('convergence', $factory->pipeline(['rules.decision_pipeline' => [...RuleConfiguration::DEFAULT_PIPELINE, 'convergence']]));
+        $this->assertSame('convergence', last($factory->pipeline(['rules.convergence_enabled' => true])));
     }
 
     public function test_admin_api_is_protected(): void

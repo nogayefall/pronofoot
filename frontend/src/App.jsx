@@ -43,6 +43,7 @@ const settingLabels = {
   'alerts.level_negative_gap': 'Niveau d’alerte : écart négatif',
   'alerts.level_positive_gap': 'Niveau d’alerte : écart sous le seuil',
   'rules.decision_pipeline': 'Ordre de décision (à confirmer)',
+  'rules.convergence_enabled': 'Étape « convergence » (score de confiance)',
   'scan.quota_economy_percent': 'Seuil d’alerte et mode économie du quota (%)',
   'scan.hot_interval_seconds': 'Fréquence des matchs chauds (secondes)',
   'scan.calm_interval_seconds': 'Fréquence des matchs calmes (secondes)',
@@ -72,7 +73,8 @@ const settingDescriptions = {
   'rules.open_match_scores': 'Scores pour lesquels F121-D s’applique.',
   'alerts.level_negative_gap': 'Libellé d’une alerte F121-E1.',
   'alerts.level_positive_gap': 'Libellé d’une alerte sur écart positif inférieur au seuil.',
-  'rules.decision_pipeline': 'Étapes : F121-E2, F121-D, designation, vitality, trend, gap, convergence (facultative).',
+  'rules.decision_pipeline': 'Étapes : F121-E2, F121-D, designation, vitality, trend, gap. La convergence s’active avec le paramètre dédié.',
+  'rules.convergence_enabled': 'Désactivée par défaut. Activée : alerte seulement si le score de confiance dépasse le seuil du profil. Poids et scores à confirmer.',
   'scan.quota_economy_percent': 'Pourcentage du quota journalier restant qui déclenche l’alerte et le mode économie.',
   'scan.hot_interval_seconds': 'En permanence. Match chaud : écart sous le seuil, ou baisse de la cote suggérée de plus de 5 % (seuil de tendance).',
   'scan.calm_interval_seconds': 'En permanence, hors mode économie (où seuls les matchs chauds sont scannés).',
@@ -168,6 +170,7 @@ function SimulationResult({ result }) {
           <div className="simulation-line" key={filter}><span>{outcome.label}</span><strong className={outcome.passed ? 'filter-passed' : 'filter-failed'}>{outcome.passed ? 'Validé' : 'Refusé'}</strong></div>
         ))}
       </div>
+      <div className="simulation-line"><span>Score de confiance</span><strong>{decision.convergenceScore === null || decision.convergenceScore === undefined ? 'Non calculé (poids ou scores des méthodes manquants)' : `${Math.round(decision.convergenceScore * 10) / 10} %${decision.validationThreshold !== undefined ? ` — seuil ${decision.validationThreshold} % ${decision.convergencePasses ? 'dépassé' : 'non atteint'}${decision.convergenceStep ? '' : ' (étape convergence désactivée)'}` : ''}`}</strong></div>
       <div className="simulation-disclaimer"><Icon name="shield" size={17} /><span>Simulation uniquement : aucune alerte n’est transmise.</span></div>
     </div>
   )
@@ -193,7 +196,11 @@ function App() {
   const [settingsDraft, setSettingsDraft] = useState({})
   const [settingsHistory, setSettingsHistory] = useState([])
   const [ruleProfile, setRuleProfile] = useState(null)
-  const [profileDraft, setProfileDraft] = useState({ activeRules: [], methodWeights: {} })
+  const [profileDraft, setProfileDraft] = useState({ id: null, activeRules: [], methodWeights: {}, validationThreshold: '' })
+  const [newProfileName, setNewProfileName] = useState('')
+  const [combinationScores, setCombinationScores] = useState({})
+  const [combinationResult, setCombinationResult] = useState(null)
+  const [combinationError, setCombinationError] = useState('')
   const [journalData, setJournalData] = useState(null)
   const [journalFilters, setJournalFilters] = useState({ date_from: '', date_to: '', match_id: '', rule_id: '', status: '' })
   const [statistics, setStatistics] = useState(null)
@@ -261,14 +268,21 @@ function App() {
     if (result) setMatchesData(result)
   }
 
-  async function loadRuleProfile() {
+  function profileToDraft(profile) {
+    return {
+      id: profile?.id ?? null,
+      activeRules: profile?.activeRules ?? [],
+      methodWeights: profile?.methodWeights ?? {},
+      validationThreshold: profile?.validationThreshold ?? '',
+    }
+  }
+
+  async function loadRuleProfile(selectedId = profileDraft.id) {
     const result = await adminRequest('/admin/api/rule-profile')
     if (result) {
       setRuleProfile(result)
-      setProfileDraft({
-        activeRules: result.profile?.activeRules ?? [],
-        methodWeights: result.profile?.methodWeights ?? {},
-      })
+      const selected = result.profiles?.find((profile) => profile.id === selectedId) ?? result.profile ?? result.profiles?.[0]
+      setProfileDraft(profileToDraft(selected))
     }
   }
 
@@ -405,15 +419,56 @@ function App() {
     const methodWeights = Object.fromEntries(Object.entries(profileDraft.methodWeights)
       .filter(([, weight]) => weight !== '' && weight !== null)
       .map(([rule, weight]) => [rule, Number(weight)]))
-    const result = await adminRequest('/admin/api/rule-profile', 'PUT', {
+    const body = {
       active_rules: profileDraft.activeRules,
       method_weights: methodWeights,
-    })
+      validation_threshold: profileDraft.validationThreshold === '' ? null : Number(profileDraft.validationThreshold),
+    }
+    const result = profileDraft.id
+      ? await adminRequest(`/admin/api/rule-profiles/${profileDraft.id}`, 'PUT', body)
+      : await adminRequest('/admin/api/rule-profile', 'PUT', body)
     if (result) {
-      setActionMessage('Profil de règles enregistré.')
-      await loadRuleProfile()
+      setActionMessage('Profil de règles sauvegardé.')
+      await loadRuleProfile(profileDraft.id)
     }
     setIsBusy(false)
+  }
+
+  async function createRuleProfile() {
+    if (newProfileName.trim() === '') return
+    setIsBusy(true)
+    const result = await adminRequest('/admin/api/rule-profiles', 'POST', { name: newProfileName.trim() })
+    if (result) {
+      setNewProfileName('')
+      setActionMessage(`Profil « ${result.created.name} » créé. Les poids restent vides tant qu’ils ne sont pas confirmés.`)
+      await loadRuleProfile(result.created.id)
+    }
+    setIsBusy(false)
+  }
+
+  async function activateRuleProfile() {
+    if (!profileDraft.id) return
+    setIsBusy(true)
+    const result = await adminRequest(`/admin/api/rule-profiles/${profileDraft.id}/activate`, 'POST', {})
+    if (result) {
+      setActionMessage('Profil activé : il sera utilisé au prochain passage du scan.')
+      await loadRuleProfile(profileDraft.id)
+    }
+    setIsBusy(false)
+  }
+
+  async function testCombination() {
+    setCombinationError('')
+    setCombinationResult(null)
+    try {
+      const methodScores = Object.fromEntries(Object.entries(combinationScores)
+        .filter(([, score]) => score !== '' && score !== null)
+        .map(([rule, score]) => [rule, Number(score)]))
+      const payload = { ...createRuleTestPayload(testFields), rule_profile_id: profileDraft.id, method_scores: methodScores }
+      setCombinationResult(await requestAdminApi('/admin/rule-test', csrfToken, { method: 'POST', body: payload }))
+    } catch (error) {
+      setCombinationError(error.message)
+    }
   }
 
   async function runNotificationTest() {
@@ -525,10 +580,16 @@ function App() {
               <PageHeading eyebrow="CONFIGURATION" title="Moteur de règles" description="Activez uniquement les règles documentées et configurez les poids validés." action={<span className="phase-badge phase-badge-muted">{ruleProfile?.profile?.name ?? 'Profil à configurer'}</span>} />
               <div className="notice notice-warning"><span className="notice-icon"><Icon name="shield" size={18} /></span><div><strong>Les règles non définies ne déclenchent jamais de signal</strong><p>Les poids de convergence sont laissés vides jusqu’à validation par le client.</p></div></div>
               <section className="content-panel rules-panel"><div className="panel-heading"><div><h2>Règles Phase 1</h2><p>Activation limitée aux règles disponibles dans le moteur.</p></div><span className="count-badge">{ruleDescriptions.length} règles documentées</span></div><div className="rule-table">{ruleDescriptions.map((rule) => <article className="rule-row" key={rule.id}><span className="rule-id">{rule.id}</span><div className="rule-info"><strong>{rule.title}</strong><p>{rule.detail}</p></div><span className={`status-pill ${rule.status === 'Disponible' ? 'status-ready' : rule.status === 'Partiel' ? 'status-partial' : 'status-pending'}`}>{rule.status}</span></article>)}</div></section>
-              <form className="content-panel settings-form" onSubmit={saveRuleProfile}><div className="panel-heading"><div><h2>Profil actif</h2><p>Les poids laissés vides ne sont pas ajoutés au profil.</p></div></div>
-                <fieldset className="rule-selection"><legend>Règles activées</legend>{(ruleProfile?.availableRules ?? []).map((rule) => <label className="check-row" key={rule}><input type="checkbox" checked={profileDraft.activeRules.includes(rule)} onChange={(event) => setProfileDraft((previous) => ({ ...previous, activeRules: event.target.checked ? [...previous.activeRules, rule] : previous.activeRules.filter((item) => item !== rule) }))} />{rule}</label>)}</fieldset>
-                <div className="field-grid">{(ruleProfile?.availableRules ?? []).map((rule) => <label key={rule}>Poids méthode — {rule}<input min="0" step="0.01" type="number" value={profileDraft.methodWeights[rule] ?? ''} onChange={(event) => setProfileDraft((previous) => ({ ...previous, methodWeights: { ...previous.methodWeights, [rule]: event.target.value } }))} placeholder="À confirmer" /></label>)}</div>
-                <button className="primary-button" type="submit" disabled={isBusy}>Enregistrer le profil</button>
+              <form className="content-panel settings-form" onSubmit={saveRuleProfile}><div className="panel-heading"><div><h2>Profils de règles</h2><p>Profil actif : {ruleProfile?.profile?.name ?? 'aucun'}. Les poids laissés vides ne sont pas ajoutés au profil.</p></div></div>
+                <div className="form-row form-row-wide"><label>Profil<select value={profileDraft.id ?? ''} onChange={(event) => setProfileDraft(profileToDraft(ruleProfile?.profiles?.find((profile) => profile.id === Number(event.target.value))))}>{(ruleProfile?.profiles ?? []).map((profile) => <option key={profile.id} value={profile.id}>{profile.name}{profile.isActive ? ' (actif)' : ''}</option>)}</select></label><label>Nouveau profil<input type="text" maxLength="120" value={newProfileName} onChange={(event) => setNewProfileName(event.target.value)} placeholder="Nom du profil" /></label></div>
+                <div className="form-actions"><button className="secondary-button" type="button" disabled={isBusy || newProfileName.trim() === ''} onClick={() => void createRuleProfile()}>+ Créer un nouveau profil</button><button className="secondary-button" type="button" disabled={isBusy || !profileDraft.id || ruleProfile?.profile?.id === profileDraft.id} onClick={() => void activateRuleProfile()}>Activer ce profil</button></div>
+                <fieldset className="rule-selection"><legend>1. Sélection des méthodes à combiner</legend>{(ruleProfile?.availableRules ?? []).map((rule) => <label className="check-row" key={rule}><input type="checkbox" checked={profileDraft.activeRules.includes(rule)} onChange={(event) => setProfileDraft((previous) => ({ ...previous, activeRules: event.target.checked ? [...previous.activeRules, rule] : previous.activeRules.filter((item) => item !== rule) }))} />{rule}</label>)}</fieldset>
+                <fieldset className="rule-selection"><legend>2. Pondération (poids de chaque méthode, à confirmer par le client)</legend><div className="field-grid">{(ruleProfile?.availableRules ?? []).map((rule) => <label key={rule}>Poids — {rule}<input min="0" step="0.01" type="number" value={profileDraft.methodWeights[rule] ?? ''} onChange={(event) => setProfileDraft((previous) => ({ ...previous, methodWeights: { ...previous.methodWeights, [rule]: event.target.value } }))} placeholder="À confirmer" /></label>)}</div></fieldset>
+                <label>3. Seuil de validation : score de confiance supérieur à (%)<input min="0" max="100" step="0.1" type="number" value={profileDraft.validationThreshold ?? ''} onChange={(event) => setProfileDraft((previous) => ({ ...previous, validationThreshold: event.target.value }))} placeholder="75 (valeur du PRD par défaut)" /><span className="field-help">Appliqué seulement si l’étape « convergence » est activée dans Paramètres (désactivée par défaut).</span></label>
+                <fieldset className="rule-selection"><legend>Scores des méthodes pour le test (0–100)</legend><p className="field-help">Aucune formule de score par méthode n’est fournie : saisissez les scores à tester. Le test utilise le profil sauvegardé et la situation du Testeur manuel.</p><div className="field-grid">{profileDraft.activeRules.map((rule) => <label key={rule}>Score — {rule}<input min="0" max="100" step="1" type="number" value={combinationScores[rule] ?? ''} onChange={(event) => setCombinationScores((previous) => ({ ...previous, [rule]: event.target.value }))} /></label>)}</div></fieldset>
+                <div className="form-actions"><button className="secondary-button" type="button" disabled={isBusy || !profileDraft.id} onClick={() => void testCombination()}>Tester la combinaison</button><button className="primary-button" type="submit" disabled={isBusy}>Sauvegarder le profil</button></div>
+                {combinationError && <p className="form-error" role="alert">{combinationError}</p>}
+                {combinationResult && <SimulationResult result={combinationResult} />}
               </form>
             </>
           )}

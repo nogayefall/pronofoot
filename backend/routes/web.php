@@ -38,6 +38,9 @@ Route::middleware(['auth', EnsureAdministrator::class])->group(function () {
         Route::get('/settings/history', [SettingsController::class, 'history'])->name('settings.history');
         Route::get('/rule-profile', [RuleProfileController::class, 'show'])->name('rule-profile.show');
         Route::put('/rule-profile', [RuleProfileController::class, 'update'])->name('rule-profile.update');
+        Route::post('/rule-profiles', [RuleProfileController::class, 'store'])->name('rule-profiles.store');
+        Route::put('/rule-profiles/{ruleProfile}', [RuleProfileController::class, 'updateProfile'])->name('rule-profiles.update');
+        Route::post('/rule-profiles/{ruleProfile}/activate', [RuleProfileController::class, 'activate'])->name('rule-profiles.activate');
         Route::get('/journal', [OpportunityLogController::class, 'index'])->name('journal.index');
         Route::patch('/journal/{opportunityLog}/outcome', [OpportunityLogController::class, 'updateOutcome'])->name('journal.outcome');
         Route::get('/statistics', AdminStatisticsController::class)->name('statistics');

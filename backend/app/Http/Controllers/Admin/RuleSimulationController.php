@@ -3,16 +3,18 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
+use App\Models\RuleProfile;
 use App\Rules\EngineResult;
 use App\Rules\RuleConfiguration;
 use App\Rules\RuleEngine;
 use App\Rules\RuleInput;
+use App\Services\RuleConfigurationFactory;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
 class RuleSimulationController extends Controller
 {
-    public function __invoke(Request $request, RuleEngine $ruleEngine): JsonResponse
+    public function __invoke(Request $request, RuleEngine $ruleEngine, RuleConfigurationFactory $configurationFactory): JsonResponse
     {
         $validated = $request->validate([
             'home_score' => ['required', 'integer', 'min:0'],
@@ -25,6 +27,9 @@ class RuleSimulationController extends Controller
             'tendance_seuil_stable' => ['nullable', 'numeric', 'min:0'],
             'halftime' => ['nullable', 'boolean'],
             'under_2_5_odds' => ['nullable', 'numeric', 'gt:0'],
+            'rule_profile_id' => ['nullable', 'integer', 'exists:rule_profiles,id'],
+            'method_scores' => ['nullable', 'array'],
+            'method_scores.*' => ['numeric', 'between:0,100'],
         ]);
 
         $input = new RuleInput(
@@ -35,17 +40,19 @@ class RuleSimulationController extends Controller
             oddsChangePercent: isset($validated['odds_change_percent']) ? (float) $validated['odds_change_percent'] : null,
             halftime: (bool) ($validated['halftime'] ?? false),
             under25Odds: isset($validated['under_2_5_odds']) ? (float) $validated['under_2_5_odds'] : null,
+            methodScores: array_map('floatval', $validated['method_scores'] ?? []),
         );
 
-        $result = $ruleEngine->evaluate(
-            $input,
-            new RuleConfiguration(
+        $profile = isset($validated['rule_profile_id']) ? RuleProfile::query()->findOrFail($validated['rule_profile_id']) : null;
+        $configuration = $profile === null
+            ? new RuleConfiguration(
                 trendSource: $validated['tendance_source'] ?? 'cote_suggeree',
                 stableOddsChangePercent: isset($validated['tendance_seuil_stable'])
                     ? (float) $validated['tendance_seuil_stable']
                     : 5.0,
-            ),
-        );
+            )
+            : $configurationFactory->make($profile);
+        $result = $ruleEngine->evaluate($input, $configuration);
 
         return response()->json([
             'rules' => $this->serializeRules($result),
@@ -58,8 +65,12 @@ class RuleSimulationController extends Controller
                 'suggestedAction' => $result->suggestedAction,
                 'steps' => $result->steps,
                 'convergenceScore' => $result->convergenceScore,
+                'validationThreshold' => $configuration->minimumConvergenceScore,
+                'convergenceStep' => in_array('convergence', $configuration->pipeline, true),
+                'convergencePasses' => $result->convergenceScore === null ? null : $result->convergenceScore > $configuration->minimumConvergenceScore,
                 'reason' => $result->reason,
             ],
+            'profile' => $profile?->name,
             'simulationOnly' => true,
         ]);
     }

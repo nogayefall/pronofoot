@@ -41,6 +41,7 @@ final class ScanService
         private readonly OddsProvider $oddsProvider,
         private readonly RuleEngine $ruleEngine,
         private readonly ScanSettings $settings,
+        private readonly RuleConfigurationFactory $ruleConfigurationFactory,
         private readonly VitalityCalculator $vitalityCalculator = new VitalityCalculator,
     ) {}
 
@@ -293,7 +294,7 @@ final class ScanService
                 && $snapshotAge->addSeconds($statisticsInterval)->greaterThanOrEqualTo($now)
                 ? $snapshot->vitality_score
                 : null;
-            $configuration = $this->ruleConfiguration($profile, $settingValues);
+            $configuration = $this->ruleConfigurationFactory->make($profile, $settingValues);
             $input = new RuleInput(
                 homeScore: $footballMatch->homeScore,
                 awayScore: $footballMatch->awayScore,
@@ -789,54 +790,6 @@ final class ScanService
     }
 
     /**
-     * @param  array<string, int|float|bool|array|string|null>  $settings
-     */
-    private function ruleConfiguration(RuleProfile $profile, array $settings): RuleConfiguration
-    {
-        $profileSettings = $profile->settings ?? [];
-        $activeRules = $profileSettings['active_rules'] ?? RuleConfiguration::DEFINED_RULES;
-        $methodWeights = $profileSettings['method_weights'] ?? [];
-
-        if (! is_array($activeRules) || ! is_array($methodWeights)) {
-            throw new \InvalidArgumentException('Le profil actif contient une liste de règles ou des poids invalides.');
-        }
-
-        return new RuleConfiguration(
-            activeRules: $activeRules,
-            maximumDirectionalGap: $this->settings->decimal($settings, 'rules.maximum_directional_gap'),
-            zeroZeroOddsWaitThreshold: $this->settings->decimal($settings, 'rules.zero_zero_odds_wait_threshold'),
-            zeroZeroGapThreshold: $this->settings->decimal($settings, 'rules.zero_zero_gap_threshold'),
-            upcomingScoreOddsLimit: $this->settings->decimal($settings, 'rules.upcoming_score_odds_limit'),
-            minimumVitality: $this->settings->decimal($settings, 'rules.minimum_vitality'),
-            trendSource: $this->settings->nullableString($settings, 'tendance_source'),
-            stableOddsChangePercent: $this->settings->nullableFloat($settings, 'tendance_seuil_stable'),
-            minimumConvergenceScore: $this->settings->decimal($settings, 'rules.minimum_convergence_score'),
-            methodWeights: $methodWeights,
-            openMatchScores: $this->stringList($settings, 'rules.open_match_scores', ['2-2', '2-3', '3-2']),
-            halftimeUnderMinimum: $this->settings->decimal($settings, 'rules.halftime_under25_min'),
-            halftimeUnderMaximum: $this->settings->decimal($settings, 'rules.halftime_under25_max'),
-            negativeGapLevel: $this->settings->nullableString($settings, 'alerts.level_negative_gap') ?? 'Critique',
-            positiveGapLevel: $this->settings->nullableString($settings, 'alerts.level_positive_gap') ?? 'Haute',
-            pipeline: $this->stringList($settings, 'rules.decision_pipeline', RuleConfiguration::DEFAULT_PIPELINE),
-        );
-    }
-
-    /**
-     * @param  array<string, int|float|bool|array|string|null>  $settings
-     * @param  list<string>  $default
-     * @return list<string>
-     */
-    private function stringList(array $settings, string $key, array $default): array
-    {
-        $value = $settings[$key] ?? null;
-        if (! is_array($value)) {
-            return $default;
-        }
-
-        return array_values(array_map('strval', $value));
-    }
-
-    /**
      * @param  array<string, int|float>  $currentOdds
      */
     private function calculateTrendChange(
@@ -1006,6 +959,7 @@ final class ScanService
             "Alerte {$result->level} | Règle : {$result->decisiveRule}",
             "Signal : {$signal}",
             "Écart : {$gapLabel} | Vitalité : {$vitalityLabel} | Tendance : {$trendLabel}",
+            'Score de confiance : '.($result->convergenceScore === null ? 'non calculé' : number_format($result->convergenceScore, 1, ',', ' ').' %'),
             'Expiration : '.$expiresAt->format('H:i:s'),
         ]);
     }

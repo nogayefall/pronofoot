@@ -44,6 +44,7 @@ final class SettingsController extends Controller
         'scan.no_scan_gap_threshold' => '2.00',
         'scan.auto_mode' => '1',
         'scan.auto_league_ids' => '[39,140,135,78,61,2,3]',
+        'rules.convergence_enabled' => '0',
     ];
 
     public function index(): JsonResponse
