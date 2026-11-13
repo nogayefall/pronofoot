@@ -30,6 +30,7 @@ class User extends Authenticatable
             'is_admin' => 'boolean',
             'totp_secret' => 'encrypted',
             'totp_confirmed_at' => 'datetime',
+            'totp_last_counter' => 'integer',
         ];
     }
 }

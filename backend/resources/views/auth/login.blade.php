@@ -4,7 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Connexion administrateur — PronoFoot</title>
-    <style>
+    <style nonce="{{ $cspNonce ?? '' }}">
         :root { color-scheme: light; font-family: Arial, sans-serif; color: #13251e; background: #f2f6f4; }
         body { min-height: 100vh; margin: 0; display: grid; place-items: center; padding: 1rem; box-sizing: border-box; }
         main { width: min(100%, 26rem); padding: 2rem; background: white; border-radius: 1rem; box-shadow: 0 1rem 3rem #163d2c12; box-sizing: border-box; }
@@ -51,7 +51,7 @@
     </form>
 </main>
 @if ($testAdministratorEmail)
-    <script>
+    <script nonce="{{ $cspNonce ?? '' }}">
         const testAdministratorEmail = @json($testAdministratorEmail);
         const emailInput = document.getElementById('email');
         const authenticatorField = document.getElementById('authenticator-field');

@@ -98,6 +98,64 @@ class AdministratorAuthenticationTest extends TestCase
             ->assertSee('Chargement de l’interface PronoFoot');
     }
 
+    public function test_a_totp_code_cannot_be_reused(): void
+    {
+        $user = $this->createAdministrator();
+        $credentials = [
+            'email' => $user->email,
+            'password' => 'Correct-Horse-Battery-42',
+            'authenticator_code' => $this->totpCode(self::TEST_TOTP_SECRET, time()),
+        ];
+
+        $this->post(route('login.store'), $credentials)->assertRedirect(route('admin.dashboard'));
+        $this->post(route('logout'));
+        $this->post(route('login.store'), $credentials)->assertSessionHasErrors('credentials');
+
+        $this->assertGuest();
+        $this->assertNotNull($user->fresh()->totp_last_counter);
+    }
+
+    public function test_totp_is_mandatory_and_the_test_account_is_refused_outside_local(): void
+    {
+        $this->app['env'] = 'production';
+        $this->withoutMiddleware(PreventRequestForgery::class);
+        $user = $this->createAdministrator();
+        $this->createAdministrator(['email' => 'admin-test@pronofoot.local']);
+
+        $this->post(route('login.store'), ['email' => $user->email, 'password' => 'Correct-Horse-Battery-42'])
+            ->assertSessionHasErrors('credentials');
+        $this->post(route('login.store'), [
+            'email' => 'admin-test@pronofoot.local',
+            'password' => 'Correct-Horse-Battery-42',
+            'authenticator_code' => $this->totpCode(self::TEST_TOTP_SECRET, time()),
+        ])->assertSessionHasErrors('credentials');
+
+        $this->assertGuest();
+    }
+
+    public function test_security_headers_include_a_nonce_based_content_security_policy(): void
+    {
+        $response = $this->get('/login')->assertOk();
+        $policy = (string) $response->headers->get('Content-Security-Policy');
+
+        $this->assertStringContainsString("default-src 'self'", $policy);
+        $this->assertStringContainsString("frame-ancestors 'none'", $policy);
+        $this->assertSame(1, preg_match("/script-src 'self' 'nonce-([A-Za-z0-9+\\/=]+)'/", $policy, $nonce));
+        $response->assertSee('<style nonce="'.$nonce[1].'">', false);
+        $response->assertHeader('X-Frame-Options', 'DENY');
+        $response->assertHeader('X-Content-Type-Options', 'nosniff');
+        $this->assertNull($response->headers->get('Strict-Transport-Security'), 'HSTS seulement en production et en HTTPS.');
+    }
+
+    public function test_session_cookie_is_http_only_and_secure_by_default_in_production(): void
+    {
+        $sessionConfig = (string) file_get_contents(config_path('session.php'));
+
+        $this->assertTrue(config('session.http_only'));
+        $this->assertSame('lax', config('session.same_site'));
+        $this->assertStringContainsString("'secure' => env('SESSION_SECURE_COOKIE', env('APP_ENV') === 'production')", $sessionConfig);
+    }
+
     public function test_dashboard_loads_vite_client_url_when_development_server_is_running(): void
     {
         $this->app->detectEnvironment(fn () => 'local');

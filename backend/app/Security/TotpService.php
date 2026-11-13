@@ -19,8 +19,16 @@ final class TotpService
 
     public function verify(string $secret, string $code, ?int $timestamp = null): bool
     {
+        return $this->matchingCounter($secret, $code, $timestamp) !== null;
+    }
+
+    /**
+     * Pas de temps (fenêtre de 30 s, tolérance ±1) correspondant au code, ou null si le code est invalide.
+     */
+    public function matchingCounter(string $secret, string $code, ?int $timestamp = null): ?int
+    {
         if (! preg_match('/^\d{6}$/', $code)) {
-            return false;
+            return null;
         }
 
         $key = $this->decodeBase32($secret);
@@ -35,11 +43,11 @@ final class TotpService
 
             $expectedCode = $this->codeForCounter($key, $counter);
             if (hash_equals($expectedCode, $code)) {
-                return true;
+                return $counter;
             }
         }
 
-        return false;
+        return null;
     }
 
     public function currentCode(string $secret, ?int $timestamp = null): string

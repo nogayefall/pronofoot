@@ -20,6 +20,11 @@ class AuthenticatedSessionController extends Controller
 
     private const int LOGIN_DECAY_SECONDS = 60;
 
+    /**
+     * Empreinte factice : un email inconnu coûte le même calcul qu’un email connu (pas d’indice par le temps de réponse).
+     */
+    private const string DUMMY_PASSWORD_HASH = '$2y$12$vLWouF7brwPZaSLj8pK3s.jKAoLsZx9P0wR3U3tryvvZ9J.yXWahm';
+
     public function create(): View|RedirectResponse
     {
         if (Auth::check()) {
@@ -57,15 +62,20 @@ class AuthenticatedSessionController extends Controller
             )
             ->first();
 
-        $passwordIsValid = $user !== null && Hash::check($validated['password'], $user->password);
+        $passwordMatches = Hash::check($validated['password'], $user?->password ?? self::DUMMY_PASSWORD_HASH);
+        $passwordIsValid = $user !== null && $passwordMatches;
         $isLocalTestAdministrator = app()->environment('local')
             && $user?->email === CreateTestAdministrator::EMAIL;
-        $authenticatorIsValid = $isLocalTestAdministrator
-            || ($user !== null
-                && $user->totp_secret !== null
-                && $user->totp_confirmed_at !== null
-                && isset($validated['authenticator_code'])
-                && $totpService->verify($user->totp_secret, $validated['authenticator_code']));
+        $totpCounter = $user !== null
+            && $user->totp_secret !== null
+            && $user->totp_confirmed_at !== null
+            && isset($validated['authenticator_code'])
+                ? $totpService->matchingCounter($user->totp_secret, $validated['authenticator_code'])
+                : null;
+        $codeAlreadyUsed = $totpCounter !== null
+            && $user->totp_last_counter !== null
+            && $totpCounter <= $user->totp_last_counter;
+        $authenticatorIsValid = $isLocalTestAdministrator || ($totpCounter !== null && ! $codeAlreadyUsed);
 
         if (! $passwordIsValid || ! $authenticatorIsValid) {
             RateLimiter::hit($limiterKey, self::LOGIN_DECAY_SECONDS);
@@ -76,6 +86,9 @@ class AuthenticatedSessionController extends Controller
         }
 
         RateLimiter::clear($limiterKey);
+        if ($totpCounter !== null) {
+            $user->forceFill(['totp_last_counter' => $totpCounter])->save();
+        }
         Auth::login($user);
         $request->session()->regenerate();
 

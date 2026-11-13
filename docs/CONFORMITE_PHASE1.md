@@ -52,3 +52,16 @@ Tests : `backend/tests/Feature/ScanRobustnessTest.php`.
 | Arrêt propre sur signal | Conforme (test pour `scan:stop`) ; signaux **à vérifier sur le serveur Linux** | SIGTERM, SIGINT et SIGQUIT (extension pcntl, absente sous Windows) ou `php artisan scan:stop` : arrêt après le passage en cours. Supervisor envoie SIGTERM (`stopwaitsecs=60`). |
 | Reprise après redémarrage sans alerte en double | Conforme (test) | Le dédoublonnage s’appuie sur les alertes actives en base, pas sur la mémoire du processus. |
 | Aucun jeton ni clé dans les journaux | Conforme (test) | Processeur `SecretRedactor` sur les canaux `single`, `daily` et `stderr` : toute valeur d’une variable d’environnement dont le nom contient KEY, TOKEN, SECRET ou PASSWORD, ainsi que la clé d’application, devient `[masqué]`. Les clés API sont envoyées en en-tête, jamais dans l’URL. |
+
+## Revue de sécurité (14 novembre 2026)
+
+| Point | Statut | Détail |
+|---|---|---|
+| 2FA obligatoire hors `APP_ENV=local` | Conforme (tests) | Mot de passe **et** code TOTP exigés. Le compte de test `admin-test@pronofoot.local` est refusé hors `local`, même avec un bon code. |
+| Réutilisation d’un code TOTP | **Corrigé** | Un code pouvait servir plusieurs fois pendant sa fenêtre de validité (environ 90 s). Le dernier pas de temps accepté est désormais mémorisé (`users.totp_last_counter`) : un code déjà utilisé est refusé. |
+| Indice d’existence d’un compte par le temps de réponse | **Corrigé** | Le mot de passe n’était vérifié que si l’email existait. Une vérification factice de même coût est faite pour un email inconnu. |
+| Limitation des tentatives | Conforme | 5 essais par minute par couple email + IP, et 10 requêtes par minute par IP sur `POST /login`. Message identique pour un email, un mot de passe ou un code faux. |
+| En-têtes de sécurité | **Complété** | `X-Content-Type-Options`, `X-Frame-Options: DENY`, `Referrer-Policy`, `Permissions-Policy` déjà présents ; HSTS en production HTTPS. Ajout d’une **Content-Security-Policy** avec nonce par requête (hors `local`, où Vite tourne sur une autre origine). Les pages d’erreur génériques de Laravel (419, 500) s’affichent sans mise en forme sous cette CSP. |
+| Cookies | Conforme | Cookie de session `HttpOnly`, `SameSite=Lax`, `Secure` par défaut en production ; `deploy/.env.production.example` impose aussi `SESSION_ENCRYPT=true`. Session régénérée à la connexion, invalidée à la déconnexion. |
+| Secrets dans les journaux | Conforme (test) | Masquage automatique (voir « Robustesse »). |
+| Secrets dans l’historique Git | **Aucun trouvé** | 45 commits parcourus. Aucun fichier `.env` versionné (seulement les modèles `.example`). La clé API-Football et l’`APP_KEY` locales n’apparaissent dans aucun commit. Les correspondances au motif « clé » sont des exemples factices de la documentation API-Football (`XxXx…`), la valeur de test `test-api-key` et le `content-hash` de `composer.lock`. |
