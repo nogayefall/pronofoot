@@ -129,6 +129,7 @@ final class TrackedMatchController extends Controller
                 'kickoff_at' => $match->kickoffAt,
                 'status' => $match->status,
                 'is_active' => true,
+                'tracking_mode' => 'manual',
             ],
         );
 
@@ -145,7 +146,7 @@ final class TrackedMatchController extends Controller
 
     public function destroy(TrackedMatch $trackedMatch): JsonResponse
     {
-        $trackedMatch->forceFill(['is_active' => false])->save();
+        $trackedMatch->forceFill(['is_active' => false, 'tracking_mode' => 'manual'])->save();
 
         return response()->json(['message' => 'Le match a été retiré du suivi.']);
     }

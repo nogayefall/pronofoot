@@ -2,17 +2,22 @@
 
 namespace Tests\Feature;
 
+use App\Jobs\SendQuotaNotification;
 use App\Models\Alert;
+use App\Models\MatchSnapshot;
 use App\Models\OpportunityLog;
 use App\Models\RuleProfile;
 use App\Models\Setting;
 use App\Models\TrackedMatch;
 use App\Rules\RuleConfiguration;
+use App\Services\QuotaGuard;
 use App\Services\ScanService;
 use Carbon\CarbonImmutable;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\Client\Request;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Queue;
 use Tests\TestCase;
 
 class ScanRealStatisticsTest extends TestCase
@@ -151,47 +156,24 @@ class ScanRealStatisticsTest extends TestCase
         $this->assertSame(0, Alert::query()->count());
     }
 
-    public function test_scan_stops_before_statistics_when_quota_is_below_the_configured_threshold(): void
+    public function test_quota_is_counted_after_each_statistics_call_and_stops_at_zero(): void
     {
-        Setting::query()->where('key', 'scan.quota_alert_threshold')->update(['value' => '10']);
-        $this->fakeApi(liveRemaining: 9);
-
-        $result = app(ScanService::class)->runOnce();
-
-        $this->assertTrue($result->quotaStopped);
-        $this->assertCount(0, $this->statisticsRequests());
-        Http::assertNotSent(fn (Request $request): bool => str_contains($request->url(), '/odds/live'));
-        Http::assertSentCount(1);
-        $this->assertSame(3, OpportunityLog::query()->where('event_type', 'quota_threshold_reached')->count());
-        $this->assertStringContainsString('9 < 10', OpportunityLog::query()->firstOrFail()->reason);
-        $this->assertSame(0, Alert::query()->count());
-    }
-
-    public function test_quota_is_counted_after_each_statistics_call(): void
-    {
-        Setting::query()->where('key', 'scan.quota_alert_threshold')->update(['value' => '10']);
-        $this->fakeApi(liveRemaining: 11, statisticsRemainingStart: 10);
+        Queue::fake();
+        $this->fakeApi(liveRemaining: 2, statisticsRemainingStart: 1);
 
         $result = app(ScanService::class)->runOnce();
 
         $this->assertTrue($result->quotaStopped);
         $this->assertCount(2, $this->statisticsRequests());
         Http::assertNotSent(fn (Request $request): bool => str_contains($request->url(), '/odds/live'));
+        $this->assertSame(3, OpportunityLog::query()->where('event_type', 'quota_threshold_reached')->count());
+        $this->assertSame(QuotaGuard::EXHAUSTED_MESSAGE, OpportunityLog::query()->firstOrFail()->reason);
+        Queue::assertPushed(SendQuotaNotification::class, fn (SendQuotaNotification $job): bool => $job->body === QuotaGuard::EXHAUSTED_MESSAGE);
     }
 
-    public function test_without_a_confirmed_threshold_the_scan_stops_only_at_zero(): void
+    public function test_an_exhausted_quota_stops_the_live_with_the_client_message(): void
     {
-        $this->fakeApi(liveRemaining: 6, statisticsRemainingStart: 5);
-
-        $result = app(ScanService::class)->runOnce();
-
-        $this->assertFalse($result->quotaStopped);
-        $this->assertCount(3, $this->statisticsRequests());
-        $this->assertSame(0, OpportunityLog::query()->where('event_type', 'quota_threshold_reached')->count());
-    }
-
-    public function test_an_exhausted_quota_stops_the_scan_without_statistics_calls(): void
-    {
+        Queue::fake();
         $this->fakeApi(liveRemaining: 0);
 
         $result = app(ScanService::class)->runOnce();
@@ -199,7 +181,120 @@ class ScanRealStatisticsTest extends TestCase
         $this->assertTrue($result->quotaStopped);
         $this->assertCount(0, $this->statisticsRequests());
         Http::assertSentCount(1);
-        $this->assertStringContainsString('Quota API-Football épuisé', OpportunityLog::query()->firstOrFail()->reason);
+        $this->assertSame('Quota épuisé. Le live est arrêté. Rechargez le quota.', OpportunityLog::query()->firstOrFail()->reason);
+        Queue::assertPushed(SendQuotaNotification::class, 1);
+
+        $this->artisan('scan:run', ['--max-passes' => 3])
+            ->expectsOutputToContain('Quota épuisé. Le live est arrêté. Rechargez le quota.')
+            ->assertExitCode(1);
+        Queue::assertPushed(SendQuotaNotification::class, 1);
+    }
+
+    public function test_reaching_ten_percent_of_the_daily_quota_sends_one_alert_and_enables_economy_mode(): void
+    {
+        Queue::fake();
+        $this->fakeApi(liveRemaining: 10, statisticsRemainingStart: 9, limit: 100);
+
+        $first = app(ScanService::class)->runOnce();
+        $this->assertFalse($first->economyMode, 'Le mode se décide sur le quota connu avant le passage.');
+        Queue::assertPushed(SendQuotaNotification::class, fn (SendQuotaNotification $job): bool => str_contains($job->body, '7 requêtes restantes sur 100')
+            && str_contains($job->body, 'Mode économie'));
+
+        CarbonImmutable::setTestNow('2026-11-11 19:00:30');
+        $second = app(ScanService::class)->runOnce();
+        $this->assertTrue($second->economyMode);
+        Queue::assertPushed(SendQuotaNotification::class, 1);
+    }
+
+    public function test_economy_mode_scans_hot_matches_every_30_seconds_calm_every_2_minutes_and_skips_closed_ones(): void
+    {
+        Queue::fake();
+        Cache::put('pronofoot.provider_status', ['football' => ['requestsRemaining' => 50, 'requestsLimit' => 1000]]);
+        $past = CarbonImmutable::now()->subSeconds(60);
+        $this->snapshot('103', ['0-0' => 3.0, '1-0' => 4.0, '0-1' => 9.0], $past);
+        $this->snapshot('106', ['0-0' => 3.0, '1-0' => 4.8, '0-1' => 9.0], $past);
+        $this->snapshot('109', ['0-0' => 3.0, '1-0' => 5.5, '0-1' => 9.0], $past);
+        $this->fakeApi(liveRemaining: 49, limit: 1000);
+
+        $result = app(ScanService::class)->runOnce();
+
+        $this->assertTrue($result->economyMode);
+        $this->assertSame(2, $result->skippedByEconomy);
+        $this->assertSame(['103'], $this->statisticsRequests());
+
+        TrackedMatch::query()->where('provider_match_id', '106')->firstOrFail()->snapshots()->update(['captured_at' => CarbonImmutable::now()->subSeconds(120)]);
+        CarbonImmutable::setTestNow('2026-11-11 19:00:30');
+        $scanner = app(ScanService::class);
+        $this->assertSame(1, $scanner->runOnce()->skippedByEconomy, 'Le match calme est scanné après 2 minutes ; le match fermé jamais.');
+    }
+
+    public function test_match_heat_classifies_gap_and_falling_odds(): void
+    {
+        $scanner = app(ScanService::class);
+        $snapshot = fn (array $odds, ?float $trend = null): MatchSnapshot => new MatchSnapshot([
+            'home_score' => 0,
+            'away_score' => 0,
+            'exact_score_odds' => $odds,
+            'odds_change_percent' => $trend,
+        ]);
+
+        $this->assertSame('hot', $scanner->matchHeat($snapshot(['0-0' => 3.0, '1-0' => 4.49, '0-1' => 9.0]), 1.5, 2.0));
+        $this->assertSame('calm', $scanner->matchHeat($snapshot(['0-0' => 3.0, '1-0' => 4.5, '0-1' => 9.0]), 1.5, 2.0));
+        $this->assertSame('calm', $scanner->matchHeat($snapshot(['0-0' => 3.0, '1-0' => 5.0, '0-1' => 9.0]), 1.5, 2.0));
+        $this->assertSame('none', $scanner->matchHeat($snapshot(['0-0' => 3.0, '1-0' => 5.01, '0-1' => 9.0]), 1.5, 2.0));
+        $this->assertSame('hot', $scanner->matchHeat($snapshot(['0-0' => 3.0, '1-0' => 5.5, '0-1' => 9.0], -1.0), 1.5, 2.0));
+        $this->assertSame('calm', $scanner->matchHeat(null, 1.5, 2.0));
+    }
+
+    public function test_automatic_mode_tracks_major_league_matches_with_exact_score_odds_and_statistics(): void
+    {
+        $this->fakeApi(leagues: [101 => 39, 102 => 140, 104 => 61, 105 => 2], withoutOdds: [104], coveredLeagues: [39, 61]);
+
+        $result = app(ScanService::class)->runOnce();
+
+        $this->assertSame(1, $result->autoTracked);
+        $auto = TrackedMatch::query()->where('tracking_mode', 'auto')->pluck('provider_match_id')->all();
+        $this->assertSame(['101'], $auto, '102 : statistiques non couvertes ; 104 : pas de cote exacte ; 105 : ligue non couverte.');
+        Http::assertSent(fn (Request $request): bool => str_contains($request->url(), '/leagues'));
+    }
+
+    public function test_automatic_mode_respects_manual_removal_and_drops_finished_matches(): void
+    {
+        TrackedMatch::query()->create([
+            'provider' => 'real',
+            'provider_match_id' => '102',
+            'home_team' => 'Home 102',
+            'away_team' => 'Away 102',
+            'is_active' => false,
+            'tracking_mode' => 'manual',
+        ]);
+        TrackedMatch::query()->create([
+            'provider' => 'real',
+            'provider_match_id' => '999',
+            'home_team' => 'Fini',
+            'away_team' => 'Fini',
+            'is_active' => true,
+            'tracking_mode' => 'auto',
+        ]);
+        $this->fakeApi(leagues: [101 => 39, 102 => 39], coveredLeagues: [39]);
+
+        app(ScanService::class)->runOnce();
+
+        $this->assertFalse(TrackedMatch::query()->where('provider_match_id', '102')->firstOrFail()->is_active);
+        $this->assertTrue(TrackedMatch::query()->where('provider_match_id', '101')->firstOrFail()->is_active);
+        $this->assertFalse(TrackedMatch::query()->where('provider_match_id', '999')->firstOrFail()->is_active);
+    }
+
+    public function test_automatic_mode_can_be_disabled_and_skips_the_coverage_call_outside_listed_leagues(): void
+    {
+        $this->fakeApi();
+        app(ScanService::class)->runOnce();
+        Http::assertNotSent(fn (Request $request): bool => str_contains($request->url(), '/leagues'));
+
+        Setting::query()->where('key', 'scan.auto_mode')->update(['value' => '0']);
+        $this->fakeApi(leagues: [101 => 39], coveredLeagues: [39]);
+        app(ScanService::class)->runOnce();
+        $this->assertSame(0, TrackedMatch::query()->where('tracking_mode', 'auto')->count());
     }
 
     public function test_scan_once_lists_each_incident_with_match_type_and_french_reason(): void
@@ -240,6 +335,10 @@ class ScanRealStatisticsTest extends TestCase
     /**
      * @param  list<int>  $failingStatistics
      * @param  list<int>  $stoppedOdds
+     * @param  list<int>  $halftime
+     * @param  array<int, int>  $leagues  Ligue par identifiant de match (1 par défaut).
+     * @param  list<int>  $withoutOdds
+     * @param  list<int>  $coveredLeagues  Ligues dont la saison 2026 couvre les statistiques.
      */
     private function fakeApi(
         array $failingStatistics = [],
@@ -247,26 +346,38 @@ class ScanRealStatisticsTest extends TestCase
         int $liveRemaining = 100,
         ?int $statisticsRemainingStart = null,
         array $halftime = [],
+        ?int $limit = null,
+        array $leagues = [],
+        array $withoutOdds = [],
+        array $coveredLeagues = [],
     ): void {
         $statisticsRemaining = $statisticsRemainingStart ?? $liveRemaining - 1;
+        $headers = fn (int $remaining): array => array_filter([
+            'x-ratelimit-requests-remaining' => (string) $remaining,
+            'x-ratelimit-requests-limit' => $limit === null ? null : (string) $limit,
+        ], fn (?string $value): bool => $value !== null);
 
-        Http::fake(function (Request $request) use ($failingStatistics, $stoppedOdds, $liveRemaining, $halftime, &$statisticsRemaining) {
+        Http::fake(function (Request $request) use ($failingStatistics, $stoppedOdds, $liveRemaining, $halftime, $leagues, $withoutOdds, $coveredLeagues, $headers, &$statisticsRemaining) {
             $url = $request->url();
             if (str_contains($url, '/fixtures/statistics')) {
                 $fixtureId = (int) $request->data()['fixture'];
-                $headers = ['x-ratelimit-requests-remaining' => (string) $statisticsRemaining--];
+                $responseHeaders = $headers($statisticsRemaining--);
 
                 return in_array($fixtureId, $failingStatistics, true)
-                    ? Http::response('{"errors":["server"]}', 500, $headers)
-                    : Http::response($this->statisticsBody($fixtureId), 200, $headers);
+                    ? Http::response('{"errors":["server"]}', 500, $responseHeaders)
+                    : Http::response($this->statisticsBody($fixtureId), 200, $responseHeaders);
             }
 
             if (str_contains($url, '/fixtures')) {
-                return Http::response($this->liveBody($halftime), 200, ['x-ratelimit-requests-remaining' => (string) $liveRemaining]);
+                return Http::response($this->liveBody($halftime, $leagues), 200, $headers($liveRemaining));
+            }
+
+            if (str_contains($url, '/leagues')) {
+                return Http::response($this->coverageBody($coveredLeagues), 200, $headers(max(0, $statisticsRemaining)));
             }
 
             if (str_contains($url, '/odds/live')) {
-                return Http::response($this->oddsBody($stoppedOdds), 200, ['x-ratelimit-requests-remaining' => (string) max(0, $statisticsRemaining)]);
+                return Http::response($this->oddsBody($stoppedOdds, $withoutOdds), 200, $headers(max(0, $statisticsRemaining)));
             }
 
             return Http::response('', 404);
@@ -275,20 +386,45 @@ class ScanRealStatisticsTest extends TestCase
 
     /**
      * @param  list<int>  $halftime
+     * @param  array<int, int>  $leagues
      */
-    private function liveBody(array $halftime = []): string
+    private function liveBody(array $halftime = [], array $leagues = []): string
     {
         return json_encode(['errors' => [], 'response' => array_map(fn (int $id): array => [
             'fixture' => ['id' => $id, 'status' => in_array($id, $halftime, true)
                 ? ['long' => 'Halftime', 'short' => 'HT', 'elapsed' => 45]
                 : ['long' => 'Second Half', 'short' => '2H', 'elapsed' => 60]],
-            'league' => ['id' => 1, 'name' => 'Ligue de test', 'season' => 2026],
+            'league' => ['id' => $leagues[$id] ?? 1, 'name' => 'Ligue de test', 'season' => 2026],
             'teams' => [
                 'home' => ['id' => $id * 10 + 1, 'name' => "Home {$id}"],
                 'away' => ['id' => $id * 10 + 2, 'name' => "Away {$id}"],
             ],
             'goals' => ['home' => 0, 'away' => 0],
         ], self::LIVE_FIXTURES)], JSON_THROW_ON_ERROR);
+    }
+
+    /**
+     * @param  list<int>  $coveredLeagues
+     */
+    private function coverageBody(array $coveredLeagues): string
+    {
+        return json_encode(['response' => array_map(fn (int $leagueId): array => [
+            'league' => ['id' => $leagueId],
+            'seasons' => [['year' => 2026, 'current' => true, 'coverage' => ['fixtures' => ['statistics_fixtures' => in_array($leagueId, $coveredLeagues, true)]]]],
+        ], [39, 140, 135, 78, 61, 2, 3])], JSON_THROW_ON_ERROR);
+    }
+
+    private function snapshot(string $providerMatchId, array $odds, CarbonImmutable $capturedAt): void
+    {
+        TrackedMatch::query()->where('provider_match_id', $providerMatchId)->firstOrFail()->snapshots()->create([
+            'minute' => 50,
+            'home_score' => 0,
+            'away_score' => 0,
+            'exact_score_odds' => $odds,
+            'statistics' => [],
+            'odds_captured_at' => $capturedAt,
+            'captured_at' => $capturedAt,
+        ]);
     }
 
     private function statisticsBody(int $fixtureId): string
@@ -308,7 +444,7 @@ class ScanRealStatisticsTest extends TestCase
     /**
      * @param  list<int>  $stoppedOdds
      */
-    private function oddsBody(array $stoppedOdds): string
+    private function oddsBody(array $stoppedOdds, array $withoutOdds = []): string
     {
         return json_encode(['errors' => [], 'response' => array_map(fn (int $id): array => [
             'fixture' => ['id' => $id, 'status' => ['long' => 'Second Half', 'elapsed' => 60]],
@@ -317,7 +453,7 @@ class ScanRealStatisticsTest extends TestCase
             'odds' => [[
                 'id' => 23,
                 'name' => 'Final Score',
-                'values' => [
+                'values' => in_array($id, $withoutOdds, true) ? [] : [
                     ['value' => '0-0', 'odd' => '7.50', 'suspended' => false],
                     ['value' => '1-0', 'odd' => '8.60', 'suspended' => false],
                     ['value' => '0-1', 'odd' => '9.80', 'suspended' => false],

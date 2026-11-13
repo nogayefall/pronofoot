@@ -2,6 +2,7 @@
 
 namespace App\Console\Commands;
 
+use App\Services\QuotaGuard;
 use App\Services\ScanService;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\Cache;
@@ -48,7 +49,7 @@ class RunScan extends Command
                 ));
 
                 if ($result->quotaStopped) {
-                    $this->error('Quota API atteint : scan arrêté. Le motif est consigné dans le journal.');
+                    $this->error(QuotaGuard::EXHAUSTED_MESSAGE);
 
                     return self::FAILURE;
                 }

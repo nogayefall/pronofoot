@@ -27,6 +27,7 @@ final class AdminDashboardController extends Controller
                     'awayTeam' => $match->away_team,
                     'competition' => $match->competition,
                     'status' => $match->status,
+                    'trackingMode' => $match->tracking_mode,
                     'minute' => $snapshot?->minute,
                     'homeScore' => $snapshot?->home_score,
                     'awayScore' => $snapshot?->away_score,
@@ -70,6 +71,7 @@ final class AdminDashboardController extends Controller
             ],
             'trackedMatches' => $matches,
             'activeAlerts' => $alerts,
+            'quotaMode' => Cache::get('pronofoot.quota.mode', 'normal'),
             'quotas' => [
                 'football' => $providerStatus['football']['requestsRemaining'] ?? null,
                 'odds' => $providerStatus['odds']['requestsRemaining'] ?? null,

@@ -17,6 +17,7 @@ final class FakeFootballProvider implements FootballProvider
         bool $includeCoverage = false,
         ?array $statisticsMatchIds = null,
         ?int $quotaAlertThreshold = null,
+        ?array $coverageLeagueIds = null,
     ): FootballFeed {
         $fixture = $this->fixtures->load();
         $matches = [];

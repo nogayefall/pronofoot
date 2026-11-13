@@ -152,7 +152,7 @@ L’ordre appliqué est celui de `Claude.md` :
 ### Statistiques limitées aux matchs suivis (11 novembre 2026)
 
 - Le scan demande `fixtures/statistics` uniquement pour les matchs suivis actifs, un appel par match, à la cadence `scan.statistics_interval_seconds`. Un match live non suivi ne déclenche jamais d’appel statistiques. La commande de faisabilité garde son échantillon d’un match.
-- Quota : le quota restant est relu après chaque appel. Le scan s’arrête proprement (aucun appel supplémentaire, motif `quota_threshold_reached` au journal et dans le log Laravel, `scan:run` se termine) lorsque le quota est nul ou inférieur à `scan.quota_alert_threshold`. **Ce seuil n’est défini dans aucun document : il est vide par défaut et doit être fourni par le client.**
+- Quota : le quota restant est relu après chaque appel. Le seuil d’alerte de cette étape est remplacé par le mode économie de l’annexe (voir partie B) ; l’arrêt n’a plus lieu qu’à quota nul.
 - Échec des statistiques d’un match (connexion, HTTP, champ `errors`) : ce match est consigné `statistics_unavailable`, sans vitalité ni alerte ; les autres matchs continuent.
 - Match arrêté (`status.stopped = true` dans `odds/live`, par exemple la mi-temps) : ses cotes et statistiques sont conservées dans l’instantané, mais il est consigné `match_stopped` et ne reçoit aucune alerte. Le mapper ne les écarte plus du flux de cotes.
 - Un match API-Football est considéré en cours selon les codes « In Play » de la documentation (`1H`, `HT`, `2H`, `ET`, `BT`, `P`, `SUSP`, `INT`, `LIVE`).
@@ -169,6 +169,14 @@ L’ordre appliqué est celui de `Claude.md` :
 - **Bet 36 (Over/Under Line)** : absent des captures. `php artisan api-football:capture --fixture=<id> --bet36` enregistre la réponse sans la mapper ; le pilote réel de la cote Under 2.5 attend cette capture. Le pilote fictif fournit la cote (scénario `halftime-signal`).
 - Simulateur : mi-temps, cote Under 2.5, vitalité et tendance facultatives, niveau d’alerte et trace de l’ordre de décision.
 - Les 10 situations de l’annexe sont dans `backend/tests/Unit/AnnexSituationsTest.php` : 1, 9 et 10 réussissent avec l’ordre complet ; 2 et 3 réussissent sur les étapes dont l’annexe donne les données ; 4 à 8 sont marquées « en attente du fichier Excel du client ». Les situations 6 et 7 contredisent les règles écrites (voir `DECISIONS_ANNEXE_PHASE1.md`).
+
+### Partie B — Quota et matchs surveillés (13 novembre 2026)
+
+- **Seuil d’alerte : 10 % du quota journalier**, lu dans `x-ratelimit-requests-limit` (`scan.quota_economy_percent`). Lorsque les requêtes restantes atteignent ce pourcentage, une alerte part une seule fois par le canal de notification existant (WhatsApp, Telegram en repli) et le scan passe en **mode économie** au passage suivant. L’envoi par e-mail est hors périmètre tant que le client ne donne pas l’adresse.
+- **Mode économie** : classement de chaque match suivi sur son dernier instantané. Chaud (écart < 1.50 ou cote en baisse) : scanné toutes les 30 s. Calme : toutes les 2 min. Écart > 2.00 : pas de scan. Écart entre 1.50 et 2.00 : calme, **à confirmer**. Match sans instantané exploitable : calme. Seuils et fréquences sont des paramètres.
+- **Quota nul** : le live s’arrête avec « Quota épuisé. Le live est arrêté. Rechargez le quota. », le message est journalisé, notifié une fois et affiché dans le tableau de bord ; `scan:run` se termine.
+- **Suivi automatique** (`scan.auto_mode`, actif par défaut selon l’annexe) des ligues `scan.auto_league_ids` : Premier League 39, Liga 140, Serie A 135, Bundesliga 78, Ligue 1 61, Ligue des champions 2, Europa League 3. Seuls les matchs live ayant à la fois des cotes de score exact non suspendues et une couverture statistique confirmée sont suivis. La couverture n’est demandée (une fois par heure, en cache) que si un match live appartient à ces ligues. Un match automatique terminé est retiré ; un retrait manuel n’est jamais annulé par le mode automatique. Le Scan Ciblé manuel reste disponible.
+- Le pilote fictif n’a pas de match dans ces ligues : le suivi automatique est testé avec `Http::fake` (`ScanRealStatisticsTest`).
 
 ## Guide de démarrage et de test local
 

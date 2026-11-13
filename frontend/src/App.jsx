@@ -43,7 +43,13 @@ const settingLabels = {
   'alerts.level_negative_gap': 'Niveau d’alerte : écart négatif',
   'alerts.level_positive_gap': 'Niveau d’alerte : écart sous le seuil',
   'rules.decision_pipeline': 'Ordre de décision (à confirmer)',
-  'scan.quota_alert_threshold': 'Seuil d’alerte du quota API (à confirmer)',
+  'scan.quota_economy_percent': 'Seuil d’alerte et mode économie du quota (%)',
+  'scan.hot_interval_seconds': 'Mode économie : fréquence des matchs chauds (secondes)',
+  'scan.calm_interval_seconds': 'Mode économie : fréquence des matchs calmes (secondes)',
+  'scan.hot_gap_threshold': 'Mode économie : écart d’un match chaud',
+  'scan.no_scan_gap_threshold': 'Mode économie : écart sans scan (à confirmer)',
+  'scan.auto_mode': 'Suivi automatique des championnats majeurs',
+  'scan.auto_league_ids': 'Ligues suivies automatiquement (identifiants API-Football)',
 }
 
 const settingDescriptions = {
@@ -67,7 +73,13 @@ const settingDescriptions = {
   'alerts.level_negative_gap': 'Libellé d’une alerte F121-E1.',
   'alerts.level_positive_gap': 'Libellé d’une alerte sur écart positif inférieur au seuil.',
   'rules.decision_pipeline': 'Étapes : F121-E2, F121-D, designation, vitality, trend, gap, convergence (facultative).',
-  'scan.quota_alert_threshold': 'Requêtes restantes sous lesquelles le scan s’arrête. Vide : arrêt seulement à quota nul.',
+  'scan.quota_economy_percent': 'Pourcentage du quota journalier restant qui déclenche l’alerte et le mode économie.',
+  'scan.hot_interval_seconds': 'Match chaud : écart sous le seuil ou cote en baisse.',
+  'scan.calm_interval_seconds': 'Match calme : écart entre le seuil chaud et le seuil sans scan.',
+  'scan.hot_gap_threshold': 'Écart sous lequel un match est chaud.',
+  'scan.no_scan_gap_threshold': 'Au-delà de cet écart, le match n’est pas scanné en mode économie.',
+  'scan.auto_mode': 'Suit tous les matchs des ligues listées ayant les cotes de score exact et les statistiques, en plus du Scan Ciblé.',
+  'scan.auto_league_ids': 'Par défaut : Premier League 39, Liga 140, Serie A 135, Bundesliga 78, Ligue 1 61, Ligue des champions 2, Europa League 3.',
 }
 
 function Icon({ name, size = 20 }) {
@@ -463,13 +475,15 @@ function App() {
                 <article className="scan-status-panel"><div className="scan-status-copy"><p className="overview-section-label">STATUT DU SCAN</p><h2>Détecteur de matchs</h2><p>Dernier passage : {formatDate(dashboard?.scan?.lastPassAt)}</p></div><span className={`scan-status-badge ${dashboard?.scan?.active ? 'scan-active' : ''}`}><span />{dashboard?.scan?.active ? 'Actif' : 'En attente'}</span></article>
                 <article className="active-alerts-panel"><p className="overview-section-label">ALERTES ACTIVES</p><strong>{activeAlerts.length}</strong><p>{activeAlerts.length ? 'Alertes non expirées' : 'Aucune alerte en cours'}</p></article>
               </section>
+              {dashboard?.quotaMode === 'exhausted' && <div className="notice notice-warning"><span className="notice-icon"><Icon name="shield" size={18} /></span><div><strong>Quota épuisé. Le live est arrêté. Rechargez le quota.</strong></div></div>}
+              {dashboard?.quotaMode === 'economy' && <div className="notice notice-warning"><span className="notice-icon"><Icon name="shield" size={18} /></span><div><strong>Mode économie du quota</strong><p>Seuls les matchs chauds sont scannés toutes les 30 secondes ; les matchs calmes toutes les 2 minutes.</p></div></div>}
               <section className="content-panel">
                 <div className="panel-heading"><div><h2>Quotas fournisseurs</h2><p>État connu après la dernière consultation.</p></div></div>
                 <div className="quota-grid">{['football', 'odds'].map((provider) => <div className="quota-card" key={provider}><strong>{provider === 'football' ? 'Football' : 'Cotes'}</strong><span>{dashboard?.quotas?.[provider] ?? 'Inconnu'}</span><small>{dashboard?.providerStatus?.[provider]?.message ?? 'Pas encore interrogé'}</small></div>)}</div>
               </section>
               <section className="overview-matches content-panel" aria-labelledby="overview-matches-title">
                 <div className="overview-matches-heading"><div><p className="overview-section-label">SUIVI EN DIRECT</p><h2 id="overview-matches-title">Matchs suivis</h2></div><button className="overview-primary-action" type="button" onClick={() => selectPage('matches')}>Gérer les matchs <Icon name="arrow" size={18} /></button></div>
-                {trackedMatches.length ? <div className="table-scroll"><table className="data-table"><thead><tr><th>Rencontre</th><th>Score</th><th>Minute</th><th>Vitalité</th><th>Actualisé</th></tr></thead><tbody>{trackedMatches.map((match) => <tr key={match.id}><td>{match.homeTeam} – {match.awayTeam}<small>{match.competition}</small></td><td>{match.homeScore ?? '—'} – {match.awayScore ?? '—'}</td><td>{match.minute ?? '—'}</td><td>{match.vitality ?? '—'}</td><td>{formatDate(match.capturedAt)}</td></tr>)}</tbody></table></div> : <EmptyState icon="ball" title="Aucun match suivi" message="Ajoutez une rencontre depuis le pilote configuré." />}
+                {trackedMatches.length ? <div className="table-scroll"><table className="data-table"><thead><tr><th>Rencontre</th><th>Score</th><th>Minute</th><th>Vitalité</th><th>Actualisé</th></tr></thead><tbody>{trackedMatches.map((match) => <tr key={match.id}><td>{match.homeTeam} – {match.awayTeam}<small>{match.competition}{match.trackingMode === 'auto' ? ' · suivi automatique' : ''}</small></td><td>{match.homeScore ?? '—'} – {match.awayScore ?? '—'}</td><td>{match.minute ?? '—'}</td><td>{match.vitality ?? '—'}</td><td>{formatDate(match.capturedAt)}</td></tr>)}</tbody></table></div> : <EmptyState icon="ball" title="Aucun match suivi" message="Ajoutez une rencontre depuis le pilote configuré." />}
               </section>
               <section className="content-panel"><div className="panel-heading"><div><h2>Alertes actives</h2><p>Le compte à rebours reflète l’expiration enregistrée.</p></div></div>{activeAlerts.length ? <div className="alert-list">{activeAlerts.map((alert) => <article className="alert-row" key={alert.id}><div><strong>{alert.match ?? 'Rencontre'}</strong><p>{alert.message}</p><small>{alert.channel} · {alert.status}{alert.fallbackUsed ? ' · repli' : ''}</small></div><span className="countdown">{formatCountdown(alert.expiresAt, now)}</span></article>)}</div> : <EmptyState icon="clock" title="Aucune alerte active" message="Les signaux restent soumis aux règles et aux paramètres confirmés." />}</section>
             </div>

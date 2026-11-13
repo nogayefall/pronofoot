@@ -29,6 +29,23 @@ Source : `docs/PRONOFOOT_Annexe_Phase1_Corrigee.pdf` (novembre 2026, « décisio
 4. **Seuil 0-0 (F121-R)** : la règle du CDC (cote du 0-0 sous 2.50, écart requis sous 1.00) est conservée pour l’alerte Haute ; l’annexe ne la remet pas en cause.
 5. **Cote Under 2.5 réelle** : le pari API-Football « Over/Under Line » (id 36) n’apparaît dans aucune capture. Seul le pilote fictif fournit cette cote. Lancer `php artisan api-football:capture --fixture=<id> --bet36` pendant un match en direct, puis brancher le pilote réel après lecture de la vraie réponse.
 
+## Quota et matchs surveillés (annexe, sections 5 et 6)
+
+| Sujet | Application | Paramètre |
+|---|---|---|
+| Seuil d’alerte | 10 % du quota journalier (`x-ratelimit-requests-limit`) ; alerte unique par le canal de notification. E-mail hors périmètre sans adresse fournie. | `scan.quota_economy_percent` |
+| Mode économie | Matchs chauds (écart < 1.50 ou baisse de cote) toutes les 30 s, calmes toutes les 2 min, écart > 2.00 non scannés. | `scan.hot_interval_seconds`, `scan.calm_interval_seconds`, `scan.hot_gap_threshold`, `scan.no_scan_gap_threshold` |
+| Quota nul | « Quota épuisé. Le live est arrêté. Rechargez le quota. » | — |
+| Suivi automatique | Ligues 39, 140, 135, 78, 61, 2, 3 ; seulement avec cotes de score exact et statistiques. | `scan.auto_mode`, `scan.auto_league_ids` |
+
+À confirmer :
+
+1. Écart entre 1.50 et 2.00 : traité comme « calme ».
+2. « Baisse de cote » pour un match chaud : toute variation négative de la cote du score suggéré, sans seuil.
+3. Le seuil de 10 % est atteint dès que les requêtes restantes sont inférieures **ou égales** à 10 % (l’annexe cite « 1 000 sur 10 000 » comme moment de l’alerte).
+4. Les fréquences chaud/calme ne s’appliquent qu’en mode économie ; hors économie, le scan garde ses cadences du CDC (cotes 30 s, statistiques 60 s).
+5. Les pronostics pré-match cités par l’annexe n’existent pas en Phase 1 ; rien n’est affiché à ce titre.
+
 ## Les 10 situations de l’annexe (section 7)
 
 Tests : `backend/tests/Unit/AnnexSituationsTest.php`.

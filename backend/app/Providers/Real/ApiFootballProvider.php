@@ -22,6 +22,7 @@ final class ApiFootballProvider implements FootballProvider
         bool $includeCoverage = false,
         ?array $statisticsMatchIds = null,
         ?int $quotaAlertThreshold = null,
+        ?array $coverageLeagueIds = null,
     ): FootballFeed {
         if ($statisticsMatchLimit !== null && $statisticsMatchLimit < 1) {
             throw new InvalidArgumentException('La limite de matchs statistiques doit être positive.');
@@ -87,7 +88,9 @@ final class ApiFootballProvider implements FootballProvider
 
         $rawCoverageResponse = null;
         $coverageFailure = null;
-        if ($includeCoverage) {
+        $coverageNeeded = $coverageLeagueIds === null
+            || collect($liveFeed->matches)->contains(fn ($match): bool => in_array($match->leagueId, $coverageLeagueIds, true));
+        if ($includeCoverage && $coverageNeeded) {
             $coverageCacheKey = 'api-football.leagues.current.'.hash('sha256', $baseUrl);
             $cachedCoverage = Cache::get($coverageCacheKey);
             if (is_string($cachedCoverage)) {

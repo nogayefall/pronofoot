@@ -17,5 +17,8 @@ final readonly class ScanPassResult
         public int $nextPollIntervalSeconds,
         public bool $quotaStopped = false,
         public array $incidents = [],
+        public bool $economyMode = false,
+        public int $skippedByEconomy = 0,
+        public int $autoTracked = 0,
     ) {}
 }

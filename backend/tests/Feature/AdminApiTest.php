@@ -12,6 +12,7 @@ use App\Providers\Data\FootballFeed;
 use App\Providers\Data\FootballMatch;
 use App\Providers\Data\OddsFeed;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Cache;
 use Tests\TestCase;
 
 class AdminApiTest extends TestCase
@@ -312,6 +313,23 @@ class AdminApiTest extends TestCase
         $this->getJson(route('admin.api.dashboard'))
             ->assertOk()
             ->assertJsonPath('trackedMatches.0.teamStatistics', null);
+    }
+
+    public function test_dashboard_reports_the_quota_mode_and_league_ids_are_validated(): void
+    {
+        $this->getJson(route('admin.api.dashboard'))->assertJsonPath('quotaMode', 'normal');
+
+        Cache::put('pronofoot.quota.mode', 'exhausted');
+        $this->getJson(route('admin.api.dashboard'))->assertJsonPath('quotaMode', 'exhausted');
+
+        $this->patchJson(route('admin.api.settings.update'), [
+            'settings' => ['scan.auto_league_ids' => [39, 'Ligue 1']],
+        ])->assertUnprocessable();
+        $this->patchJson(route('admin.api.settings.update'), [
+            'settings' => ['scan.auto_league_ids' => [39, 61], 'scan.auto_mode' => false],
+        ])->assertOk();
+        $this->assertDatabaseHas('settings', ['key' => 'scan.auto_league_ids', 'value' => '[39,61]']);
+        $this->assertDatabaseHas('settings', ['key' => 'scan.auto_mode', 'value' => '0']);
     }
 
     public function test_admin_api_is_protected(): void

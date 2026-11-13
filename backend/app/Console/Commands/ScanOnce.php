@@ -2,6 +2,7 @@
 
 namespace App\Console\Commands;
 
+use App\Services\QuotaGuard;
 use App\Services\ScanService;
 use Illuminate\Console\Command;
 use InvalidArgumentException;
@@ -46,8 +47,14 @@ class ScanOnce extends Command
             $this->warn("  - {$incident['match']} : {$type} — {$incident['reason']}");
         }
 
+        if ($result->economyMode) {
+            $this->warn("Mode économie du quota : {$result->skippedByEconomy} match(s) non scanné(s) à ce passage.");
+        }
+        if ($result->autoTracked > 0) {
+            $this->info("Matchs ajoutés automatiquement : {$result->autoTracked}");
+        }
         if ($result->quotaStopped) {
-            $this->error('Quota API atteint : scan arrêté. Le motif est consigné dans le journal.');
+            $this->error(QuotaGuard::EXHAUSTED_MESSAGE);
         }
 
         return $result->errors === 0 ? self::SUCCESS : self::FAILURE;

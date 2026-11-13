@@ -16,6 +16,7 @@ class TrackedMatch extends Model
         'kickoff_at',
         'status',
         'is_active',
+        'tracking_mode',
         'last_goal_detected_at',
     ];
 

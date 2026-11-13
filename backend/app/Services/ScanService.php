@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Jobs\SendAlertNotification;
+use App\Jobs\SendQuotaNotification;
 use App\Models\Alert;
 use App\Models\MatchSnapshot;
 use App\Models\OpportunityLog;
@@ -55,21 +56,46 @@ final class ScanService
         $statisticsInterval = $this->settings->integer($settingValues, 'scan.statistics_interval_seconds');
         $goalInterval = $this->settings->integer($settingValues, 'scan.goal_interval_seconds');
         $goalWindow = $this->settings->integer($settingValues, 'scan.goal_window_seconds');
-        $quotaAlertThreshold = $this->settings->nullableInteger($settingValues, 'scan.quota_alert_threshold');
+        $quotaAlertThreshold = null;
+        $economyPercent = $this->settings->decimal($settingValues, 'scan.quota_economy_percent');
+        $autoMode = ($settingValues['scan.auto_mode'] ?? false) === true;
+        $autoLeagueIds = array_values(array_map('intval', is_array($settingValues['scan.auto_league_ids'] ?? null)
+            ? $settingValues['scan.auto_league_ids']
+            : []));
         $vitalityScale = is_array($settingValues['rules.vitality_normalization_references'] ?? null)
             ? $settingValues['rules.vitality_normalization_references']
             : VitalityCalculator::DEFAULT_SCALE;
         $expiredAlerts = $this->expireAlerts($now);
         $trackedMatches = TrackedMatch::query()->where('is_active', true)->get();
 
-        if ($trackedMatches->isEmpty()) {
+        if ($trackedMatches->isEmpty() && ! $autoMode) {
             return new ScanPassResult(0, 0, 0, $expiredAlerts, 0, 0, $oddsInterval, incidents: $this->incidents);
+        }
+
+        $previousFootballStatus = Cache::get('pronofoot.provider_status', [])['football'] ?? [];
+        $economyMode = QuotaGuard::mode(
+            is_int($previousFootballStatus['requestsRemaining'] ?? null) ? $previousFootballStatus['requestsRemaining'] : null,
+            is_int($previousFootballStatus['requestsLimit'] ?? null) ? $previousFootballStatus['requestsLimit'] : null,
+            $economyPercent,
+        ) === QuotaGuard::ECONOMY;
+        $skippedByEconomy = 0;
+        if ($economyMode) {
+            $dueMatches = $this->economySelection($trackedMatches, $settingValues, $now);
+            $skippedByEconomy = count($trackedMatches) - count($dueMatches);
+            $trackedMatches = $dueMatches;
         }
 
         $includeStatistics = $forceRefresh
             || $this->lastStatisticsFetchAt === null
             || $this->lastStatisticsFetchAt->addSeconds($statisticsInterval)->lessThanOrEqualTo($now);
-        $footballFeed = $this->fetchFootball($scanNumber, $includeStatistics, $trackedMatches, $quotaAlertThreshold, $now);
+        $footballFeed = $this->fetchFootball(
+            $scanNumber,
+            $includeStatistics,
+            $trackedMatches,
+            $quotaAlertThreshold,
+            $now,
+            $autoMode ? $autoLeagueIds : null,
+        );
         if ($footballFeed === null) {
             return new ScanPassResult(
                 count($trackedMatches),
@@ -87,6 +113,7 @@ final class ScanService
             $this->lastStatisticsFetchAt = $now;
         }
 
+        $this->notifyQuotaTransition($footballFeed->requestsRemaining, $footballFeed->requestsLimit, $economyPercent);
         if ($footballFeed->quotaThresholdReached
             || QuotaGuard::reached($footballFeed->requestsRemaining, $quotaAlertThreshold)) {
             return $this->stopForQuota($trackedMatches, $footballFeed->requestsRemaining, $quotaAlertThreshold, $expiredAlerts, $settingValues, $now);
@@ -151,6 +178,10 @@ final class ScanService
         $quotaStopped = $oddsDue
             && $oddsFeed !== null
             && QuotaGuard::reached($oddsFeed->requestsRemaining, $quotaAlertThreshold);
+        if ($oddsDue && $oddsFeed !== null) {
+            $this->notifyQuotaTransition($oddsFeed->requestsRemaining, $oddsFeed->requestsLimit, $economyPercent);
+        }
+
         if ($quotaStopped) {
             $this->logQuotaStop($oddsFeed->requestsRemaining, $quotaAlertThreshold);
         }
@@ -165,6 +196,7 @@ final class ScanService
             ]);
         }
         $oddsMatches = $oddsFeed === null ? [] : $this->indexMatches($oddsFeed->matches);
+        $autoTracked = $autoMode ? $this->syncAutomaticMatches($footballFeed, $oddsMatches, $autoLeagueIds) : 0;
         $profile = RuleProfile::query()->where('is_active', true)->first();
         $alertsCreated = 0;
         $snapshotsStored = 0;
@@ -306,7 +338,146 @@ final class ScanService
             $this->nextPollInterval($settingValues, $now),
             $quotaStopped,
             $this->incidents,
+            economyMode: $economyMode,
+            skippedByEconomy: $skippedByEconomy,
+            autoTracked: $autoTracked,
         );
+    }
+
+    /**
+     * Mode économie : matchs chauds (écart sous le seuil chaud ou baisse de cote) à leur fréquence, matchs calmes
+     * à la leur, matchs sans opportunité (écart au-delà du seuil d’arrêt) non scannés. Classement à partir du dernier
+     * instantané ; un match sans instantané exploitable est traité comme calme.
+     *
+     * @param  Collection<int, TrackedMatch>  $trackedMatches
+     * @param  array<string, int|float|bool|array|string|null>  $settings
+     * @return Collection<int, TrackedMatch>
+     */
+    private function economySelection(Collection $trackedMatches, array $settings, CarbonImmutable $now): Collection
+    {
+        $hotInterval = $this->settings->integer($settings, 'scan.hot_interval_seconds');
+        $calmInterval = $this->settings->integer($settings, 'scan.calm_interval_seconds');
+        $hotGap = $this->settings->decimal($settings, 'scan.hot_gap_threshold');
+        $noScanGap = $this->settings->decimal($settings, 'scan.no_scan_gap_threshold');
+
+        return $trackedMatches->filter(function (TrackedMatch $trackedMatch) use ($hotInterval, $calmInterval, $hotGap, $noScanGap, $now): bool {
+            $snapshot = $trackedMatch->snapshots()->latest('captured_at')->first();
+            $heat = $this->matchHeat($snapshot, $hotGap, $noScanGap);
+            if ($heat === 'none') {
+                return false;
+            }
+
+            $interval = $heat === 'hot' ? $hotInterval : $calmInterval;
+
+            return $snapshot === null
+                || CarbonImmutable::instance($snapshot->captured_at)->addSeconds($interval)->lessThanOrEqualTo($now);
+        })->values();
+    }
+
+    /**
+     * @return 'hot'|'calm'|'none'
+     */
+    public function matchHeat(?MatchSnapshot $snapshot, float $hotGap, float $noScanGap): string
+    {
+        if ($snapshot === null || ! is_array($snapshot->exact_score_odds)
+            || $snapshot->home_score === null || $snapshot->away_score === null) {
+            return 'calm';
+        }
+
+        $falling = $snapshot->odds_change_percent !== null && (float) $snapshot->odds_change_percent < 0;
+        $gap = $this->ruleEngine->evaluate(
+            new RuleInput(
+                homeScore: (int) $snapshot->home_score,
+                awayScore: (int) $snapshot->away_score,
+                exactScoreOdds: $snapshot->exact_score_odds,
+            ),
+            new RuleConfiguration,
+        )->filters['gap']->details['selectedGap'] ?? null;
+
+        return match (true) {
+            $falling || (is_numeric($gap) && (float) $gap < $hotGap) => 'hot',
+            is_numeric($gap) && (float) $gap > $noScanGap => 'none',
+            default => 'calm',
+        };
+    }
+
+    /**
+     * Envoie une alerte de quota par le canal de notification lors d’un passage en mode économie ou épuisé.
+     */
+    private function notifyQuotaTransition(?int $requestsRemaining, ?int $requestsLimit, float $economyPercent): void
+    {
+        if ($requestsRemaining === null) {
+            return;
+        }
+
+        $mode = QuotaGuard::mode($requestsRemaining, $requestsLimit, $economyPercent);
+        $previousMode = Cache::get('pronofoot.quota.mode', QuotaGuard::NORMAL);
+        if ($mode === $previousMode) {
+            return;
+        }
+
+        Cache::put('pronofoot.quota.mode', $mode, now()->addDays(2));
+        $message = match ($mode) {
+            QuotaGuard::ECONOMY => QuotaGuard::economyMessage($requestsRemaining, (int) $requestsLimit, $economyPercent),
+            QuotaGuard::EXHAUSTED => QuotaGuard::EXHAUSTED_MESSAGE,
+            default => null,
+        };
+        if ($message === null) {
+            Log::info('Quota API revenu à la normale : scan complet rétabli.', ['requests_remaining' => $requestsRemaining]);
+
+            return;
+        }
+
+        Log::warning($message, ['requests_remaining' => $requestsRemaining, 'requests_limit' => $requestsLimit]);
+        SendQuotaNotification::dispatch($message);
+    }
+
+    /**
+     * Suivi automatique : matchs live des ligues configurées ayant à la fois les cotes de score exact et une couverture
+     * statistique confirmée. Les matchs automatiques absents du flux live sont retirés ; les retraits manuels sont respectés.
+     *
+     * @param  array<string, FootballMatch|OddsMatch>  $oddsMatches
+     * @param  list<int>  $leagueIds
+     */
+    private function syncAutomaticMatches(FootballFeed $footballFeed, array $oddsMatches, array $leagueIds): int
+    {
+        $liveIds = [];
+        $created = 0;
+        foreach ($footballFeed->matches as $match) {
+            $liveIds[] = $match->providerMatchId;
+            $odds = $oddsMatches[$match->providerMatchId] ?? null;
+            if ($match->inPlay !== true
+                || ! in_array($match->leagueId, $leagueIds, true)
+                || $match->statisticsCoverage !== true
+                || ! $odds instanceof OddsMatch
+                || $odds->exactScoreOdds === []) {
+                continue;
+            }
+
+            $trackedMatch = TrackedMatch::query()->firstOrCreate(
+                ['provider' => $footballFeed->driver, 'provider_match_id' => $match->providerMatchId],
+                [
+                    'home_team' => $match->homeTeam,
+                    'away_team' => $match->awayTeam,
+                    'competition' => $match->competition,
+                    'status' => $match->status,
+                    'is_active' => true,
+                    'tracking_mode' => 'auto',
+                ],
+            );
+            if ($trackedMatch->wasRecentlyCreated) {
+                $created++;
+            }
+        }
+
+        TrackedMatch::query()
+            ->where('provider', $footballFeed->driver)
+            ->where('tracking_mode', 'auto')
+            ->where('is_active', true)
+            ->whereNotIn('provider_match_id', $liveIds)
+            ->update(['is_active' => false]);
+
+        return $created;
     }
 
     /**
@@ -382,6 +553,7 @@ final class ScanService
         Collection $trackedMatches,
         ?int $quotaAlertThreshold,
         CarbonImmutable $now,
+        ?array $autoLeagueIds = null,
     ): ?FootballFeed {
         try {
             $feed = $this->footballProvider->getLiveMatches(
@@ -389,7 +561,9 @@ final class ScanService
                 includeStatistics: $includeStatistics,
                 statisticsMatchLimit: null,
                 statisticsMatchIds: $trackedMatches->pluck('provider_match_id')->map(fn ($id): string => (string) $id)->values()->all(),
+                includeCoverage: $autoLeagueIds !== null,
                 quotaAlertThreshold: $quotaAlertThreshold,
+                coverageLeagueIds: $autoLeagueIds,
             );
         } catch (ProviderUnavailable $exception) {
             $this->rememberProviderStatus('football', [
@@ -411,6 +585,7 @@ final class ScanService
             'driver' => $feed->driver,
             'requestsUsed' => $feed->requestsUsed,
             'requestsRemaining' => $feed->requestsRemaining,
+            'requestsLimit' => $feed->requestsLimit,
             'checkedAt' => $now->toIso8601String(),
             'message' => $feed->statusMessage,
         ]);

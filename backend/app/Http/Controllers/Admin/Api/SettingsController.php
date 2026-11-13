@@ -37,7 +37,13 @@ final class SettingsController extends Controller
         'alerts.level_negative_gap' => 'Critique',
         'alerts.level_positive_gap' => 'Haute',
         'rules.decision_pipeline' => '["F121-E2","F121-D","designation","vitality","trend","gap"]',
-        'scan.quota_alert_threshold' => null,
+        'scan.quota_economy_percent' => '10',
+        'scan.hot_interval_seconds' => '30',
+        'scan.calm_interval_seconds' => '120',
+        'scan.hot_gap_threshold' => '1.50',
+        'scan.no_scan_gap_threshold' => '2.00',
+        'scan.auto_mode' => '1',
+        'scan.auto_league_ids' => '[39,140,135,78,61,2,3]',
     ];
 
     public function index(): JsonResponse
@@ -216,10 +222,23 @@ final class SettingsController extends Controller
             'rules.vitality_normalization_references' => (new VitalityCalculator)->assertValidScale($value),
             'rules.decision_pipeline' => new RuleConfiguration(pipeline: array_values($value)),
             'rules.open_match_scores' => new RuleConfiguration(openMatchScores: array_values($value)),
+            'scan.auto_league_ids' => $this->assertLeagueIds($value),
             default => null,
         };
 
         return $value;
+    }
+
+    /**
+     * @param  array<mixed>  $value
+     */
+    private function assertLeagueIds(array $value): void
+    {
+        foreach ($value as $leagueId) {
+            if (! is_int($leagueId) || $leagueId < 1) {
+                throw new InvalidArgumentException('Chaque identifiant de ligue doit être un entier positif.');
+            }
+        }
     }
 
     private function encode(int|float|bool|array|string|null $value, string $type): ?string
