@@ -235,6 +235,9 @@ class ProviderPilotsTest extends TestCase
         $this->assertSame(45, $match->minute);
         $this->assertSame('Estonia U19', $match->homeTeam);
         $this->assertSame('Liechtenstein U19', $match->awayTeam);
+        $this->assertSame('UEFA U19 Championship - Qualification', $match->competition);
+        $this->assertSame('2026-11-11T10:00:00+00:00', $match->kickoffAt);
+        $this->assertSame('J-League Cup · Japan', $feed->matches[1]->competition);
         $this->assertSame(4, $match->homeScore);
         $this->assertSame(1, $match->awayScore);
         $this->assertSame([], $match->statistics);

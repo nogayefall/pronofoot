@@ -493,7 +493,7 @@ function App() {
             <>
               <PageHeading eyebrow="SUIVI EN DIRECT" title="Matchs suivis" description="Choisissez les rencontres à surveiller selon le flux disponible." action={<span className="count-badge">{trackedMatches.length} suivis</span>} />
               <div className="notice notice-neutral"><span className="notice-icon"><Icon name="clock" size={18} /></span><div><strong>{matchesData?.message ?? 'Le flux sera consulté à l’ouverture de cette page.'}</strong><p>Quota restant : {matchesData?.quotaRemaining ?? 'inconnu'}. Aucun match ne peut être suivi si le fournisseur indique un quota nul.</p></div></div>
-              <section className="content-panel matches-panel"><div className="panel-heading"><div><h2>Rencontres disponibles</h2><p>Les données fictives sont identifiées en haut de page.</p></div><button className="secondary-button" type="button" onClick={() => void loadMatches()}>Actualiser</button></div>
+              <section className="content-panel matches-panel"><div className="panel-heading"><div><h2>Rencontres disponibles</h2><p>{simulation ? 'Les données fictives sont identifiées en haut de page.' : 'Flux du fournisseur configuré, actualisé à l’ouverture de la page.'}</p></div><button className="secondary-button" type="button" onClick={() => void loadMatches()}>Actualiser</button></div>
                 {matchesData?.matches?.length ? <div className="table-scroll"><table className="data-table"><thead><tr><th>Rencontre</th><th>Compétition</th><th>État</th><th>Score</th><th>Cotes score exact</th><th>Statistiques</th><th>Suivi</th><th>Action</th></tr></thead><tbody>{matchesData.matches.map((match) => {
                   const eligible = match.exactScoreMarketAvailable && match.statisticsCoverage !== false
                   const statisticsStatus = match.statisticsCoverage === null ? 'inconnu' : match.statisticsCoverage ? 'oui' : 'non'
@@ -513,7 +513,7 @@ function App() {
                     <h3>{match.homeTeam} – {match.awayTeam}</h3>
                     <p className="field-help">Statistiques relevées : {match.statisticsCapturedAt ? formatDate(match.statisticsCapturedAt) : 'non disponible'}</p>
                     {rows.length ? <div className="table-scroll"><table className="data-table"><thead><tr><th>Statistique</th><th>{match.homeTeam}</th><th>{match.awayTeam}</th></tr></thead><tbody>{rows.map((row) => <tr key={row.key}><td>{row.label}</td><td>{row.home}</td><td>{row.away}</td></tr>)}</tbody></table></div> : <p>Statistiques par équipe non disponibles.</p>}
-                    <p className="simulation-line"><span>Vitalité</span><strong>{match.vitality ?? 'Non calculable : normalisation non définie'}</strong></p>
+                    <p className="simulation-line"><span>Vitalité</span><strong>{match.vitality === null || match.vitality === undefined ? 'Non calculable : une statistique manque' : `${match.vitality}/100`}</strong></p>
                   </article>
                 }) : <EmptyState icon="ball" title="Aucun match suivi" message="Suivez une rencontre pour afficher sa fiche." />}
               </section>
@@ -536,7 +536,7 @@ function App() {
           {activePage === 'tester' && (
             <>
               <PageHeading eyebrow="VALIDATION" title="Testeur manuel" description="Évalue un jeu de cotes fourni, sans envoyer de signal ni placer de pari." action={<span className="phase-badge phase-badge-muted"><Icon name="flask" size={15} /> Simulation uniquement</span>} />
-              <div className="notice notice-neutral"><span className="notice-icon"><Icon name="shield" size={18} /></span><div><strong>Les résultats affichés sont une simulation locale</strong><p>Aucun message n’est envoyé. La tendance reste abstentionniste tant que sa source et son seuil ne sont pas confirmés.</p></div></div>
+              <div className="notice notice-neutral"><span className="notice-icon"><Icon name="shield" size={18} /></span><div><strong>Les résultats affichés sont une simulation locale</strong><p>Aucun message n’est envoyé. Seule une baisse de plus de 5 % de la cote du score suggéré valide la tendance (annexe du client).</p></div></div>
               <div className="tester-layout">
                 <section className="content-panel tester-panel"><div className="panel-heading"><div><h2>Situation du match</h2><p>Saisissez les données du scénario à évaluer.</p></div><span className="manual-tag">F125</span></div>
                   <form className="tester-form" onSubmit={testRules}>

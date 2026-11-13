@@ -113,7 +113,10 @@ final class ApiFootballMapper
                 minute: is_numeric($status['elapsed'] ?? null) ? (int) $status['elapsed'] : null,
                 homeScore: is_numeric($goals['home'] ?? null) ? (int) $goals['home'] : null,
                 awayScore: is_numeric($goals['away'] ?? null) ? (int) $goals['away'] : null,
-                competition: $this->availableString($league['name'] ?? null),
+                competition: $this->competition($league),
+                kickoffAt: is_string($item['fixture']['date'] ?? null) && trim($item['fixture']['date']) !== ''
+                    ? $item['fixture']['date']
+                    : null,
                 statistics: $rawMatchStatistics === null
                     ? []
                     : $this->teamStatistics($rawMatchStatistics, $homeTeamId, $awayTeamId),
@@ -319,6 +322,22 @@ final class ApiFootballMapper
             matchesWithExactScoreMarket: $matchesWithMarket,
             requestsLimit: $requestsLimit,
         );
+    }
+
+    /**
+     * Nom de la ligue suivi du pays fourni par API-Football (sauf « World »), pour distinguer les homonymes.
+     *
+     * @param  array<string, mixed>  $league
+     */
+    private function competition(array $league): string
+    {
+        $name = $this->availableString($league['name'] ?? null);
+        $country = $league['country'] ?? null;
+        if ($name === 'Non disponible' || ! is_string($country) || trim($country) === '' || $country === 'World') {
+            return $name;
+        }
+
+        return "{$name} · {$country}";
     }
 
     private function availableString(mixed $value): string
