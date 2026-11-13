@@ -34,16 +34,17 @@ Source : `docs/PRONOFOOT_Annexe_Phase1_Corrigee.pdf` (novembre 2026, « décisio
 | Sujet | Application | Paramètre |
 |---|---|---|
 | Seuil d’alerte | 10 % du quota journalier (`x-ratelimit-requests-limit`) ; alerte unique par le canal de notification. E-mail hors périmètre sans adresse fournie. | `scan.quota_economy_percent` |
-| Mode économie | Matchs chauds (écart < 1.50 ou baisse de cote) toutes les 30 s, calmes toutes les 2 min, écart > 2.00 non scannés. | `scan.hot_interval_seconds`, `scan.calm_interval_seconds`, `scan.hot_gap_threshold`, `scan.no_scan_gap_threshold` |
+| Fréquences (en permanence) | Matchs chauds toutes les 30 s, calmes toutes les 2 min, écart > 2.00 jamais scannés. Chaud = écart < 1.50 ou baisse de la cote suggérée de plus de 5 % (seuil de la tendance). | `scan.hot_interval_seconds`, `scan.calm_interval_seconds`, `scan.hot_gap_threshold`, `scan.no_scan_gap_threshold` |
+| Mode économie | Seuls les matchs chauds sont scannés. | — |
 | Quota nul | « Quota épuisé. Le live est arrêté. Rechargez le quota. » | — |
 | Suivi automatique | Ligues 39, 140, 135, 78, 61, 2, 3 ; seulement avec cotes de score exact et statistiques. | `scan.auto_mode`, `scan.auto_league_ids` |
 
 À confirmer :
 
 1. Écart entre 1.50 et 2.00 : traité comme « calme ».
-2. « Baisse de cote » pour un match chaud : toute variation négative de la cote du score suggéré, sans seuil.
+2. Définition d’un match chaud : écart < 1.50 ou baisse de plus de 5 % (même seuil que la tendance).
 3. Le seuil de 10 % est atteint dès que les requêtes restantes sont inférieures **ou égales** à 10 % (l’annexe cite « 1 000 sur 10 000 » comme moment de l’alerte).
-4. Les fréquences chaud/calme ne s’appliquent qu’en mode économie ; hors économie, le scan garde ses cadences du CDC (cotes 30 s, statistiques 60 s).
+4. Le classement chaud / calme / sans opportunité d’un match vient de son dernier instantané, rafraîchi à chaque passage (30 s) à partir des cotes globales, sans appel supplémentaire : un match qui devient chaud est donc scanné au plus 30 s plus tard. « Scanner » un match = demander ses statistiques (appel facturé) et l’évaluer ; les cotes et la liste live restent lues à chaque passage pour tous les matchs.
 5. Les pronostics pré-match cités par l’annexe n’existent pas en Phase 1 ; rien n’est affiché à ce titre.
 
 ## Les 10 situations de l’annexe (section 7)

@@ -18,9 +18,9 @@ Ces points ne sont plus à fournir : vitalité (barème, bornes incluses, minimu
 - **F121-D à 2-2** : le CDC cite 2-3 et 3-2 ; la situation 9 attend Over 4.5 à 2-2. Quels scores sont des « matchs ouverts » ?
 - **Mode économie** :
   - un écart entre 1.50 et 2.00 est-il bien « calme » ?
-  - une « baisse de cote » sans seuil suffit-elle à rendre un match chaud ?
+  - un match est-il bien chaud dès que l’écart est < 1.50 ou que la cote baisse de plus de 5 % ?
   - l’alerte se déclenche-t-elle à 10 % inclus ?
-  - les fréquences 30 s / 2 min s’appliquent-elles seulement en mode économie ?
+  - en permanence, un match dont l’écart dépasse 2.00 n’est jamais scanné : est-ce voulu hors mode économie ?
 - **Adresse e-mail** pour les alertes de quota : l’annexe cite l’e-mail, il faut une adresse. En attendant, les alertes passent par WhatsApp (Telegram en repli).
 - Les formules de F121-K, F121-T, F121-X, F122, F124 et F126 : ces règles restent « non définies ».
 - Confirmer les cadences de relance après but du TRD (15 secondes pendant 120 secondes).

@@ -80,19 +80,44 @@ class ScanRealStatisticsTest extends TestCase
         $this->assertSame(60.0, $snapshot->vitality_score, 'Tirs 14 : 20 pts, cadrés 4 : 20 pts, possession 60 : 20 pts, corners 3 : 0 pt.');
     }
 
-    public function test_statistics_follow_the_configured_interval(): void
+    public function test_hot_matches_are_scanned_every_30_seconds_outside_economy_mode(): void
     {
         $this->fakeApi();
         $scanner = app(ScanService::class);
 
         $scanner->runOnce(forceRefresh: false);
-        CarbonImmutable::setTestNow('2026-11-11 19:00:30');
-        $scanner->runOnce(forceRefresh: false);
         $this->assertCount(3, $this->statisticsRequests());
 
-        CarbonImmutable::setTestNow('2026-11-11 19:01:00');
+        CarbonImmutable::setTestNow('2026-11-11 19:00:20');
+        $this->assertSame(3, $scanner->runOnce(forceRefresh: false)->matchesNotScanned);
+        $this->assertCount(3, $this->statisticsRequests());
+
+        CarbonImmutable::setTestNow('2026-11-11 19:00:30');
         $scanner->runOnce(forceRefresh: false);
-        $this->assertCount(6, $this->statisticsRequests());
+        $this->assertCount(6, $this->statisticsRequests(), 'Écart 8.60 − 7.50 = 1.10 < 1.50 : matchs chauds, scannés toutes les 30 s.');
+    }
+
+    public function test_frequencies_apply_permanently_hot_30_seconds_calm_2_minutes_no_opportunity_never(): void
+    {
+        $past = CarbonImmutable::now()->subSeconds(30);
+        $this->snapshot('103', ['0-0' => 3.0, '1-0' => 4.0, '0-1' => 9.0], $past);
+        $this->snapshot('106', ['0-0' => 3.0, '1-0' => 4.8, '0-1' => 9.0], $past);
+        $this->snapshot('109', ['0-0' => 3.0, '1-0' => 5.5, '0-1' => 9.0], $past);
+        TrackedMatch::query()->update(['last_scanned_at' => $past]);
+        $this->fakeApi(liveRemaining: 900, limit: 1000);
+
+        $first = app(ScanService::class)->runOnce(forceRefresh: false);
+
+        $this->assertFalse($first->economyMode);
+        $this->assertSame(['103'], $this->statisticsRequests(), '103 chaud et dû ; 106 calme pas encore dû ; 109 écart 2.50 > 2.00 jamais scanné.');
+        $this->assertSame(2, $first->matchesNotScanned);
+
+        TrackedMatch::query()->where('provider_match_id', '106')->update(['last_scanned_at' => CarbonImmutable::now()->subSeconds(120)]);
+        TrackedMatch::query()->where('provider_match_id', '106')->firstOrFail()->snapshots()->update(['exact_score_odds' => ['0-0' => 3.0, '1-0' => 4.8, '0-1' => 9.0]]);
+        TrackedMatch::query()->where('provider_match_id', '109')->firstOrFail()->snapshots()->update(['exact_score_odds' => ['0-0' => 3.0, '1-0' => 5.5, '0-1' => 9.0]]);
+        app(ScanService::class)->runOnce(forceRefresh: false);
+
+        $this->assertSame(['103', '106'], $this->statisticsRequests(), 'Le match calme est scanné après 2 minutes.');
     }
 
     public function test_a_failed_statistics_call_only_marks_that_match_unavailable(): void
@@ -234,26 +259,22 @@ class ScanRealStatisticsTest extends TestCase
         Queue::assertPushed(SendQuotaNotification::class, 1);
     }
 
-    public function test_economy_mode_scans_hot_matches_every_30_seconds_calm_every_2_minutes_and_skips_closed_ones(): void
+    public function test_economy_mode_only_scans_hot_matches(): void
     {
         Queue::fake();
         Cache::put('pronofoot.provider_status', ['football' => ['requestsRemaining' => 50, 'requestsLimit' => 1000]]);
-        $past = CarbonImmutable::now()->subSeconds(60);
+        $past = CarbonImmutable::now()->subSeconds(180);
         $this->snapshot('103', ['0-0' => 3.0, '1-0' => 4.0, '0-1' => 9.0], $past);
         $this->snapshot('106', ['0-0' => 3.0, '1-0' => 4.8, '0-1' => 9.0], $past);
         $this->snapshot('109', ['0-0' => 3.0, '1-0' => 5.5, '0-1' => 9.0], $past);
+        TrackedMatch::query()->update(['last_scanned_at' => $past]);
         $this->fakeApi(liveRemaining: 49, limit: 1000);
 
         $result = app(ScanService::class)->runOnce();
 
         $this->assertTrue($result->economyMode);
-        $this->assertSame(2, $result->skippedByEconomy);
-        $this->assertSame(['103'], $this->statisticsRequests());
-
-        TrackedMatch::query()->where('provider_match_id', '106')->firstOrFail()->snapshots()->update(['captured_at' => CarbonImmutable::now()->subSeconds(120)]);
-        CarbonImmutable::setTestNow('2026-11-11 19:00:30');
-        $scanner = app(ScanService::class);
-        $this->assertSame(1, $scanner->runOnce()->skippedByEconomy, 'Le match calme est scanné après 2 minutes ; le match fermé jamais.');
+        $this->assertSame(2, $result->matchesNotScanned);
+        $this->assertSame(['103'], $this->statisticsRequests(), 'En économie, le match calme 106 n’est pas scanné même après 3 minutes.');
     }
 
     public function test_match_heat_classifies_gap_and_falling_odds(): void
@@ -270,7 +291,9 @@ class ScanRealStatisticsTest extends TestCase
         $this->assertSame('calm', $scanner->matchHeat($snapshot(['0-0' => 3.0, '1-0' => 4.5, '0-1' => 9.0]), 1.5, 2.0));
         $this->assertSame('calm', $scanner->matchHeat($snapshot(['0-0' => 3.0, '1-0' => 5.0, '0-1' => 9.0]), 1.5, 2.0));
         $this->assertSame('none', $scanner->matchHeat($snapshot(['0-0' => 3.0, '1-0' => 5.01, '0-1' => 9.0]), 1.5, 2.0));
-        $this->assertSame('hot', $scanner->matchHeat($snapshot(['0-0' => 3.0, '1-0' => 5.5, '0-1' => 9.0], -1.0), 1.5, 2.0));
+        $this->assertSame('hot', $scanner->matchHeat($snapshot(['0-0' => 3.0, '1-0' => 5.5, '0-1' => 9.0], -5.01), 1.5, 2.0, 5.0));
+        $this->assertSame('none', $scanner->matchHeat($snapshot(['0-0' => 3.0, '1-0' => 5.5, '0-1' => 9.0], -5.0), 1.5, 2.0, 5.0), 'Baisse de 5 % exactement : pas « plus de 5 % ».');
+        $this->assertSame('none', $scanner->matchHeat($snapshot(['0-0' => 3.0, '1-0' => 5.5, '0-1' => 9.0], -1.0), 1.5, 2.0, 5.0));
         $this->assertSame('calm', $scanner->matchHeat(null, 1.5, 2.0));
     }
 

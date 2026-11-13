@@ -44,10 +44,10 @@ const settingLabels = {
   'alerts.level_positive_gap': 'Niveau d’alerte : écart sous le seuil',
   'rules.decision_pipeline': 'Ordre de décision (à confirmer)',
   'scan.quota_economy_percent': 'Seuil d’alerte et mode économie du quota (%)',
-  'scan.hot_interval_seconds': 'Mode économie : fréquence des matchs chauds (secondes)',
-  'scan.calm_interval_seconds': 'Mode économie : fréquence des matchs calmes (secondes)',
-  'scan.hot_gap_threshold': 'Mode économie : écart d’un match chaud',
-  'scan.no_scan_gap_threshold': 'Mode économie : écart sans scan (à confirmer)',
+  'scan.hot_interval_seconds': 'Fréquence des matchs chauds (secondes)',
+  'scan.calm_interval_seconds': 'Fréquence des matchs calmes (secondes)',
+  'scan.hot_gap_threshold': 'Écart d’un match chaud (à confirmer)',
+  'scan.no_scan_gap_threshold': 'Écart au-delà duquel un match n’est pas scanné (à confirmer)',
   'scan.auto_mode': 'Suivi automatique des championnats majeurs',
   'scan.auto_league_ids': 'Ligues suivies automatiquement (identifiants API-Football)',
 }
@@ -74,10 +74,10 @@ const settingDescriptions = {
   'alerts.level_positive_gap': 'Libellé d’une alerte sur écart positif inférieur au seuil.',
   'rules.decision_pipeline': 'Étapes : F121-E2, F121-D, designation, vitality, trend, gap, convergence (facultative).',
   'scan.quota_economy_percent': 'Pourcentage du quota journalier restant qui déclenche l’alerte et le mode économie.',
-  'scan.hot_interval_seconds': 'Match chaud : écart sous le seuil ou cote en baisse.',
-  'scan.calm_interval_seconds': 'Match calme : écart entre le seuil chaud et le seuil sans scan.',
+  'scan.hot_interval_seconds': 'En permanence. Match chaud : écart sous le seuil, ou baisse de la cote suggérée de plus de 5 % (seuil de tendance).',
+  'scan.calm_interval_seconds': 'En permanence, hors mode économie (où seuls les matchs chauds sont scannés).',
   'scan.hot_gap_threshold': 'Écart sous lequel un match est chaud.',
-  'scan.no_scan_gap_threshold': 'Au-delà de cet écart, le match n’est pas scanné en mode économie.',
+  'scan.no_scan_gap_threshold': 'Au-delà de cet écart, le match n’est jamais scanné.',
   'scan.auto_mode': 'Suit tous les matchs des ligues listées ayant les cotes de score exact et les statistiques, en plus du Scan Ciblé.',
   'scan.auto_league_ids': 'Par défaut : Premier League 39, Liga 140, Serie A 135, Bundesliga 78, Ligue 1 61, Ligue des champions 2, Europa League 3.',
 }
@@ -476,7 +476,7 @@ function App() {
                 <article className="active-alerts-panel"><p className="overview-section-label">ALERTES ACTIVES</p><strong>{activeAlerts.length}</strong><p>{activeAlerts.length ? 'Alertes non expirées' : 'Aucune alerte en cours'}</p></article>
               </section>
               {dashboard?.quotaMode === 'exhausted' && <div className="notice notice-warning"><span className="notice-icon"><Icon name="shield" size={18} /></span><div><strong>Quota épuisé. Le live est arrêté. Rechargez le quota.</strong></div></div>}
-              {dashboard?.quotaMode === 'economy' && <div className="notice notice-warning"><span className="notice-icon"><Icon name="shield" size={18} /></span><div><strong>Mode économie du quota</strong><p>Seuls les matchs chauds sont scannés toutes les 30 secondes ; les matchs calmes toutes les 2 minutes.</p></div></div>}
+              {dashboard?.quotaMode === 'economy' && <div className="notice notice-warning"><span className="notice-icon"><Icon name="shield" size={18} /></span><div><strong>Mode économie du quota</strong><p>Seuls les matchs chauds sont scannés ; les matchs calmes attendent le retour du quota.</p></div></div>}
               <section className="content-panel">
                 <div className="panel-heading"><div><h2>Quotas fournisseurs</h2><p>État connu après la dernière consultation.</p></div></div>
                 <div className="quota-grid">{['football', 'odds'].map((provider) => <div className="quota-card" key={provider}><strong>{provider === 'football' ? 'Football' : 'Cotes'}</strong><span>{dashboard?.quotas?.[provider] ?? 'Inconnu'}</span><small>{dashboard?.providerStatus?.[provider]?.message ?? 'Pas encore interrogé'}</small></div>)}</div>

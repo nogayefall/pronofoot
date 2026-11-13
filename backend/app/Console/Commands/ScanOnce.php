@@ -48,7 +48,10 @@ class ScanOnce extends Command
         }
 
         if ($result->economyMode) {
-            $this->warn("Mode économie du quota : {$result->skippedByEconomy} match(s) non scanné(s) à ce passage.");
+            $this->warn('Mode économie du quota : seuls les matchs chauds sont scannés.');
+        }
+        if ($result->matchesNotScanned > 0) {
+            $this->info("Matchs non scannés à ce passage (calmes pas encore dus, sans opportunité ou hors économie) : {$result->matchesNotScanned}");
         }
         if ($result->autoTracked > 0) {
             $this->info("Matchs ajoutés automatiquement : {$result->autoTracked}");

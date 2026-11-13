@@ -34,8 +34,6 @@ final class ScanService
     /** @var list<array{match: string, type: string, reason: string}> */
     private array $incidents = [];
 
-    private ?CarbonImmutable $lastStatisticsFetchAt = null;
-
     private ?OddsFeed $cachedOddsFeed = null;
 
     public function __construct(
@@ -78,16 +76,10 @@ final class ScanService
             is_int($previousFootballStatus['requestsLimit'] ?? null) ? $previousFootballStatus['requestsLimit'] : null,
             $economyPercent,
         ) === QuotaGuard::ECONOMY;
-        $skippedByEconomy = 0;
-        if ($economyMode) {
-            $dueMatches = $this->economySelection($trackedMatches, $settingValues, $now);
-            $skippedByEconomy = count($trackedMatches) - count($dueMatches);
-            $trackedMatches = $dueMatches;
-        }
-
-        $includeStatistics = $forceRefresh
-            || $this->lastStatisticsFetchAt === null
-            || $this->lastStatisticsFetchAt->addSeconds($statisticsInterval)->lessThanOrEqualTo($now);
+        $dueMatches = $this->dueMatches($trackedMatches, $settingValues, $economyMode, $forceRefresh, $now);
+        $dueMatchIds = $dueMatches->pluck('id')->all();
+        $matchesNotScanned = count($trackedMatches) - count($dueMatches);
+        $includeStatistics = $dueMatches->isNotEmpty();
         $footballFeed = $this->fetchFootball(
             $scanNumber,
             $includeStatistics,
@@ -95,6 +87,7 @@ final class ScanService
             $quotaAlertThreshold,
             $now,
             $autoMode ? $autoLeagueIds : null,
+            $dueMatches,
         );
         if ($footballFeed === null) {
             return new ScanPassResult(
@@ -107,10 +100,6 @@ final class ScanService
                 $this->nextPollInterval($settingValues, $now),
                 incidents: $this->incidents,
             );
-        }
-
-        if ($includeStatistics) {
-            $this->lastStatisticsFetchAt = $now;
         }
 
         $this->notifyQuotaTransition($footballFeed->requestsRemaining, $footballFeed->requestsLimit, $economyPercent);
@@ -224,19 +213,27 @@ final class ScanService
             }
 
             $oddsMatch = $oddsMatches[$trackedMatch->provider_match_id] ?? null;
+            $isDue = in_array($trackedMatch->id, $dueMatchIds, true);
             $snapshot = $this->storeSnapshot(
                 $trackedMatch,
                 $footballMatch,
                 $oddsMatch,
-                $includeStatistics,
+                $isDue,
                 $statisticsInterval,
                 $vitalityScale,
                 $now,
             );
             $snapshotsStored++;
 
+            if (! $isDue) {
+                $this->refreshTrendForClassification($trackedMatch, $snapshot, $footballMatch, $oddsMatch, $settingValues, $now);
+
+                continue;
+            }
+
+            $trackedMatch->forceFill(['last_scanned_at' => $now])->save();
             $statisticsFailure = $footballFeed->statisticsFailures[$trackedMatch->provider_match_id] ?? null;
-            if ($includeStatistics && $statisticsFailure !== null) {
+            if ($statisticsFailure !== null) {
                 $this->recordIncident(
                     $trackedMatch,
                     'statistics_unavailable',
@@ -344,52 +341,97 @@ final class ScanService
             $quotaStopped,
             $this->incidents,
             economyMode: $economyMode,
-            skippedByEconomy: $skippedByEconomy,
+            matchesNotScanned: $matchesNotScanned,
             autoTracked: $autoTracked,
         );
     }
 
     /**
-     * Mode économie : matchs chauds (écart sous le seuil chaud ou baisse de cote) à leur fréquence, matchs calmes
-     * à la leur, matchs sans opportunité (écart au-delà du seuil d’arrêt) non scannés. Classement à partir du dernier
-     * instantané ; un match sans instantané exploitable est traité comme calme.
+     * Fréquences de scan permanentes (annexe, section 6) : un match chaud est scanné toutes les 30 s, un match calme
+     * toutes les 2 min, un match sans opportunité (écart au-delà du seuil d’arrêt) n’est pas scanné. En mode économie,
+     * seuls les matchs chauds sont scannés. Le classement vient du dernier instantané, rafraîchi à chaque passage sans
+     * appel supplémentaire ; un match jamais scanné est dû immédiatement (hors économie s’il n’est pas chaud).
+     * « Scanné » signifie : statistiques demandées (appel facturé) puis évaluation par le moteur de règles.
      *
      * @param  Collection<int, TrackedMatch>  $trackedMatches
      * @param  array<string, int|float|bool|array|string|null>  $settings
      * @return Collection<int, TrackedMatch>
      */
-    private function economySelection(Collection $trackedMatches, array $settings, CarbonImmutable $now): Collection
-    {
+    private function dueMatches(
+        Collection $trackedMatches,
+        array $settings,
+        bool $economyMode,
+        bool $forceRefresh,
+        CarbonImmutable $now,
+    ): Collection {
         $hotInterval = $this->settings->integer($settings, 'scan.hot_interval_seconds');
         $calmInterval = $this->settings->integer($settings, 'scan.calm_interval_seconds');
         $hotGap = $this->settings->decimal($settings, 'scan.hot_gap_threshold');
         $noScanGap = $this->settings->decimal($settings, 'scan.no_scan_gap_threshold');
+        $trendThreshold = $this->settings->nullableFloat($settings, 'tendance_seuil_stable');
 
-        return $trackedMatches->filter(function (TrackedMatch $trackedMatch) use ($hotInterval, $calmInterval, $hotGap, $noScanGap, $now): bool {
-            $snapshot = $trackedMatch->snapshots()->latest('captured_at')->first();
-            $heat = $this->matchHeat($snapshot, $hotGap, $noScanGap);
-            if ($heat === 'none') {
+        return $trackedMatches->filter(function (TrackedMatch $trackedMatch) use ($hotInterval, $calmInterval, $hotGap, $noScanGap, $trendThreshold, $economyMode, $forceRefresh, $now): bool {
+            $snapshot = $trackedMatch->snapshots()->latest('captured_at')->latest('id')->first();
+            $heat = $this->matchHeat($snapshot, $hotGap, $noScanGap, $trendThreshold);
+            if ($heat === 'none' || ($economyMode && $heat !== 'hot')) {
                 return false;
             }
 
-            $interval = $heat === 'hot' ? $hotInterval : $calmInterval;
+            if ($forceRefresh || $trackedMatch->last_scanned_at === null) {
+                return true;
+            }
 
-            return $snapshot === null
-                || CarbonImmutable::instance($snapshot->captured_at)->addSeconds($interval)->lessThanOrEqualTo($now);
+            return CarbonImmutable::instance($trackedMatch->last_scanned_at)
+                ->addSeconds($heat === 'hot' ? $hotInterval : $calmInterval)
+                ->lessThanOrEqualTo($now);
         })->values();
+    }
+
+    /**
+     * Instantané d’un match non scanné à ce passage : la tendance est calculée sur les cotes globales déjà reçues,
+     * pour que le classement chaud / calme reste à jour sans appel ni évaluation.
+     *
+     * @param  array<string, int|float|bool|array|string|null>  $settings
+     */
+    private function refreshTrendForClassification(
+        TrackedMatch $trackedMatch,
+        MatchSnapshot $snapshot,
+        FootballMatch $footballMatch,
+        ?OddsMatch $oddsMatch,
+        array $settings,
+        CarbonImmutable $now,
+    ): void {
+        if ($oddsMatch === null || $footballMatch->homeScore === null || $footballMatch->awayScore === null) {
+            return;
+        }
+
+        $suggestedScoreKey = $this->ruleEngine->suggestedExactScoreKey(
+            new RuleInput($footballMatch->homeScore, $footballMatch->awayScore, $oddsMatch->exactScoreOdds),
+            new RuleConfiguration,
+        );
+        $snapshot->forceFill(['odds_change_percent' => $this->calculateTrendChange(
+            $trackedMatch,
+            $oddsMatch->exactScoreOdds,
+            $suggestedScoreKey,
+            $this->settings->nullableString($settings, 'tendance_source'),
+            $this->settings->nullableFloat($settings, 'tendance_seuil_stable'),
+            $now,
+        )])->save();
     }
 
     /**
      * @return 'hot'|'calm'|'none'
      */
-    public function matchHeat(?MatchSnapshot $snapshot, float $hotGap, float $noScanGap): string
+    public function matchHeat(?MatchSnapshot $snapshot, float $hotGap, float $noScanGap, ?float $trendThreshold = null): string
     {
         if ($snapshot === null || ! is_array($snapshot->exact_score_odds)
             || $snapshot->home_score === null || $snapshot->away_score === null) {
             return 'calm';
         }
 
-        $falling = $snapshot->odds_change_percent !== null && (float) $snapshot->odds_change_percent < 0;
+        $falling = $trendThreshold !== null
+            && $snapshot->odds_change_percent !== null
+            && (float) $snapshot->odds_change_percent < -$trendThreshold;
         $gap = $this->ruleEngine->evaluate(
             new RuleInput(
                 homeScore: (int) $snapshot->home_score,
@@ -559,13 +601,14 @@ final class ScanService
         ?int $quotaAlertThreshold,
         CarbonImmutable $now,
         ?array $autoLeagueIds = null,
+        ?Collection $statisticsMatches = null,
     ): ?FootballFeed {
         try {
             $feed = $this->footballProvider->getLiveMatches(
                 scanNumber: $scanNumber,
                 includeStatistics: $includeStatistics,
                 statisticsMatchLimit: null,
-                statisticsMatchIds: $trackedMatches->pluck('provider_match_id')->map(fn ($id): string => (string) $id)->values()->all(),
+                statisticsMatchIds: ($statisticsMatches ?? $trackedMatches)->pluck('provider_match_id')->map(fn ($id): string => (string) $id)->values()->all(),
                 includeCoverage: $autoLeagueIds !== null,
                 quotaAlertThreshold: $quotaAlertThreshold,
                 coverageLeagueIds: $autoLeagueIds,

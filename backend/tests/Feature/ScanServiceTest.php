@@ -291,7 +291,7 @@ class ScanServiceTest extends TestCase
             'minute' => 28,
             'home_score' => 0,
             'away_score' => 0,
-            'exact_score_odds' => ['0-0' => 7.5, '1-0' => 10.0, '0-1' => 9.8],
+            'exact_score_odds' => ['0-0' => 8.6, '1-0' => 10.0, '0-1' => 9.8],
             'second_half_over_under_odds' => [],
             'statistics' => [],
             'odds_captured_at' => $capturedAt,
