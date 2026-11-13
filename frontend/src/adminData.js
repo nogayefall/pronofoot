@@ -151,3 +151,34 @@ export function teamStatisticsRows(teamStatistics) {
     away: format(key, teamStatistics.away?.[key]),
   }))
 }
+
+const JOURNAL_INCIDENTS = {
+  football_data_missing: 'Incident : données du match manquantes',
+  football_provider_unavailable: 'Incident : fournisseur football indisponible',
+  odds_provider_unavailable: 'Incident : fournisseur de cotes indisponible',
+  odds_market_unavailable: 'Incident : marché des scores exacts indisponible',
+  odds_data_missing: 'Incident : cotes du match manquantes',
+  statistics_unavailable: 'Incident : statistiques indisponibles',
+  match_stopped: 'Match arrêté',
+  quota_threshold_reached: 'Quota épuisé',
+  match_processing_error: 'Incident : erreur de traitement',
+}
+
+const JOURNAL_DECISIONS = {
+  alert: 'Alerte',
+  duplicate_suppressed: 'Doublon évité',
+  reevaluate: 'But détecté',
+  invalidated: 'Alerte invalidée',
+  expired: 'Alerte expirée',
+}
+
+/**
+ * Libellé français d'une ligne du Journal, à partir de sa décision et de son type d'événement.
+ */
+export function journalDecisionLabel({ decision, eventType }) {
+  if (decision === 'no_alert') {
+    return eventType === 'evaluation' ? 'Abstention' : (JOURNAL_INCIDENTS[eventType] ?? 'Incident')
+  }
+
+  return JOURNAL_DECISIONS[decision] ?? decision
+}

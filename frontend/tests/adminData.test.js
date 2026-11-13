@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { createRuleTestPayload, parseCorrectScoreOdds, teamStatisticsRows } from '../src/adminData.js'
+import { createRuleTestPayload, parseCorrectScoreOdds, teamStatisticsRows, journalDecisionLabel } from '../src/adminData.js'
 
 test('parseCorrectScoreOdds reads decimal comma and dot formats', () => {
   assert.deepEqual(parseCorrectScoreOdds('0-0 = 7,50\n1-0 : 8.60\n0-1 = 9,80'), {
@@ -61,4 +61,13 @@ test('teamStatisticsRows formats raw team statistics and never turns missing val
     { key: 'possession', label: 'Possession', home: '40 %', away: '60 %' },
   ])
   assert.deepEqual(teamStatisticsRows(null), [])
+})
+
+test('journalDecisionLabel shows French labels instead of internal codes', () => {
+  assert.equal(journalDecisionLabel({ decision: 'no_alert', eventType: 'evaluation' }), 'Abstention')
+  assert.equal(journalDecisionLabel({ decision: 'no_alert', eventType: 'odds_data_missing' }), 'Incident : cotes du match manquantes')
+  assert.equal(journalDecisionLabel({ decision: 'no_alert', eventType: 'inconnu' }), 'Incident')
+  assert.equal(journalDecisionLabel({ decision: 'duplicate_suppressed', eventType: 'evaluation' }), 'Doublon évité')
+  assert.equal(journalDecisionLabel({ decision: 'reevaluate', eventType: 'goal_detected' }), 'But détecté')
+  assert.equal(journalDecisionLabel({ decision: 'alert', eventType: 'evaluation' }), 'Alerte')
 })
