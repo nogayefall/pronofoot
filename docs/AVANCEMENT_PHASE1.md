@@ -1,6 +1,6 @@
 # PronoFoot — Avancement de la Phase 1
 
-Dernière mise à jour : 13 novembre 2026
+Dernière mise à jour : 14 novembre 2026
 
 ## Références et périmètre
 
@@ -201,6 +201,17 @@ L’ordre appliqué est celui de `Claude.md` :
   - 56′ : cotes de score exact absentes du flux à ce passage, incident consigné sans réutiliser d’anciennes cotes.
 - Les alertes sont restées « en file » : `QUEUE_CONNECTION=database` exige `php artisan queue:work` en parallèle du scan pour les envoyer (canal `log` en mode fictif ici).
 - Avec 100 requêtes par jour, 10 minutes de suivi d’un seul match consomment 60 % du quota.
+
+### Module 3.6, acceptation, robustesse, déploiement et sécurité (14 novembre 2026)
+
+Détails et tableaux : [`CONFORMITE_PHASE1.md`](./CONFORMITE_PHASE1.md). Guide du client : [`GUIDE_ADMIN.md`](./GUIDE_ADMIN.md).
+
+- **Module 3.6 (moteur de règles modulaire)** : plusieurs profils (créer, sauvegarder, activer), méthodes et poids par profil (vides tant que non confirmés), seuil de validation par profil, « Tester la combinaison » avec affichage du score de confiance. La convergence est une étape facultative de l’ordre de décision, **désactivée par défaut** (`rules.convergence_enabled`). Le constructeur no-code reste hors Phase 1.
+- **Critères d’acceptation (section 8 du CDC Phase 1)** : tests automatiques pour le délai d’alerte (canal `log`), le refus des trois filtres noté au Journal, le taux de réussite par règle et l’application des paramètres au scan suivant. **Non conforme** tant que le fichier Excel des dix situations manque ; WhatsApp à mesurer quand il sera branché.
+- **Robustesse de `scan:run`** : erreur isolée par match et par passage, reconnexion à la base, arrêt propre (SIGTERM ou `php artisan scan:stop`), limite mémoire relancée par Supervisor, pas d’alerte en double après redémarrage, clés et jetons masqués dans les journaux.
+- **Déploiement** (non effectué) : dossier `deploy/` prêt à copier (`.env.production.example`, Nginx, Supervisor, sauvegarde quotidienne, logrotate, `deploy.sh`), commande `php artisan admin:delete-test` et liste de contrôle avant livraison dans [`DEPLOIEMENT.md`](./DEPLOIEMENT.md).
+- **Sécurité** : codes TOTP non réutilisables, temps de réponse identique pour un email inconnu, Content-Security-Policy avec nonce. Historique Git parcouru : aucun secret.
+- **Journal** : décisions affichées en français (Abstention, Doublon évité, But détecté, Incident…).
 
 ## Guide de démarrage et de test local
 
