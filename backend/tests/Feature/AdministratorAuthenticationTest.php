@@ -25,6 +25,13 @@ class AdministratorAuthenticationTest extends TestCase
             ->assertSee('Code d’authentification');
     }
 
+    public function test_signed_in_administrator_opening_the_login_page_goes_to_the_dashboard_without_a_redirect_loop(): void
+    {
+        $this->actingAs($this->createAdministrator())
+            ->get('/login')
+            ->assertRedirect(route('admin.dashboard'));
+    }
+
     public function test_local_test_administrator_can_sign_in_with_only_email_and_password(): void
     {
         $this->useLocalEnvironment();
