@@ -18,6 +18,8 @@
 /public/fonts-manifest.dev.json
 /public/hot
 /public/admin-assets/hot
+/public/admin-assets/app.js
+/public/admin-assets/app.css
 /public/storage
 /storage/*.key
 /storage/feasibility/

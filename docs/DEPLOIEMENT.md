@@ -33,6 +33,8 @@ mysql --version
    npm run build
    ```
 
+   **La compilation est obligatoire sur le serveur.** Les fichiers `backend/public/admin-assets/app.js` et `app.css` sont produits par `npm run build` et ne sont plus suivis par Git : sans cette étape, l’interface d’administration ne se charge pas. Relancer `npm ci` puis `npm run build` à chaque livraison, avant `php artisan view:cache`. Ne jamais copier le fichier `backend/public/admin-assets/hot` de développement sur le serveur.
+
 2. Créer `backend/.env` depuis [`backend/.env.production.example`](../backend/.env.production.example). Générer une nouvelle clé avec `php artisan key:generate --show`, la placer dans `APP_KEY` sans la publier, puis renseigner l’URL HTTPS, la base et les secrets fournis par le client.
 3. Créer un utilisateur MySQL dédié avec les seuls droits nécessaires sur la base PronoFoot. Ne pas utiliser `root` ni un mot de passe vide.
 4. Préparer les répertoires `storage/` et `bootstrap/cache/` pour l’utilisateur PHP-FPM ; le code applicatif doit rester non modifiable par le processus web.
@@ -161,9 +163,9 @@ Après installation de la configuration Supervisor, relire son état et vérifie
 
 ## Liste de contrôle avant livraison
 
-- [ ] Dix situations de test admin et décisions attendues validées.
-- [ ] Normalisation de vitalité, tendance stable et source de tendance confirmées ; paramètres renseignés uniquement après confirmation.
-- [ ] F121-E tranchée ; règles non définies restent désactivées.
+- [ ] Fichier Excel des dix situations fourni ; situations 2 à 8 validées, incohérences des situations 6 et 7 levées.
+- [ ] Points « à confirmer » de l’annexe tranchés (voir [`DECISIONS_ANNEXE_PHASE1.md`](./DECISIONS_ANNEXE_PHASE1.md)) ; règles non définies restent désactivées.
+- [ ] `npm run build` exécuté sur le serveur ; `backend/public/admin-assets/app.js` et `app.css` présents.
 - [ ] Marché de scores exact Odds confirmé et mapper API-Football validé sur des réponses expurgées ; `feasibility:test` concluant.
 - [ ] Quotas, fréquence réelle, coût par requête et comportement en panne vérifiés.
 - [ ] WhatsApp et son éventuel repli Telegram autorisés et validés, ou notifications conservées en mode fictif.
