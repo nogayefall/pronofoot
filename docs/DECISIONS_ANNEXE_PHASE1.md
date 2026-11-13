@@ -45,7 +45,8 @@ Source : `docs/PRONOFOOT_Annexe_Phase1_Corrigee.pdf` (novembre 2026, « décisio
 2. Définition d’un match chaud : écart < 1.50 ou baisse de plus de 5 % (même seuil que la tendance).
 3. Le seuil de 10 % est atteint dès que les requêtes restantes sont inférieures **ou égales** à 10 % (l’annexe cite « 1 000 sur 10 000 » comme moment de l’alerte).
 4. Le classement chaud / calme / sans opportunité d’un match vient de son dernier instantané, rafraîchi à chaque passage (30 s) à partir des cotes globales, sans appel supplémentaire : un match qui devient chaud est donc scanné au plus 30 s plus tard. « Scanner » un match = demander ses statistiques (appel facturé) et l’évaluer ; les cotes et la liste live restent lues à chaque passage pour tous les matchs.
-5. Les pronostics pré-match cités par l’annexe n’existent pas en Phase 1 ; rien n’est affiché à ce titre.
+5. Tendance calculée à travers un but : la référence d’il y a deux minutes peut précéder le but, ce qui crée une forte « baisse » mécanique (constaté en réel : −26 %). Comportement conservé tel quel, à confirmer.
+6. Les pronostics pré-match cités par l’annexe n’existent pas en Phase 1 ; rien n’est affiché à ce titre.
 
 ## Les 10 situations de l’annexe (section 7)
 

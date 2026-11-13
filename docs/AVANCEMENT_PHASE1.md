@@ -188,6 +188,20 @@ L’ordre appliqué est celui de `Claude.md` :
 - Interface : le texte sur les données fictives n’apparaît plus qu’en simulation ; la vitalité et la tendance suivent l’annexe. Le pilote réel lit l’horaire (`fixture.date`) et ajoute le pays à la compétition (« Primera División · Uruguay »).
 - `backend/public/admin-assets/app.js`, `app.css` et `hot` ne sont plus suivis par Git ; `npm run build` est obligatoire sur le serveur (voir `DEPLOIEMENT.md`).
 
+### Cote Under 2.5 réelle, fréquences permanentes et scan continu réel (13 novembre 2026)
+
+- **Pari 36** capturé en un appel (43 matchs en direct, hors ligues suivies) et copié dans `backend/database/fixtures/api-football/odds-live-bet36.json`. Le pilote lit la valeur `Under` de handicap 2.5 ; il n’appelle le pari 36 que si un match suivi est à la mi-temps.
+- **Fréquences permanentes** : chaud toutes les 30 s, calme toutes les 2 min, écart > 2.00 jamais ; en économie, chauds seulement. Chaque passage rafraîchit l’instantané de tous les matchs suivis sans appel supplémentaire.
+- **`scan:run` réel de 10 minutes** (20 h 51 – 21 h 01) sur Serbie – Allemagne : 24 passages, 24 instantanés, 60 requêtes consommées (quota 89 → 29 sur 100). Journal :
+  - mi-temps (0-2) : abstention, aucune ligne Under 2.5 proposée pour ce match ;
+  - 47′ : **alerte Critique F121-E1** « prochain but Allemagne » (écart 3.75 − 6.00 = −2.25, tendance −6.25 %, vitalité 70) ; les passages suivants sont dédoublonnés ;
+  - de 48′ à 50′ : abstentions « cote stable » (baisse inférieure à 5 %) ;
+  - **but 0-3 à 50′** : alerte précédente invalidée, réévaluation immédiate, nouvelle alerte Critique (écart −1.50, tendance −26.32 %), relance toutes les 15 s pendant 2 minutes ;
+  - de 52′ à 55′ : abstentions « cote stable » ;
+  - 56′ : cotes de score exact absentes du flux à ce passage, incident consigné sans réutiliser d’anciennes cotes.
+- Les alertes sont restées « en file » : `QUEUE_CONNECTION=database` exige `php artisan queue:work` en parallèle du scan pour les envoyer (canal `log` en mode fictif ici).
+- Avec 100 requêtes par jour, 10 minutes de suivi d’un seul match consomment 60 % du quota.
+
 ## Guide de démarrage et de test local
 
 ### 1. Démarrer les deux serveurs et ouvrir la connexion

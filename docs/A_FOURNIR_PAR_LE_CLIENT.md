@@ -21,6 +21,7 @@ Ces points ne sont plus à fournir : vitalité (barème, bornes incluses, minimu
   - un match est-il bien chaud dès que l’écart est < 1.50 ou que la cote baisse de plus de 5 % ?
   - l’alerte se déclenche-t-elle à 10 % inclus ?
   - en permanence, un match dont l’écart dépasse 2.00 n’est jamais scanné : est-ce voulu hors mode économie ?
+- **Tendance après un but** : la tendance compare la cote du score suggéré à celle d’il y a deux minutes, même si un but est tombé entre-temps (scan réel : −26 % juste après le 0-3, dû au but lui-même). Faut-il ignorer les instantanés antérieurs au dernier but ?
 - **Adresse e-mail** pour les alertes de quota : l’annexe cite l’e-mail, il faut une adresse. En attendant, les alertes passent par WhatsApp (Telegram en repli).
 - Les formules de F121-K, F121-T, F121-X, F122, F124 et F126 : ces règles restent « non définies ».
 - Confirmer les cadences de relance après but du TRD (15 secondes pendant 120 secondes).
