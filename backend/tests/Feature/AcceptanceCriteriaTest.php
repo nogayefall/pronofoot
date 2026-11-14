@@ -74,8 +74,10 @@ class AcceptanceCriteriaTest extends TestCase
     public function test_no_alert_when_a_filter_is_refused_and_the_refusal_is_written_in_the_journal(string $providerMatchId, string $filter): void
     {
         $match = $this->track($providerMatchId);
-        if ($filter !== 'trend') {
+        if ($filter === 'vitality') {
             $this->fallingReference($match);
+        } elseif ($filter === 'gap') {
+            $this->fallingReference($match, 1.0);
         }
 
         app(ScanService::class)->runOnce();
@@ -154,7 +156,7 @@ class AcceptanceCriteriaTest extends TestCase
     /**
      * Instantané de référence à −2 min dont toutes les cotes sont 20 % plus hautes : la cote suggérée baisse de plus de 5 %.
      */
-    private function fallingReference(TrackedMatch $match): void
+    private function fallingReference(TrackedMatch $match, float $factor = 1.2): void
     {
         $fixture = json_decode((string) file_get_contents(database_path('fixtures/football.json')), true, flags: JSON_THROW_ON_ERROR);
         $data = collect($fixture['matches'])->firstWhere('id', $match->provider_match_id)['timeline'][0];
@@ -163,7 +165,7 @@ class AcceptanceCriteriaTest extends TestCase
             'minute' => $data['football']['minute'],
             'home_score' => $data['football']['home_score'],
             'away_score' => $data['football']['away_score'],
-            'exact_score_odds' => array_map(fn (float|int $odds): float => round($odds * 1.2, 2), $data['odds']['exact_score_odds']),
+            'exact_score_odds' => array_map(fn (float|int $odds): float => round($odds * $factor, 2), $data['odds']['exact_score_odds']),
             'statistics' => [],
             'odds_captured_at' => $capturedAt,
             'captured_at' => $capturedAt,

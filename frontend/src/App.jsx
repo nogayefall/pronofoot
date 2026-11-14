@@ -15,8 +15,10 @@ const navigation = [
 const ruleDescriptions = [
   { id: 'F121-C', title: 'Écart directionnel', status: 'Disponible', detail: 'Règle configurable selon les seuils validés du CDC.' },
   { id: 'F121-C.2', title: 'Avantage de deux buts', status: 'Disponible', detail: 'Suit le leader lorsque son avantage atteint au moins deux buts.' },
-  { id: 'F121-D', title: 'Match ouvert', status: 'Disponible', detail: 'Cotes des scores suivants ≤ 8.00 : Over 4.5. Liste des scores concernés à confirmer (2-2 ajouté d’après la situation 9).' },
+  { id: 'F121-D', title: 'Match ouvert', status: 'Disponible', detail: 'Au moins 4 buts (à confirmer) et cotes des scores suivants ≤ 8.00 : Over 4.5.' },
+  { id: 'F162-Bis', title: 'Baisse obligatoire', status: 'Disponible', detail: 'Cote du prochain but en baisse de plus de 5 % en 2 minutes : alerte critique, prioritaire sur l’écart.' },
   { id: 'F121-E1', title: 'Écart négatif', status: 'Disponible', detail: 'Cote du prochain but inférieure à celle du score actuel : alerte critique.' },
+  { id: 'F121-G', title: 'Filtre d’abstention', status: 'Disponible', detail: 'Écart positif au-delà de 0.50 sans forte baisse : abstention. Entre 0 et 0.50 : alerte haute.' },
   { id: 'F121-E2', title: 'Signal mi-temps', status: 'Disponible', detail: 'Under 2.5 (total du match, pari API-Football 36) entre 1.15 et 1.40 à la mi-temps : Over 0.5 en 2e mi-temps.' },
   { id: 'F121-K · T · X', title: 'Écarts et tendance', status: 'Non défini', detail: 'La formule exacte doit être fournie avant activation.' },
   { id: 'F122 · F124 · F126', title: 'Règles complémentaires', status: 'Non défini', detail: 'Formules métier à confirmer par le client.' },
@@ -28,9 +30,9 @@ const settingLabels = {
   'scan.goal_interval_seconds': 'Fréquence de détection de but (secondes)',
   'scan.goal_window_seconds': 'Fenêtre de relance après un but (secondes)',
   'alerts.expiration_minutes': 'Expiration des alertes (minutes)',
-  'rules.maximum_directional_gap': 'Écart directionnel maximal',
-  'rules.zero_zero_odds_wait_threshold': 'Seuil de cote du score 0–0',
-  'rules.zero_zero_gap_threshold': 'Seuil d’écart du score 0–0',
+  'rules.maximum_directional_gap': 'F121-A : écart maximal (inactif)',
+  'rules.zero_zero_odds_wait_threshold': 'Règle 0–0 : seuil de cote (inactif)',
+  'rules.zero_zero_gap_threshold': 'Règle 0–0 : seuil d’écart (inactif)',
   'rules.upcoming_score_odds_limit': 'Limite de cote des scores suivants',
   'rules.minimum_vitality': 'Vitalité minimale',
   'rules.minimum_convergence_score': 'Convergence minimale',
@@ -39,7 +41,10 @@ const settingLabels = {
   'rules.vitality_normalization_references': 'Barème de la vitalité',
   'rules.halftime_under25_min': 'F121-E2 : Under 2.5 minimal',
   'rules.halftime_under25_max': 'F121-E2 : Under 2.5 maximal',
-  'rules.open_match_scores': 'F121-D : scores de match ouvert (à confirmer)',
+  'rules.open_match_min_goals': 'F121-D : nombre minimal de buts (à confirmer)',
+  'rules.abstention_gap_threshold': 'F121-G : seuil d’écart d’abstention',
+  'rules.minutes_remaining_enabled': 'Abstention s’il reste peu de minutes (à confirmer)',
+  'rules.minutes_remaining_min': 'Minutes de jeu restantes minimales (à confirmer)',
   'alerts.level_negative_gap': 'Niveau d’alerte : écart négatif',
   'alerts.level_positive_gap': 'Niveau d’alerte : écart sous le seuil',
   'rules.decision_pipeline': 'Ordre de décision (à confirmer)',
@@ -59,18 +64,21 @@ const settingDescriptions = {
   'scan.goal_interval_seconds': 'Fréquence de vérification après un but.',
   'scan.goal_window_seconds': 'Durée de la vérification accélérée après un but.',
   'alerts.expiration_minutes': 'Durée avant qu’une alerte expire.',
-  'rules.maximum_directional_gap': 'Écart maximal accepté pour la direction ciblée.',
-  'rules.zero_zero_odds_wait_threshold': 'Cote de référence pour le score de 0 à 0.',
-  'rules.zero_zero_gap_threshold': 'Écart maximal accepté pour le score de 0 à 0.',
+  'rules.maximum_directional_gap': 'N’intervient plus dans l’ordre de décision du complément 2 ; conservé comme paramètre.',
+  'rules.zero_zero_odds_wait_threshold': 'N’intervient plus dans l’ordre de décision du complément 2 ; conservé comme paramètre.',
+  'rules.zero_zero_gap_threshold': 'N’intervient plus dans l’ordre de décision du complément 2 ; conservé comme paramètre.',
   'rules.upcoming_score_odds_limit': 'Limite de cote pour les scores suivants.',
   'rules.minimum_vitality': 'Niveau minimal de vitalité requis.',
   'rules.minimum_convergence_score': 'Niveau minimal de convergence requis.',
   tendance_source: 'Valeur de cote utilisée pour calculer la tendance.',
-  tendance_seuil_stable: 'Baisse strictement supérieure : validée. Exactement égale : à confirmer (abstention).',
+  tendance_seuil_stable: 'Baisse de plus de ce pourcentage : alerte critique (F162-Bis). Une hausse donne une abstention.',
   'rules.vitality_normalization_references': 'Paliers [minimum inclus, points] par statistique, totaux des deux équipes.',
   'rules.halftime_under25_min': 'Borne basse incluse de la cote Under 2.5 à la mi-temps.',
   'rules.halftime_under25_max': 'Borne haute incluse de la cote Under 2.5 à la mi-temps.',
-  'rules.open_match_scores': 'Scores pour lesquels F121-D s’applique.',
+  'rules.open_match_min_goals': 'Total de buts à partir duquel le score est « élevé » pour F121-D.',
+  'rules.abstention_gap_threshold': 'Au-delà, abstention (F121-G) ; entre 0 exclu et ce seuil inclus, alerte haute.',
+  'rules.minutes_remaining_enabled': 'Règle hors pseudo-code du client, désactivée par défaut.',
+  'rules.minutes_remaining_min': 'Abstention s’il reste moins de ces minutes sur 90.',
   'alerts.level_negative_gap': 'Libellé d’une alerte F121-E1.',
   'alerts.level_positive_gap': 'Libellé d’une alerte sur écart positif inférieur au seuil.',
   'rules.decision_pipeline': 'Étapes : F121-E2, F121-D, designation, vitality, trend, gap. La convergence s’active avec le paramètre dédié.',
@@ -129,10 +137,14 @@ function EmptyState({ icon, title, message }) {
 const decisionStepLabels = {
   'F121-E2': 'Signal mi-temps (F121-E2)',
   'F121-D': 'Match ouvert (F121-D)',
-  designation: 'Désignation de l’équipe (F121-C / C.2)',
+  minutes_remaining: 'Minutes restantes (facultatif)',
+  trend_drop: 'Forte baisse (F162-Bis)',
+  trend_rise: 'Hausse de la cote',
+  gap_negative: 'Écart négatif (F121-E1)',
+  gap_too_high: 'Écart trop grand (F121-G)',
+  gap_small: 'Petit écart (alerte haute)',
+  fin: 'Fin de l’ordre de décision',
   vitality: 'Vitalité',
-  trend: 'Tendance',
-  gap: 'Écart (F121-E1 / seuil)',
   convergence: 'Convergence',
 }
 
@@ -597,7 +609,7 @@ function App() {
           {activePage === 'tester' && (
             <>
               <PageHeading eyebrow="VALIDATION" title="Testeur manuel" description="Évalue un jeu de cotes fourni, sans envoyer de signal ni placer de pari." action={<span className="phase-badge phase-badge-muted"><Icon name="flask" size={15} /> Simulation uniquement</span>} />
-              <div className="notice notice-neutral"><span className="notice-icon"><Icon name="shield" size={18} /></span><div><strong>Les résultats affichés sont une simulation locale</strong><p>Aucun message n’est envoyé. Seule une baisse de plus de 5 % de la cote du score suggéré valide la tendance (annexe du client).</p></div></div>
+              <div className="notice notice-neutral"><span className="notice-icon"><Icon name="shield" size={18} /></span><div><strong>Les résultats affichés sont une simulation locale</strong><p>Aucun message n’est envoyé. Une baisse de plus de 5 % de la cote du score suggéré donne une alerte critique ; une hausse bloque (complément 2 de l’annexe).</p></div></div>
               <div className="tester-layout">
                 <section className="content-panel tester-panel"><div className="panel-heading"><div><h2>Situation du match</h2><p>Saisissez les données du scénario à évaluer.</p></div><span className="manual-tag">F125</span></div>
                   <form className="tester-form" onSubmit={testRules}>

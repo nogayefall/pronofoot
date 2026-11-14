@@ -2,171 +2,172 @@
 
 namespace Tests\Unit;
 
+use App\Rules\EngineResult;
 use App\Rules\FilterResult;
 use App\Rules\RuleConfiguration;
 use App\Rules\RuleEngine;
 use App\Rules\RuleInput;
 use App\Rules\VitalityCalculator;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 
 /**
- * Situations et exemples de l’annexe Phase 1 corrigée (docs/PRONOFOOT_Annexe_Phase1_Corrigee.pdf).
- * Aucune donnée absente de l’annexe n’est inventée : les situations incomplètes attendent le fichier Excel du client.
+ * Les 10 situations de l’annexe Phase 1 (section 7), complétées par le complément 2 (statistiques et cotes à
+ * T−2 min) et par la cote du score actuel de l’annexe 1. Vitalité et tendance sont recalculées à partir des données
+ * brutes, avec l’ordre de décision par défaut du complément 2.
  */
 class AnnexSituationsTest extends TestCase
 {
-    private const PENDING_EXCEL = 'En attente du fichier Excel du client : ';
-
-    public function test_situation_1_como_man_u_halftime_signal(): void
+    /**
+     * @return array<string, array{array<string, mixed>, array<string, mixed>}>
+     */
+    public static function situations(): array
     {
-        $result = (new RuleEngine)->evaluate(
-            new RuleInput(homeScore: 1, awayScore: 0, exactScoreOdds: [], halftime: true, under25Odds: 1.36),
-            new RuleConfiguration,
-        );
-
-        $this->assertTrue($result->shouldAlert);
-        $this->assertSame('F121-E2', $result->decisiveRule);
-        $this->assertSame('Mi-temps', $result->level);
-        $this->assertSame('Over 0.5 buts en 2ème mi-temps', $result->suggestedAction);
+        return [
+            '1 Como – Man U, 45e, mi-temps' => [
+                ['score' => [1, 0], 'odds' => [], 'halftime' => true, 'under25' => 1.36],
+                ['alert' => true, 'rule' => 'F121-E2', 'level' => 'Mi-temps', 'action' => 'Over 0.5 buts en 2ème mi-temps'],
+            ],
+            '2 Real Madrid – Allemagne, 22e' => [
+                ['score' => [0, 0], 'odds' => ['0-0' => 3.66, '1-0' => 3.00, '0-1' => 10.00], 'suggested' => [3.00, 3.10],
+                    'stats' => [[4, 2, 2, 1, 55, 45, 3, 2]], 'vitality' => 50.0],
+                ['alert' => true, 'rule' => 'F121-E1', 'level' => 'Critique', 'selection' => 'home'],
+            ],
+            '3 Grimsby – Cheltenham, 68e' => [
+                ['score' => [1, 1], 'odds' => ['1-1' => 3.19, '2-1' => 3.10, '1-2' => 10.00], 'suggested' => [3.10, 3.10],
+                    'stats' => [[6, 5, 3, 2, 52, 48, 5, 4]], 'vitality' => 70.0],
+                ['alert' => true, 'rule' => 'F121-E1', 'level' => 'Critique', 'selection' => 'home'],
+            ],
+            '4 Vallecano – Villarreal, 62e' => [
+                ['score' => [1, 0], 'odds' => ['1-0' => 3.19, '1-1' => 3.25, '2-0' => 7.50], 'suggested' => [3.25, 3.40],
+                    'stats' => [[5, 8, 2, 4, 45, 55, 4, 6]], 'vitality' => 80.0],
+                ['alert' => true, 'rule' => 'F121-C', 'level' => 'Haute', 'selection' => 'away'],
+            ],
+            '5 Arsenal – Everton, 27e' => [
+                ['score' => [1, 0], 'odds' => ['1-0' => 5.32, '2-0' => 3.25, '1-1' => 8.50], 'suggested' => [3.25, 3.20],
+                    'stats' => [[7, 3, 3, 1, 60, 40, 4, 2]], 'vitality' => 70.0],
+                ['alert' => false, 'reason' => 'La cote monte : abstention.'],
+            ],
+            '6 Arsenal – Everton, 64e' => [
+                ['score' => [1, 0], 'odds' => ['1-0' => 2.92, '2-0' => 3.10, '1-1' => 8.50], 'suggested' => [3.10, 3.75],
+                    'stats' => [[12, 4, 6, 2, 65, 35, 7, 2]], 'vitality' => 100.0],
+                ['alert' => true, 'rule' => 'F162-Bis', 'level' => 'Critique', 'selection' => 'home'],
+            ],
+            '7 Crewe – Wigan, 71e' => [
+                ['score' => [1, 1], 'odds' => ['1-1' => 2.34, '1-2' => 3.20, '2-1' => 9.00], 'suggested' => [3.20, 3.15],
+                    'stats' => [[4, 4, 1, 2, 48, 52, 3, 3]], 'vitality' => 60.0],
+                ['alert' => false, 'reason' => 'La cote monte : abstention.'],
+            ],
+            '8 Rennes – Racing, 51e' => [
+                ['score' => [2, 0], 'odds' => ['2-0' => 4.50, '3-0' => 4.50, '2-1' => 5.50], 'suggested' => [4.50, 4.50],
+                    'stats' => [[8, 4, 4, 2, 58, 42, 5, 2]], 'vitality' => 70.0],
+                ['alert' => false, 'reason' => 'Écart nul : aucune règle satisfaite, abstention.'],
+            ],
+            '9 Atalanta – Frosinone, 43e' => [
+                ['score' => [2, 2], 'odds' => ['2-2' => 8.00, '3-2' => 6.00, '2-3' => 8.00], 'suggested' => [6.00, 6.50],
+                    'stats' => [[10, 7, 5, 3, 55, 45, 6, 4]], 'vitality' => 90.0],
+                ['alert' => true, 'rule' => 'F121-D', 'level' => 'Neutre', 'action' => 'Over 4.5 buts'],
+            ],
+            '10 Zagreb – NEC, 73e' => [
+                ['score' => [2, 3], 'odds' => ['2-3' => 2.448, '3-3' => 3.25, '2-4' => 7.00], 'suggested' => [3.25, 3.40],
+                    'stats' => [[12, 10, 6, 5, 50, 50, 8, 5]], 'vitality' => 90.0],
+                ['alert' => true, 'rule' => 'F121-D', 'level' => 'Neutre', 'action' => 'Over 4.5 buts'],
+            ],
+        ];
     }
 
     /**
-     * L’annexe ne donne ni vitalité ni cote à −2 min : seules les étapes dont elle fournit les données sont évaluées.
+     * @param  array<string, mixed>  $data
+     * @param  array<string, mixed>  $expected
      */
-    public function test_situation_2_real_madrid_negative_gap_is_critical_for_real(): void
+    #[DataProvider('situations')]
+    public function test_each_annex_situation_gives_the_expected_decision(array $data, array $expected): void
     {
-        $result = (new RuleEngine)->evaluate(
-            new RuleInput(homeScore: 0, awayScore: 0, exactScoreOdds: ['0-0' => 3.66, '1-0' => 3.00, '0-1' => 10.00]),
-            new RuleConfiguration(pipeline: ['F121-E2', 'F121-D', 'designation', 'gap']),
+        $vitality = null;
+        if (isset($data['stats'])) {
+            [$homeShots, $awayShots, $homeOnTarget, $awayOnTarget, $homePossession, $awayPossession, $homeCorners, $awayCorners] = $data['stats'][0];
+            $vitality = (new VitalityCalculator)->calculate([
+                'home' => ['shots' => $homeShots, 'shots_on_target' => $homeOnTarget, 'possession' => $homePossession, 'corners' => $homeCorners],
+                'away' => ['shots' => $awayShots, 'shots_on_target' => $awayOnTarget, 'possession' => $awayPossession, 'corners' => $awayCorners],
+            ])['score'];
+            $this->assertSame($data['vitality'], $vitality, 'Vitalité du complément 2 (section 3).');
+        }
+
+        $trend = isset($data['suggested'])
+            ? ($data['suggested'][0] - $data['suggested'][1]) / $data['suggested'][1] * 100
+            : null;
+        $engine = new RuleEngine;
+        $input = new RuleInput(
+            homeScore: $data['score'][0],
+            awayScore: $data['score'][1],
+            exactScoreOdds: $data['odds'],
+            vitalityScore: $vitality,
+            oddsChangePercent: $trend,
+            halftime: $data['halftime'] ?? null,
+            under25Odds: $data['under25'] ?? null,
         );
+        $result = $engine->evaluate($input, new RuleConfiguration);
 
-        $this->assertTrue($result->shouldAlert);
-        $this->assertSame('F121-E1', $result->decisiveRule);
-        $this->assertSame('Critique', $result->level);
-        $this->assertSame('home', $result->selection);
-        $this->assertEqualsWithDelta(-0.66, $result->filters['gap']->details['selectedGap'], 0.0001);
+        $this->assertSame($expected['alert'], $result->shouldAlert, $result->reason);
+        foreach (['rule' => 'decisiveRule', 'level' => 'level', 'selection' => 'selection', 'action' => 'suggestedAction', 'reason' => 'reason'] as $key => $property) {
+            if (array_key_exists($key, $expected)) {
+                $this->assertSame($expected[$key], $result->{$property}, "{$key} : ".$result->reason);
+            }
+        }
+
+        if (isset($data['suggested'])) {
+            $suggestedKey = $engine->suggestedExactScoreKey($input, new RuleConfiguration);
+            $this->assertSame($data['suggested'][0], $data['odds'][$suggestedKey], 'La cote suivie est celle du score suggéré (équipe désignée).');
+        }
     }
 
-    /**
-     * L’annexe ne donne ni vitalité ni cote à −2 min : seules les étapes dont elle fournit les données sont évaluées.
-     */
-    public function test_situation_3_grimsby_negative_gap_is_critical_for_grimsby(): void
+    public function test_situation_6_strong_drop_overrides_the_positive_gap(): void
     {
-        $result = (new RuleEngine)->evaluate(
-            new RuleInput(homeScore: 1, awayScore: 1, exactScoreOdds: ['1-1' => 3.19, '2-1' => 3.10, '1-2' => 10.00]),
-            new RuleConfiguration(pipeline: ['F121-E2', 'F121-D', 'designation', 'gap']),
-        );
+        $result = $this->decide(1, 0, ['1-0' => 2.92, '2-0' => 3.10, '1-1' => 8.50], 100.0, (3.10 - 3.75) / 3.75 * 100);
 
-        $this->assertTrue($result->shouldAlert);
-        $this->assertSame('F121-E1', $result->decisiveRule);
-        $this->assertSame('Critique', $result->level);
-        $this->assertSame('home', $result->selection);
-        $this->assertEqualsWithDelta(-0.09, $result->filters['gap']->details['selectedGap'], 0.0001);
+        $this->assertEqualsWithDelta(0.18, $result->filters['gap']->details['selectedGap'], 0.0001);
+        $this->assertSame('F162-Bis', $result->decisiveRule);
+        $this->assertSame('strong_drop', $result->filters['trend']->details['trend']);
     }
 
-    public function test_situations_2_and_3_need_vitality_and_trend_in_the_full_pipeline(): void
+    public function test_situation_7_rise_blocks_before_f121_g(): void
     {
-        $this->markTestIncomplete(self::PENDING_EXCEL.'situations 2 et 3, vitalité et cote du score suggéré à −2 min absentes de l’annexe.');
+        $result = $this->decide(1, 1, ['1-1' => 2.34, '1-2' => 3.20, '2-1' => 9.00], 60.0, (3.20 - 3.15) / 3.15 * 100);
+
+        $this->assertFalse($result->shouldAlert);
+        $this->assertSame('trend_rise', last($result->steps)['step']);
+        $this->assertFalse($result->filters['gap']->passed, 'L’écart +0.86 > 0.50 serait aussi une abstention (F121-G).');
     }
 
-    public function test_situation_4_vallecano_villarreal(): void
+    public function test_vitality_examples_atletico_dead_and_bayern_alive(): void
     {
-        $this->markTestIncomplete(self::PENDING_EXCEL.'vitalité et cote à −2 min absentes (Alerte Haute attendue).');
-    }
-
-    public function test_situation_5_arsenal_everton_stable(): void
-    {
-        $this->markTestIncomplete(self::PENDING_EXCEL.'vitalité absente et cote à −2 min non chiffrée (abstention « cote stable » attendue).');
-    }
-
-    public function test_situation_6_arsenal_everton_falling(): void
-    {
-        $this->markTestIncomplete(self::PENDING_EXCEL.'vitalité absente. Incohérence : écart 3.10 − 2.92 = +0.18 positif, alors que l’annexe attend une Alerte Critique.');
-    }
-
-    public function test_situation_7_crewe_wigan(): void
-    {
-        $this->markTestIncomplete(self::PENDING_EXCEL.'vitalité et tendance absentes. Incohérence : écart +0.86 < 1.50 donne une Alerte Haute selon l’étape 6, l’annexe attend une abstention.');
-    }
-
-    public function test_situation_8_rennes_racing(): void
-    {
-        $this->markTestIncomplete(self::PENDING_EXCEL.'vitalité et tendance absentes (abstention « écart neutre 0.00 » attendue).');
-    }
-
-    public function test_situation_9_atalanta_frosinone_open_match(): void
-    {
-        $result = (new RuleEngine)->evaluate(
-            new RuleInput(homeScore: 2, awayScore: 2, exactScoreOdds: ['2-2' => 8.00, '3-2' => 6.00, '2-3' => 8.00]),
-            new RuleConfiguration,
-        );
-
-        $this->assertTrue($result->shouldAlert);
-        $this->assertSame('F121-D', $result->decisiveRule);
-        $this->assertSame('Neutre', $result->level);
-        $this->assertSame('Over 4.5 buts', $result->suggestedAction);
-    }
-
-    public function test_situation_10_zagreb_nec_open_match(): void
-    {
-        $result = (new RuleEngine)->evaluate(
-            new RuleInput(homeScore: 2, awayScore: 3, exactScoreOdds: ['2-3' => 2.448, '3-3' => 3.25, '2-4' => 7.00]),
-            new RuleConfiguration,
-        );
-
-        $this->assertTrue($result->shouldAlert);
-        $this->assertSame('F121-D', $result->decisiveRule);
-        $this->assertSame('Over 4.5 buts', $result->suggestedAction);
-    }
-
-    public function test_vitality_example_atletico_osasuna_is_dead(): void
-    {
-        $vitality = (new VitalityCalculator)->calculate([
+        $calculator = new VitalityCalculator;
+        $atletico = $calculator->calculate([
             'home' => ['shots' => 1, 'shots_on_target' => 0, 'possession' => 60, 'corners' => 2],
             'away' => ['shots' => 2, 'shots_on_target' => 1, 'possession' => 40, 'corners' => 1],
         ]);
-
-        $this->assertSame(40.0, $vitality['score']);
-        $this->assertSame(['shots' => 10, 'shots_on_target' => 10, 'possession' => 20, 'corners' => 0], $vitality['points']);
-        $this->assertFalse($this->vitalityPasses($vitality['score']));
-    }
-
-    public function test_vitality_example_bayern_dortmund_is_alive(): void
-    {
-        $vitality = (new VitalityCalculator)->calculate([
+        $bayern = $calculator->calculate([
             'home' => ['shots' => 12, 'shots_on_target' => 6, 'possession' => 55, 'corners' => 7],
             'away' => ['shots' => 8, 'shots_on_target' => 4, 'possession' => 45, 'corners' => 3],
         ]);
 
-        $this->assertSame(90.0, $vitality['score']);
-        $this->assertTrue($this->vitalityPasses($vitality['score']));
-    }
-
-    public function test_vitality_bounds_are_inclusive_and_missing_statistics_are_not_zero(): void
-    {
-        $calculator = new VitalityCalculator;
-        $bounds = $calculator->calculate([
-            'home' => ['shots' => 3, 'shots_on_target' => 1, 'possession' => 50, 'corners' => 4],
-            'away' => ['shots' => 0, 'shots_on_target' => 0, 'possession' => 50, 'corners' => 0],
-        ]);
-        $this->assertSame(40.0, $bounds['score']);
-
+        $this->assertSame(40.0, $atletico['score']);
+        $this->assertSame(90.0, $bayern['score']);
+        $this->assertFalse($this->decide(0, 0, ['0-0' => 3.0, '1-0' => 3.1, '0-1' => 9.0], 40.0, -10.0)->shouldAlert, 'Vitalité ≤ 40 : abstention avant la tendance.');
         $this->assertNull($calculator->calculate([
             'home' => ['shots' => 12, 'shots_on_target' => null, 'possession' => 55, 'corners' => 7],
             'away' => ['shots' => 8, 'shots_on_target' => 4, 'possession' => 45, 'corners' => 3],
         ]));
-        $this->assertNull($calculator->calculate(['shots' => 8, 'shots_on_target' => 4, 'possession' => 56, 'corners' => 3]));
     }
 
-    public function test_trend_examples_from_the_annex(): void
+    public function test_trend_classification(): void
     {
-        $this->assertSame('falling', $this->trend(-6.25)->details['trend']);
-        $this->assertTrue($this->trend(-6.25)->passed);
-        $this->assertFalse($this->trend((3.25 - 3.20) / 3.20 * 100)->passed);
+        $this->assertSame('strong_drop', $this->trend(-6.25)->details['trend']);
+        $this->assertSame('falling', $this->trend(-5.0)->details['trend'], 'Exactement −5 % : pas « plus de 5 % ».');
+        $this->assertSame('stable', $this->trend(0.0)->details['trend']);
         $this->assertSame('rising', $this->trend(1.5)->details['trend']);
-        $this->assertFalse($this->trend(-4.99)->passed);
-        $this->assertSame('threshold', $this->trend(-5.0)->details['trend']);
-        $this->assertFalse($this->trend(-5.0)->passed);
+        $this->assertFalse($this->trend(1.5)->passed);
+        $this->assertTrue($this->trend(-3.2)->passed);
     }
 
     public function test_only_the_halftime_signal_can_alert_during_halftime(): void
@@ -174,25 +175,22 @@ class AnnexSituationsTest extends TestCase
         $engine = new RuleEngine;
         $openMatch = ['2-2' => 8.00, '3-2' => 6.00, '2-3' => 8.00];
 
-        $outOfRange = $engine->evaluate(
+        $this->assertFalse($engine->evaluate(
             new RuleInput(homeScore: 2, awayScore: 2, exactScoreOdds: $openMatch, halftime: true, under25Odds: 1.41),
             new RuleConfiguration,
-        );
-        $this->assertFalse($outOfRange->shouldAlert);
-
-        $lowerBound = $engine->evaluate(
+        )->shouldAlert);
+        $this->assertTrue($engine->evaluate(
             new RuleInput(homeScore: 0, awayScore: 0, exactScoreOdds: [], halftime: true, under25Odds: 1.15),
             new RuleConfiguration,
-        );
-        $this->assertTrue($lowerBound->shouldAlert);
+        )->shouldAlert);
     }
 
-    private function vitalityPasses(float $score): bool
+    private function decide(int $home, int $away, array $odds, float $vitality, float $trend): EngineResult
     {
         return (new RuleEngine)->evaluate(
-            new RuleInput(homeScore: 0, awayScore: 0, exactScoreOdds: [], vitalityScore: $score),
+            new RuleInput(homeScore: $home, awayScore: $away, exactScoreOdds: $odds, vitalityScore: $vitality, oddsChangePercent: $trend),
             new RuleConfiguration,
-        )->filters['vitality']->passed;
+        );
     }
 
     private function trend(float $change): FilterResult

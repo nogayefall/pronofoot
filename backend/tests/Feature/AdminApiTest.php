@@ -183,9 +183,9 @@ class AdminApiTest extends TestCase
         ])->assertUnprocessable();
 
         $this->assertDatabaseMissing('settings', ['key' => 'ecart_negatif_comportement']);
-        $this->assertDatabaseHas('settings', ['key' => 'rules.open_match_scores', 'needs_confirmation' => true]);
+        $this->assertDatabaseHas('settings', ['key' => 'rules.open_match_min_goals', 'value' => '4', 'needs_confirmation' => true]);
         $this->patchJson(route('admin.api.settings.update'), [
-            'settings' => ['rules.open_match_scores' => ''],
+            'settings' => ['rules.open_match_min_goals' => ''],
         ])->assertOk();
         $this->patchJson(route('admin.api.settings.update'), [
             'settings' => ['rules.decision_pipeline' => ['vitality', 'inconnue']],
@@ -197,7 +197,8 @@ class AdminApiTest extends TestCase
         $this->postJson(route('admin.api.settings.reset'))->assertOk();
         $this->assertDatabaseHas('settings', ['key' => 'tendance_source', 'value' => 'cote_suggeree']);
         $this->assertDatabaseHas('settings', ['key' => 'tendance_seuil_stable', 'value' => '5']);
-        $this->assertDatabaseHas('settings', ['key' => 'rules.open_match_scores', 'value' => '["2-2","2-3","3-2"]']);
+        $this->assertDatabaseHas('settings', ['key' => 'rules.open_match_min_goals', 'value' => '4']);
+        $this->assertDatabaseMissing('settings', ['key' => 'rules.open_match_scores']);
     }
 
     public function test_rule_profile_only_accepts_defined_rules_and_persists_weights(): void
@@ -417,6 +418,10 @@ class AdminApiTest extends TestCase
 
         $this->assertNotContains('convergence', $factory->pipeline(['rules.decision_pipeline' => [...RuleConfiguration::DEFAULT_PIPELINE, 'convergence']]));
         $this->assertSame('convergence', last($factory->pipeline(['rules.convergence_enabled' => true])));
+
+        $this->assertDatabaseHas('settings', ['key' => 'rules.minutes_remaining_enabled', 'value' => '0']);
+        $this->assertNotContains('minutes_remaining', $factory->pipeline([]));
+        $this->assertSame(['F121-E2', 'minutes_remaining', 'F121-D'], array_slice($factory->pipeline(['rules.minutes_remaining_enabled' => true]), 0, 3));
     }
 
     public function test_admin_api_is_protected(): void

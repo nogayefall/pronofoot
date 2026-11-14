@@ -63,13 +63,13 @@ Quelques événements fréquents :
 
 | Décision | Signification |
 |---|---|
-| **Alerte Critique** | La cote du prochain but de l’équipe désignée est **plus basse** que la cote du score actuel (écart négatif) : le marché s’attend fortement à un but de cette équipe. |
-| **Alerte Haute** | L’écart est positif mais faible (sous 1,50) : un but de l’équipe désignée est probable. |
+| **Alerte Critique** | Deux cas : la cote du prochain but de l’équipe désignée a **baissé de plus de 5 %** en deux minutes (le bookmaker a eu une information), ou elle est **plus basse** que la cote du score actuel (écart négatif). |
+| **Alerte Haute** | L’écart est positif mais faible (0,50 au plus) : un but de l’équipe désignée est probable. |
 | **Alerte Mi-temps** | À la mi-temps, la cote « moins de 2,5 buts » est entre 1,15 et 1,40 : signal « plus de 0,5 but en 2e mi-temps ». C’est la seule alerte possible pendant la mi-temps. |
 | **Pari neutre (Over 4.5)** | Match très ouvert (par exemple 2-3) où les cotes des scores suivants sont toutes à 8,00 ou moins. |
 | **Abstention** | Aucune alerte. La justification indique pourquoi : match « mort » (vitalité de 40 ou moins), cote stable ou en hausse, écart trop grand ou nul, donnée manquante… |
 
-Une alerte n’est envoyée que si toutes les conditions sont réunies : équipe désignée, vitalité d’au moins 41, cote en baisse de plus de 5 % sur deux minutes, puis écart adapté. L’alerte reçue rappelle le match, la minute, le score, le signal, l’écart, la vitalité, la tendance et l’heure d’expiration.
+L’ordre de vérification est toujours le même : mi-temps, match ouvert (Over 4.5), vitalité (40 ou moins : abstention), forte baisse de la cote (alerte Critique), hausse de la cote (abstention), puis l’écart (négatif : Critique ; au-delà de 0,50 : abstention ; entre 0 et 0,50 : Haute). L’alerte reçue rappelle le match, la minute, le score, le signal, l’écart, la vitalité, la tendance et l’heure d’expiration.
 
 ## 6. Quand le quota est épuisé
 

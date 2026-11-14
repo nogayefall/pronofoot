@@ -8,14 +8,12 @@ Ces points ne sont plus à fournir : vitalité (barème, bornes incluses, minimu
 
 ## Règles et décisions métier encore à confirmer
 
-- **Fichier Excel des dix situations.** L’annexe annonce un fichier Excel complet, non reçu. Il manque la vitalité et la cote du score suggéré à −2 min pour les situations 2 à 8.
-- **Situations 6 et 7**, contraires aux règles écrites :
-  - situation 6 (Arsenal – Everton, 64′) : écart 3.10 − 2.92 = +0.18, positif, alors que la décision attendue est une alerte Critique ;
-  - situation 7 (Crewe – Wigan) : écart +0.86, inférieur à 1.50, qui donne une alerte Haute selon l’ordre de décision, alors que la décision attendue est une abstention.
-- **Ordre de décision** (E2, D, désignation, vitalité, tendance, écart) : déduit des exemples, pas écrit. Il est paramétrable.
+- **Ordre de décision** : le complément 2 donne les données complètes des 10 situations (toutes passent) et un pseudo-code. L’ordre appliqué s’en écarte sur neuf points (F121-E2 en premier, F121-D avant les écarts, étape « hausse », équipe désignée, tendance non calculable…) : voir le tableau de [`DECISIONS_ANNEXE_PHASE1.md`](./DECISIONS_ANNEXE_PHASE1.md). À confirmer.
+- **F162-Bis et filtre d’écart** : une forte baisse déclenche une alerte même si l’écart dépasse 0.50, alors que le CDC Phase 1 exige que les trois filtres soient validés. Est-ce voulu ?
+- **Règle des minutes restantes** (hors pseudo-code) : abstention s’il reste moins de 10 minutes ? Désactivée par défaut.
 - **Convergence** : l’annexe ne la mentionne pas ; elle est calculée mais ne bloque plus les alertes. Faut-il la remettre dans l’ordre de décision ?
-- **Baisse exactement égale à 5 %** : traitée comme une abstention.
-- **F121-D à 2-2** : le CDC cite 2-3 et 3-2 ; la situation 9 attend Over 4.5 à 2-2. Quels scores sont des « matchs ouverts » ?
+- **Baisse exactement égale à 5 %** : pas « plus de 5 % », donc pas de F162-Bis ; le moteur passe à l’écart.
+- **F121-D, score « élevé »** : au moins 4 buts au total (la situation 9 est à 2-2). Seuil à confirmer.
 - **Mode économie** :
   - un écart entre 1.50 et 2.00 est-il bien « calme » ?
   - un match est-il bien chaud dès que l’écart est < 1.50 ou que la cote baisse de plus de 5 % ?

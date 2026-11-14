@@ -10,6 +10,7 @@ use App\Models\Setting;
 use App\Models\TrackedMatch;
 use App\Notifications\NotificationDeliveryFailed;
 use App\Notifications\NotificationDispatcher;
+use App\Rules\RuleConfiguration;
 use App\Services\ScanService;
 use Carbon\CarbonImmutable;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -59,7 +60,7 @@ class ScanServiceTest extends TestCase
         $this->assertSame(0, $first->errors);
         $this->assertSame(0, $second->alertsCreated);
         $this->assertEqualsWithDelta(-14.0, $snapshot->odds_change_percent, 0.001);
-        $this->assertSame('falling', $alert->opportunityLog->filter_results['trend']['details']['trend']);
+        $this->assertSame('strong_drop', $alert->opportunityLog->filter_results['trend']['details']['trend']);
         $this->assertDatabaseCount('alerts', 1);
         $this->assertDatabaseHas('opportunity_logs', [
             'tracked_match_id' => TrackedMatch::query()->firstOrFail()->id,
@@ -273,7 +274,7 @@ class ScanServiceTest extends TestCase
     /**
      * @param  list<string>  $activeRules
      */
-    private function activeProfile(array $activeRules = ['F121-C']): RuleProfile
+    private function activeProfile(array $activeRules = RuleConfiguration::DEFINED_RULES): RuleProfile
     {
         return RuleProfile::query()->create([
             'name' => 'Fake scan test',

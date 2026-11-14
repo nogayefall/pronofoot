@@ -33,10 +33,13 @@ final class SettingsController extends Controller
         'rules.vitality_normalization_references' => '{"shots":[[15,30],[8,20],[3,10]],"shots_on_target":[[6,30],[3,20],[1,10]],"possession":[[60,20],[50,10]],"corners":[[8,20],[4,10]]}',
         'rules.halftime_under25_min' => '1.15',
         'rules.halftime_under25_max' => '1.40',
-        'rules.open_match_scores' => '["2-2","2-3","3-2"]',
+        'rules.open_match_min_goals' => '4',
+        'rules.abstention_gap_threshold' => '0.50',
+        'rules.minutes_remaining_enabled' => '0',
+        'rules.minutes_remaining_min' => '10',
         'alerts.level_negative_gap' => 'Critique',
         'alerts.level_positive_gap' => 'Haute',
-        'rules.decision_pipeline' => '["F121-E2","F121-D","designation","vitality","trend","gap"]',
+        'rules.decision_pipeline' => '["F121-E2","F121-D","vitality","trend_drop","trend_rise","gap_negative","gap_too_high","gap_small"]',
         'scan.quota_economy_percent' => '10',
         'scan.hot_interval_seconds' => '30',
         'scan.calm_interval_seconds' => '120',
@@ -222,7 +225,6 @@ final class SettingsController extends Controller
         match ($setting->key) {
             'rules.vitality_normalization_references' => (new VitalityCalculator)->assertValidScale($value),
             'rules.decision_pipeline' => new RuleConfiguration(pipeline: array_values($value)),
-            'rules.open_match_scores' => new RuleConfiguration(openMatchScores: array_values($value)),
             'scan.auto_league_ids' => $this->assertLeagueIds($value),
             default => null,
         };

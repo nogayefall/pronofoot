@@ -3,7 +3,8 @@
 namespace App\Rules;
 
 /**
- * F121-D (match ouvert) : score dans la liste configurée et cotes des deux scores suivants inférieures ou égales au seuil.
+ * F121-D (match ouvert) : score « élevé » (au moins N buts au total, N à confirmer) et cotes des deux scores
+ * suivants inférieures ou égales au seuil (8.00 inclus) : pari neutre Over 4.5.
  */
 final class F121D
 {
@@ -11,12 +12,12 @@ final class F121D
 
     public function evaluate(RuleInput $input, RuleConfiguration $configuration): RuleResult
     {
-        $currentScore = "{$input->homeScore}-{$input->awayScore}";
-        if (! in_array($currentScore, $configuration->openMatchScores, true)) {
+        $totalGoals = $input->homeScore + $input->awayScore;
+        if ($totalGoals < $configuration->openMatchMinimumGoals) {
             return new RuleResult(
                 ruleId: 'F121-D',
                 verdict: RuleVerdict::NoSignal,
-                reason: "Le score {$currentScore} ne figure pas dans la liste des scores de match ouvert.",
+                reason: "Score de {$totalGoals} but(s) : moins que les {$configuration->openMatchMinimumGoals} buts d’un match ouvert.",
             );
         }
 
@@ -41,6 +42,7 @@ final class F121D
             score: $input->methodScores['F121-D'] ?? null,
             reason: $isCandidate ? null : 'Une cote des scores suivants dépasse le seuil configuré.',
             details: [
+                'totalGoals' => $totalGoals,
                 'homeNextOdds' => (float) $homeNextOdds,
                 'awayNextOdds' => (float) $awayNextOdds,
                 'oddsLimit' => $configuration->upcomingScoreOddsLimit,

@@ -5,9 +5,10 @@ namespace App\Rules;
 /**
  * Moteur de décision Phase 1 : classe pure, sans réseau ni base de données.
  *
- * L’ordre par défaut (à confirmer par le client) : F121-E2 à la mi-temps, F121-D, désignation de l’équipe
- * (F121-C puis F121-C.2), vitalité, tendance, écart (négatif : F121-E1 ; entre 0 et le seuil : alerte haute).
- * F121-E2 et F121-D décident immédiatement ; l’écart propose une alerte que les étapes suivantes peuvent encore refuser.
+ * Ordre par défaut (complément 2 de l’annexe, modifiable) : F121-E2 à la mi-temps, F121-D (match ouvert),
+ * vitalité, forte baisse de la cote suggérée (F162-Bis, prioritaire sur l’écart), hausse de la cote, écart négatif
+ * (F121-E1), écart trop grand (F121-G), petit écart (alerte haute), sinon abstention. La première étape qui décide
+ * l’emporte. L’équipe désignée (F121-C, puis F121-C.2 si une équipe mène de deux buts) fixe le score suggéré.
  */
 final class RuleEngine
 {
@@ -39,7 +40,9 @@ final class RuleEngine
 
         $rules = [];
         foreach ($configuration->activeRules as $ruleId) {
-            $rules[$ruleId] = $available[$ruleId] ?? $this->undefinedRule->evaluate($ruleId);
+            $rules[$ruleId] = $available[$ruleId] ?? ($ruleId === 'F162-Bis'
+                ? new RuleResult('F162-Bis', RuleVerdict::NoSignal, reason: 'Évaluée dans l’ordre de décision (tendance).')
+                : $this->undefinedRule->evaluate($ruleId));
         }
 
         $filters = [
@@ -48,29 +51,38 @@ final class RuleEngine
             'vitality' => $this->vitalityFilter->evaluate($input, $configuration),
         ];
         $convergenceScore = $this->convergenceCalculator->calculate($input->methodScores, $configuration->methodWeights);
-        $result = fn (array $steps, string $reason, ?array $alert = null): EngineResult => new EngineResult(
-            shouldAlert: $alert !== null,
-            convergenceScore: $convergenceScore,
-            rules: $rules,
-            filters: $filters,
-            reason: $reason,
-            steps: $steps,
-            decisiveRule: $alert['rule'] ?? null,
-            level: $alert['level'] ?? null,
-            selection: $alert['selection'] ?? null,
-            suggestedAction: $alert['action'] ?? null,
-        );
-
+        $team = $designation?->verdict === RuleVerdict::Candidate ? ($designation->details['selectedTeam'] ?? null) : null;
+        $gap = $team === null ? null : round((float) $designation->details['selectedGap'], 6);
+        $change = $filters['trend']->details['oddsChangePercent'] ?? null;
         $steps = [];
+
+        $abstain = function (string $step, string $reason) use (&$steps, $rules, $filters, $convergenceScore): EngineResult {
+            $steps[] = ['step' => $step, 'outcome' => 'abstention', 'reason' => $reason];
+
+            return new EngineResult(false, $convergenceScore, $rules, $filters, $reason, $steps);
+        };
+        $alert = function (string $step, string $rule, string $level, ?string $selection, ?string $action, string $reason) use (&$steps, $rules, $filters, $convergenceScore, $configuration, $abstain): EngineResult {
+            if ($selection !== null && in_array('convergence', $configuration->pipeline, true)
+                && ($convergenceScore === null || $convergenceScore <= $configuration->minimumConvergenceScore)) {
+                return $abstain('convergence', $convergenceScore === null
+                    ? 'La convergence ne peut pas être calculée sans les scores et poids définis.'
+                    : 'Le score de convergence ne dépasse pas le seuil configuré.');
+            }
+
+            $steps[] = ['step' => $step, 'outcome' => 'alert', 'reason' => null];
+
+            return new EngineResult(true, $convergenceScore, $rules, $filters, $reason, $steps, $rule, $level, $selection, $action);
+        };
+        $continue = function (string $step, ?string $reason = null) use (&$steps): void {
+            $steps[] = ['step' => $step, 'outcome' => 'continue', 'reason' => $reason];
+        };
+        $needsTeam = fn (): bool => $team !== null;
+
         $halftimeHandled = in_array('F121-E2', $configuration->pipeline, true) && $configuration->isActive('F121-E2');
         if ($input->halftime === true && ! $halftimeHandled) {
-            $reason = 'Match à la mi-temps : seul F121-E2 peut produire une alerte, et cette étape est inactive.';
-            $steps[] = ['step' => 'F121-E2', 'outcome' => 'abstention', 'reason' => $reason];
-
-            return $result($steps, $reason);
+            return $abstain('F121-E2', 'Match à la mi-temps : seul F121-E2 peut produire une alerte, et cette étape est inactive.');
         }
 
-        $pendingAlert = null;
         foreach ($configuration->pipeline as $step) {
             switch ($step) {
                 case 'F121-E2':
@@ -82,116 +94,115 @@ final class RuleEngine
                     }
 
                     if ($rule->verdict === RuleVerdict::Candidate) {
-                        $steps[] = ['step' => $step, 'outcome' => 'alert', 'reason' => null];
-
-                        return $result($steps, 'Signal mi-temps : cote Under 2.5 dans la plage configurée.', [
-                            'rule' => 'F121-E2',
-                            'level' => 'Mi-temps',
-                            'selection' => null,
-                            'action' => $rule->suggestedAction,
-                        ]);
+                        return $alert($step, 'F121-E2', 'Mi-temps', null, $rule->suggestedAction, 'Signal mi-temps : cote Under 2.5 dans la plage configurée.');
                     }
 
-                    $reason = 'Match à la mi-temps sans signal F121-E2 : '.$rule->reason;
-                    $steps[] = ['step' => $step, 'outcome' => 'abstention', 'reason' => $reason];
+                    return $abstain($step, 'Match à la mi-temps sans signal F121-E2 : '.$rule->reason);
 
-                    return $result($steps, $reason);
+                case 'minutes_remaining':
+                    if ($input->minute !== null
+                        && RuleConfiguration::REGULATION_MINUTES - $input->minute < $configuration->minimumMinutesRemaining) {
+                        return $abstain($step, "Il reste moins de {$configuration->minimumMinutesRemaining} minutes de jeu : abstention (règle facultative, à confirmer).");
+                    }
+
+                    $continue($step);
+
+                    break;
 
                 case 'F121-D':
                     $rule = $available['F121-D'];
                     if ($configuration->isActive('F121-D') && $rule->verdict === RuleVerdict::Candidate) {
-                        $steps[] = ['step' => $step, 'outcome' => 'alert', 'reason' => null];
-
-                        return $result($steps, 'Match ouvert : cotes des scores suivants sous le seuil configuré.', [
-                            'rule' => 'F121-D',
-                            'level' => 'Neutre',
-                            'selection' => null,
-                            'action' => $rule->suggestedAction,
-                        ]);
+                        return $alert($step, 'F121-D', 'Neutre', null, $rule->suggestedAction, 'Match ouvert : cotes des scores suivants sous le seuil configuré.');
                     }
 
-                    $steps[] = ['step' => $step, 'outcome' => 'continue', 'reason' => $rule->reason];
-
-                    break;
-
-                case 'designation':
-                    if ($designation === null || $designation->verdict !== RuleVerdict::Candidate) {
-                        $reason = $designation?->reason ?? 'F121-C est inactive : aucune équipe désignée.';
-                        $steps[] = ['step' => $step, 'outcome' => 'abstention', 'reason' => $reason];
-
-                        return $result($steps, 'Aucune équipe désignée : '.$reason);
-                    }
-
-                    $steps[] = ['step' => $step, 'outcome' => 'continue', 'reason' => null];
+                    $continue($step, $rule->reason);
 
                     break;
 
                 case 'vitality':
-                case 'trend':
-                    $filter = $filters[$step];
-                    if (! $filter->passed) {
-                        $steps[] = ['step' => $step, 'outcome' => 'abstention', 'reason' => $filter->reason];
-
-                        return $result($steps, (string) $filter->reason);
+                    if (! $filters['vitality']->passed) {
+                        return $abstain($step, (string) $filters['vitality']->reason);
                     }
 
-                    $steps[] = ['step' => $step, 'outcome' => 'continue', 'reason' => null];
+                    $continue($step);
 
                     break;
 
-                case 'gap':
-                    $e1 = $available['F121-E1'];
-                    $team = $designation?->details['selectedTeam'] ?? null;
-                    if ($configuration->isActive('F121-E1') && $e1->verdict === RuleVerdict::Candidate) {
-                        $pendingAlert = [
-                            'rule' => 'F121-E1',
-                            'level' => $configuration->negativeGapLevel,
-                            'selection' => $team,
-                            'action' => 'Prochain but',
-                            'reason' => 'Écart négatif : le bookmaker attend un but de l’équipe désignée.',
-                        ];
-                    } elseif ($filters['gap']->passed && $designation !== null) {
-                        $pendingAlert = [
-                            'rule' => $designation->ruleId,
-                            'level' => $configuration->positiveGapLevel,
-                            'selection' => $team,
-                            'action' => 'Prochain but',
-                            'reason' => 'Écart positif sous le seuil configuré.',
-                        ];
-                    } else {
-                        $reason = (float) ($designation?->details['selectedGap'] ?? 0) < 0
-                            ? 'Écart négatif, mais F121-E1 est inactive.'
-                            : (string) $filters['gap']->reason;
-                        $steps[] = ['step' => $step, 'outcome' => 'abstention', 'reason' => $reason];
-
-                        return $result($steps, $reason);
+                case 'trend_drop':
+                    if (! $needsTeam()) {
+                        return $abstain($step, 'Aucune équipe désignée : '.($designation?->reason ?? 'F121-C est inactive.'));
                     }
 
-                    $steps[] = ['step' => $step, 'outcome' => 'proposal', 'reason' => $pendingAlert['reason']];
+                    if ($change === null) {
+                        return $abstain($step, (string) $filters['trend']->reason);
+                    }
+
+                    if ($configuration->isActive('F162-Bis') && $change < -(float) $configuration->stableOddsChangePercent) {
+                        return $alert($step, 'F162-Bis', $configuration->negativeGapLevel, $team, 'Prochain but', 'Forte baisse de la cote du prochain but : le bookmaker a eu une information (F162-Bis).');
+                    }
+
+                    $continue($step);
+
+                    break;
+
+                case 'trend_rise':
+                    if ($change === null) {
+                        return $abstain($step, (string) $filters['trend']->reason);
+                    }
+
+                    if ($change > 0) {
+                        return $abstain($step, 'La cote monte : abstention.');
+                    }
+
+                    $continue($step);
+
+                    break;
+
+                case 'gap_negative':
+                    if (! $needsTeam()) {
+                        return $abstain($step, 'Aucune équipe désignée : '.($designation?->reason ?? 'F121-C est inactive.'));
+                    }
+
+                    if ($gap < 0) {
+                        if (! $configuration->isActive('F121-E1')) {
+                            return $abstain($step, 'Écart négatif, mais F121-E1 est inactive.');
+                        }
+
+                        return $alert($step, 'F121-E1', $configuration->negativeGapLevel, $team, 'Prochain but', 'Écart négatif : le bookmaker attend un but de l’équipe désignée.');
+                    }
+
+                    $continue($step);
+
+                    break;
+
+                case 'gap_too_high':
+                    if ($needsTeam() && $gap > $configuration->abstentionGapThreshold) {
+                        return $abstain($step, 'Écart positif supérieur au seuil d’abstention (F121-G).');
+                    }
+
+                    $continue($step);
+
+                    break;
+
+                case 'gap_small':
+                    if ($needsTeam() && $gap > 0 && $gap <= $configuration->abstentionGapThreshold) {
+                        return $alert($step, $designation->ruleId, $configuration->positiveGapLevel, $team, 'Prochain but', 'Petit écart positif : un but de l’équipe désignée est probable.');
+                    }
+
+                    $continue($step);
 
                     break;
 
                 case 'convergence':
-                    if ($convergenceScore === null || $convergenceScore <= $configuration->minimumConvergenceScore) {
-                        $reason = $convergenceScore === null
-                            ? 'La convergence ne peut pas être calculée sans les scores et poids définis.'
-                            : 'Le score de convergence ne dépasse pas le seuil configuré.';
-                        $steps[] = ['step' => $step, 'outcome' => 'abstention', 'reason' => $reason];
-
-                        return $result($steps, $reason);
-                    }
-
-                    $steps[] = ['step' => $step, 'outcome' => 'continue', 'reason' => null];
+                    $steps[] = ['step' => $step, 'outcome' => 'non_applicable', 'reason' => 'Appliquée au moment d’une alerte sur une équipe.'];
 
                     break;
             }
         }
 
-        if ($pendingAlert === null) {
-            return $result($steps, 'Aucune étape de décision n’a produit d’alerte.');
-        }
-
-        return $result($steps, $pendingAlert['reason'], $pendingAlert);
+        return $abstain('fin', $gap !== null && $gap == 0.0
+            ? 'Écart nul : aucune règle satisfaite, abstention.'
+            : 'Aucune règle satisfaite : abstention.');
     }
 
     public function suggestedExactScoreKey(RuleInput $input, RuleConfiguration $configuration): ?string

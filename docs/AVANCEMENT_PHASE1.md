@@ -213,6 +213,14 @@ Détails et tableaux : [`CONFORMITE_PHASE1.md`](./CONFORMITE_PHASE1.md). Guide d
 - **Sécurité** : codes TOTP non réutilisables, temps de réponse identique pour un email inconnu, Content-Security-Policy avec nonce. Historique Git parcouru : aucun secret.
 - **Journal** : décisions affichées en français (Abstention, Doublon évité, But détecté, Incident…).
 
+### Complément 2 de l’annexe : ordre de décision et 10 situations (15 novembre 2026)
+
+- Nouvel ordre de décision (paramètre `rules.decision_pipeline`) : F121-E2 à la mi-temps, F121-D (au moins 4 buts, à confirmer ; cotes à venir ≤ 8.00), vitalité ≤ 40, forte baisse de plus de 5 % (F162-Bis, alerte Critique prioritaire sur l’écart), hausse (abstention), écart négatif (F121-E1, Critique), écart > 0.50 (F121-G, abstention), 0 < écart ≤ 0.50 (Haute), sinon abstention.
+- La tendance n’exige plus une forte baisse : seule une hausse bloque. F121-A (1.50) et la règle 0-0 restent des paramètres inactifs.
+- Règle facultative « abstention s’il reste moins de N minutes de jeu » (N = 10), désactivée par défaut, à confirmer.
+- `AnnexSituationsTest` : les 10 situations, avec statistiques et cotes à T−2 min du complément 2, passent toutes ; plus aucun test en attente.
+- Les écarts avec le pseudo-code du client sont listés dans [`DECISIONS_ANNEXE_PHASE1.md`](./DECISIONS_ANNEXE_PHASE1.md).
+
 ## Guide de démarrage et de test local
 
 ### 1. Démarrer les deux serveurs et ouvrir la connexion
@@ -320,8 +328,7 @@ Les tests automatisés ne remplacent pas les dix situations complètes avec déc
 ### Règles et décisions client à obtenir
 
 - Liste complète et à jour : [`A_FOURNIR_PAR_LE_CLIENT.md`](./A_FOURNIR_PAR_LE_CLIENT.md).
-- Fournir le fichier Excel des dix situations (vitalité et cote à −2 min manquantes pour les situations 2 à 8) et expliquer les situations 6 et 7.
-- Confirmer l’ordre de décision, la place de la convergence, le cas d’une baisse exactement égale à 5 % et la liste des scores de F121-D (2-2).
+- Confirmer les écarts entre l’ordre de décision appliqué et le pseudo-code du complément 2, le seuil de 4 buts de F121-D, la règle facultative des minutes restantes et la place de la convergence.
 - Confirmer les points du mode économie (écart entre 1.50 et 2.00, définition d’une baisse de cote, 10 % inclus, fréquences hors économie) et fournir l’adresse e-mail des alertes de quota.
 - Capturer le pari 36 pendant un match des ligues suivies pour brancher la cote Under 2.5 réelle (F121-E2).
 - Définir les formules manquantes de F121-K, F121-T, F121-X, F122, F124 et F126 avant de les activer.

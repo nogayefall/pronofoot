@@ -3,8 +3,9 @@
 namespace App\Rules;
 
 /**
- * Tendance de la cote du score suggéré : seule une baisse strictement supérieure au seuil valide le filtre.
- * Stable (variation inférieure au seuil) ou hausse : abstention. Baisse exactement égale au seuil : à confirmer, abstention.
+ * Tendance de la cote du score suggéré sur 2 minutes (complément 2) : seule une hausse bloque.
+ * Une baisse de plus du seuil (5 %) est une « forte baisse » qui déclenche F162-Bis dans l’ordre de décision.
+ * Une tendance non calculable (pas d’instantané à −2 min) donne une abstention, à confirmer.
  */
 final class TrendFilter
 {
@@ -20,22 +21,14 @@ final class TrendFilter
         }
 
         $details = ['oddsChangePercent' => $change, 'thresholdPercent' => $threshold];
-        if (abs($change + $threshold) < 1e-9) {
-            return new FilterResult(
-                false,
-                'Baisse exactement égale au seuil : cas à confirmer par le client, abstention.',
-                [...$details, 'trend' => 'threshold'],
-            );
+        if ($change > 0) {
+            return new FilterResult(false, 'La cote monte : abstention.', [...$details, 'trend' => 'rising']);
         }
 
-        if ($change < -$threshold) {
-            return new FilterResult(true, details: [...$details, 'trend' => 'falling']);
-        }
-
-        return new FilterResult(
-            false,
-            $change > 0 ? 'La cote monte : abstention.' : 'La cote est stable : abstention.',
-            [...$details, 'trend' => $change > 0 ? 'rising' : 'stable'],
-        );
+        return new FilterResult(true, details: [...$details, 'trend' => match (true) {
+            $change < -$threshold => 'strong_drop',
+            $change < 0 => 'falling',
+            default => 'stable',
+        }]);
     }
 }

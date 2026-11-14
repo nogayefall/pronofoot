@@ -97,14 +97,15 @@ class ProviderPilotsTest extends TestCase
                 methodScores: ['F121-C' => 82],
             ),
             new RuleConfiguration(
-                activeRules: ['F121-C'],
+                activeRules: RuleConfiguration::DEFINED_RULES,
                 trendSource: 'cote_suggeree',
                 stableOddsChangePercent: 3.0,
                 methodWeights: ['F121-C' => 1.0],
             ),
         );
 
-        $this->assertTrue($result->filters['gap']->passed);
+        $this->assertFalse($result->filters['gap']->passed, 'Écart 1.10 > 0.50 : seule la forte baisse (F162-Bis) déclenche.');
+        $this->assertSame('F162-Bis', $result->decisiveRule);
         $this->assertTrue($result->filters['trend']->passed);
         $this->assertTrue($result->filters['vitality']->passed);
         $this->assertTrue($result->shouldAlert);
@@ -129,11 +130,11 @@ class ProviderPilotsTest extends TestCase
                     awayScore: $footballMatch->awayScore,
                     exactScoreOdds: $oddsMatch->exactScoreOdds,
                     vitalityScore: $footballMatch->vitalityScore,
-                    oddsChangePercent: $scenario === 'trend-data-missing' ? null : -6.0,
+                    oddsChangePercent: $scenario === 'trend-data-missing' ? null : -1.0,
                     methodScores: ['F121-C' => 82],
                 ),
                 new RuleConfiguration(
-                    activeRules: ['F121-C'],
+                    activeRules: RuleConfiguration::DEFINED_RULES,
                     trendSource: 'cote_suggeree',
                     stableOddsChangePercent: 3.0,
                     methodWeights: ['F121-C' => 1.0],

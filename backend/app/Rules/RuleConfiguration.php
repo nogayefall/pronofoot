@@ -7,19 +7,50 @@ use InvalidArgumentException;
 final readonly class RuleConfiguration
 {
     /**
-     * Ordre de décision lu dans les exemples du client (à confirmer). « convergence » est une étape facultative.
+     * Ordre de décision du complément 2 de l’annexe (modifiable dans les paramètres) :
+     * E2 à la mi-temps, F121-D, vitalité, forte baisse (F162-Bis), hausse, écart négatif (F121-E1),
+     * écart trop grand (F121-G), petit écart (alerte haute), sinon abstention.
      */
-    public const DEFAULT_PIPELINE = ['F121-E2', 'F121-D', 'designation', 'vitality', 'trend', 'gap'];
+    public const DEFAULT_PIPELINE = [
+        'F121-E2',
+        'F121-D',
+        'vitality',
+        'trend_drop',
+        'trend_rise',
+        'gap_negative',
+        'gap_too_high',
+        'gap_small',
+    ];
 
-    public const PIPELINE_STEPS = ['F121-E2', 'F121-D', 'designation', 'vitality', 'trend', 'gap', 'convergence'];
+    /**
+     * Étapes facultatives : « minutes_remaining » (désactivée par défaut) et « convergence » (désactivée par défaut).
+     */
+    public const PIPELINE_STEPS = [
+        'F121-E2',
+        'minutes_remaining',
+        'F121-D',
+        'vitality',
+        'trend_drop',
+        'trend_rise',
+        'gap_negative',
+        'gap_too_high',
+        'gap_small',
+        'convergence',
+    ];
 
-    public const DEFINED_RULES = ['F121-E2', 'F121-D', 'F121-C', 'F121-C.2', 'F121-E1'];
+    public const DEFINED_RULES = ['F121-E2', 'F121-D', 'F121-C', 'F121-C.2', 'F162-Bis', 'F121-E1'];
+
+    /**
+     * Durée réglementaire utilisée par la règle facultative des minutes restantes.
+     */
+    public const REGULATION_MINUTES = 90;
 
     /**
      * @param  list<string>  $activeRules
      * @param  array<string, int|float>  $methodWeights
-     * @param  list<string>  $openMatchScores
      * @param  list<string>  $pipeline
+     * @param  float  $maximumDirectionalGap  F121-A (1.50) : paramètre conservé mais inactif dans l’ordre du complément 2.
+     * @param  float  $stableOddsChangePercent  Seuil de forte baisse de la tendance (5 %).
      */
     public function __construct(
         public array $activeRules = self::DEFINED_RULES,
@@ -32,12 +63,14 @@ final readonly class RuleConfiguration
         public ?float $stableOddsChangePercent = 5.0,
         public float $minimumConvergenceScore = 75.0,
         public array $methodWeights = [],
-        public array $openMatchScores = ['2-2', '2-3', '3-2'],
+        public int $openMatchMinimumGoals = 4,
         public float $halftimeUnderMinimum = 1.15,
         public float $halftimeUnderMaximum = 1.40,
         public string $negativeGapLevel = 'Critique',
         public string $positiveGapLevel = 'Haute',
         public array $pipeline = self::DEFAULT_PIPELINE,
+        public float $abstentionGapThreshold = 0.50,
+        public int $minimumMinutesRemaining = 10,
     ) {
         foreach ([
             'maximumDirectionalGap' => $maximumDirectionalGap,
@@ -48,6 +81,7 @@ final readonly class RuleConfiguration
             'minimumConvergenceScore' => $minimumConvergenceScore,
             'halftimeUnderMinimum' => $halftimeUnderMinimum,
             'halftimeUnderMaximum' => $halftimeUnderMaximum,
+            'abstentionGapThreshold' => $abstentionGapThreshold,
         ] as $name => $value) {
             if (! is_finite($value) || $value < 0) {
                 throw new InvalidArgumentException("Le paramètre {$name} doit être un nombre positif ou nul.");
@@ -67,15 +101,13 @@ final readonly class RuleConfiguration
             throw new InvalidArgumentException('Le seuil de tendance doit être un nombre positif ou nul.');
         }
 
+        if ($openMatchMinimumGoals < 0 || $minimumMinutesRemaining < 0) {
+            throw new InvalidArgumentException('Le nombre de buts et de minutes doit être positif ou nul.');
+        }
+
         foreach ($activeRules as $ruleId) {
             if (! is_string($ruleId) || $ruleId === '') {
                 throw new InvalidArgumentException('Chaque identifiant de règle active doit être une chaîne non vide.');
-            }
-        }
-
-        foreach ($openMatchScores as $score) {
-            if (! is_string($score) || preg_match('/^\d{1,2}-\d{1,2}$/', $score) !== 1) {
-                throw new InvalidArgumentException('Chaque score de match ouvert doit avoir la forme « 2-3 ».');
             }
         }
 

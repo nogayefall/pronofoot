@@ -327,6 +327,7 @@ class ScanService
                         methodScores: $footballMatch->methodScores,
                         halftime: $halftime,
                         under25Odds: $oddsMatch->under25Odds,
+                        minute: $footballMatch->minute,
                     ),
                     $configuration,
                 );
