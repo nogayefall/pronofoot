@@ -221,6 +221,13 @@ Détails et tableaux : [`CONFORMITE_PHASE1.md`](./CONFORMITE_PHASE1.md). Guide d
 - `AnnexSituationsTest` : les 10 situations, avec statistiques et cotes à T−2 min du complément 2, passent toutes ; plus aucun test en attente.
 - Les écarts avec le pseudo-code du client sont listés dans [`DECISIONS_ANNEXE_PHASE1.md`](./DECISIONS_ANNEXE_PHASE1.md).
 
+### Tendance après un but, Journal « pas de scan », pages d’erreur (14 novembre 2026)
+
+- **Tendance après un but** (à confirmer) : les relevés antérieurs au dernier but sont ignorés pour la variation sur 2 minutes (F162-Bis et hausse). La tendance est non calculable, donc abstention, jusqu’à 2 minutes après le but. Un test reproduit la « baisse » de −26 % constatée juste après le 0-3 de Serbie – Allemagne : aucune alerte.
+- **Journal** (à confirmer) : une ligne « Pas de scan » quand un match dépasse l’écart de 2.00, une ligne « Scan repris » quand il redescend, rien entre les deux.
+- **Pages d’erreur 419 et 500** en français, lisibles sous la Content-Security-Policy (styles avec le nonce de la requête), sans divulguer le détail de l’erreur.
+- **Quota** : plan API-Football Pro = 7 500 requêtes par jour ; PronoFoot lit le quota dans les en-têtes, aucun réglage n’est nécessaire.
+
 ## Guide de démarrage et de test local
 
 ### 1. Démarrer les deux serveurs et ouvrir la connexion

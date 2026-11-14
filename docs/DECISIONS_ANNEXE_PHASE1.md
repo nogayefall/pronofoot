@@ -58,7 +58,8 @@ Autres points à confirmer :
 
 - Une baisse de **exactement** 5 % n’est pas « plus de 5 % » : pas de F162-Bis, le moteur passe à l’écart.
 - Avec F162-Bis prioritaire, une forte baisse donne une alerte même si l’écart dépasse 0.50 : le « filtre » d’écart ne bloque plus dans ce cas, contrairement au critère d’acceptation du CDC Phase 1 (« aucune alerte si un des 3 filtres n’est pas validé »).
-- Tendance calculée à travers un but : la référence d’il y a deux minutes peut précéder le but, ce qui crée une forte « baisse » mécanique (constaté en réel : −26 %). Avec F162-Bis, cela déclenche une alerte Critique juste après un but.
+- **Tendance après un but (à confirmer)** : pour la variation sur 2 minutes (F162-Bis et hausse), tous les relevés antérieurs au dernier but détecté sont ignorés. Juste après un but, la tendance est non calculable, donc abstention ; elle redevient calculable 2 minutes après le but, sur un relevé postérieur au but. Sans cette règle, le scan réel du 13 novembre 2026 aurait donné une alerte Critique sur une « baisse » de −26 % causée par le but lui-même (test : `test_a_mechanical_drop_just_after_a_goal_does_not_create_an_alert`).
+- **Journal « pas de scan » (à confirmer)** : une seule ligne quand un match passe en « pas de scan » (écart supérieur à 2.00), et une autre quand il en sort ; rien entre les deux.
 
 ## Cote Under 2.5 réelle (pari 36)
 
@@ -68,9 +69,11 @@ Branchée d’après la capture réelle `backend/database/fixtures/api-football/
 
 | Sujet | Application | Paramètre |
 |---|---|---|
-| Seuil d’alerte | 10 % du quota journalier (`x-ratelimit-requests-limit`) ; alerte unique par le canal de notification. E-mail hors périmètre sans adresse fournie. | `scan.quota_economy_percent` |
+| Quota | Lu à chaque appel dans les en-têtes `x-ratelimit-requests-limit` (quota du jour) et `x-ratelimit-requests-remaining` (restant). Le plan API-Football Pro donne 7 500 requêtes par jour ; le compte de test actuel en donne 100. | — |
+| Seuil d’alerte | 10 % du quota journalier lu dans l’en-tête (750 requêtes avec le plan Pro) ; alerte unique par le canal de notification. E-mail hors périmètre sans adresse fournie. | `scan.quota_economy_percent` |
 | Fréquences (en permanence) | Matchs chauds toutes les 30 s, calmes toutes les 2 min, écart > 2.00 jamais scannés. Chaud = écart < 1.50 ou baisse de la cote suggérée de plus de 5 %. | `scan.hot_interval_seconds`, `scan.calm_interval_seconds`, `scan.hot_gap_threshold`, `scan.no_scan_gap_threshold` |
 | Mode économie | Seuls les matchs chauds sont scannés. | — |
+| Pas de scan | Écart > 2.00 : match non scanné ; une ligne au Journal à l’entrée dans cet état et une à la sortie (à confirmer). | `scan.no_scan_gap_threshold` |
 | Quota nul | « Quota épuisé. Le live est arrêté. Rechargez le quota. » | — |
 | Suivi automatique | Ligues 39, 140, 135, 78, 61, 2, 3 ; seulement avec cotes de score exact et statistiques. | `scan.auto_mode`, `scan.auto_league_ids` |
 

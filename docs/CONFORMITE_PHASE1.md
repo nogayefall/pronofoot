@@ -20,6 +20,22 @@ Référence : `PRONOFOOT_CDC_V9.1.pdf`, section 4.1. Le constructeur de règles 
 
 À confirmer : le score de chaque méthode (0–100). Le CDC dit « chaque méthode donne un verdict et un score » sans formule ; en scan réel, aucune méthode ne produit de score, donc le score de confiance reste « non calculé » et l’étape convergence, si on l’active, provoque l’abstention.
 
+## Ordre de décision appliqué (complément 2 de l’annexe)
+
+| Étape | Condition | Décision |
+|---|---|---|
+| 1. F121-E2 | Mi-temps, Under 2.5 entre 1.15 et 1.40 inclus | **Alerte Mi-temps** (Over 0.5 en 2e MT) ; à la mi-temps, aucune autre alerte |
+| 2. F121-D | Au moins 4 buts (à confirmer) et cotes des deux scores suivants ≤ 8.00 | **Pari neutre** Over 4.5 |
+| 3. Vitalité | ≤ 40 ou non calculable | Abstention |
+| 4. F162-Bis | Baisse de la cote du score suggéré de plus de 5 % en 2 minutes | **Alerte Critique** (prioritaire sur l’écart) |
+| 5. Hausse | Variation > 0, ou tendance non calculable (par exemple dans les 2 minutes qui suivent un but) | Abstention |
+| 6. F121-E1 | Écart < 0 | **Alerte Critique** |
+| 7. F121-G | Écart > 0.50 | Abstention |
+| 8. Petit écart | 0 < écart ≤ 0.50 | **Alerte Haute** |
+| 9. Sinon | Écart nul | Abstention |
+
+Libellés : « Alerte Critique » et « Alerte Haute » sont modifiables (`alerts.level_negative_gap`, `alerts.level_positive_gap`). Étapes facultatives désactivées : minutes restantes (N = 10) et convergence.
+
 ## Critères d’acceptation du CDC Phase 1 (section 8)
 
 Tests automatiques : `backend/tests/Feature/AcceptanceCriteriaTest.php`, `backend/tests/Unit/AnnexSituationsTest.php`, `backend/tests/Unit/RuleEngineTest.php`.
@@ -28,7 +44,7 @@ Tests automatiques : `backend/tests/Feature/AcceptanceCriteriaTest.php`, `backen
 |---|---|---|---|
 | Chaque règle est testée avec des cas écrits à l’avance (au moins 10 situations de l’admin, résultat identique) | **Conforme** | `AnnexSituationsTest` : les 10 situations, avec les données complètes du complément 2, donnent toutes la décision attendue | L’ordre de décision s’écarte du pseudo-code du client sur plusieurs points (voir `DECISIONS_ANNEXE_PHASE1.md`), à confirmer. |
 | Alerte reçue en moins de 60 secondes après la détection | **Conforme avec le canal `log`** ; WhatsApp **à confirmer** | `test_alert_is_delivered_through_the_log_channel_less_than_60_seconds_after_detection` : détection et envoi dans le même passage | En production, l’envoi passe par la file : `queue:work` doit tourner (Supervisor). WhatsApp réel n’est pas branché (hors périmètre de cette étape). |
-| Aucune alerte si un des 3 filtres n’est pas validé ; refus noté au Journal | **À confirmer** | `test_no_alert_when_a_filter_is_refused_and_the_refusal_is_written_in_the_journal` (écart, vitalité, tendance) | Vitalité et hausse de cote bloquent toujours. Mais, selon le complément 2, une forte baisse (F162-Bis) déclenche une alerte même si l’écart dépasse 0.50 : le filtre d’écart ne bloque plus dans ce cas. Un match dont l’écart dépasse 2.00 n’est pas scanné : il n’a pas de ligne au Journal. |
+| Aucune alerte si un des 3 filtres n’est pas validé ; refus noté au Journal | **À confirmer** | `test_no_alert_when_a_filter_is_refused_and_the_refusal_is_written_in_the_journal` (écart, vitalité, tendance) | Vitalité et hausse de cote bloquent toujours. Mais, selon le complément 2, une forte baisse (F162-Bis) déclenche une alerte même si l’écart dépasse 0.50 : le filtre d’écart ne bloque plus dans ce cas. Un match dont l’écart dépasse 2.00 n’est pas scanné : une ligne au Journal à l’entrée dans cet état et une à la sortie (à confirmer). |
 | Le Journal conserve les détections et permet le taux de réussite par règle | **Conforme** | `test_journal_gives_the_success_rate_per_rule` ; page Statistiques | Le résultat (gagné / perdu / annulé) est saisi par l’administrateur dans le Journal ; aucun calcul automatique du résultat d’un pari n’est prévu en Phase 1. |
 | Les paramètres se modifient depuis la page admin et s’appliquent au scan suivant | **Conforme** | `test_settings_changed_in_the_admin_page_apply_to_the_next_scan` | Les paramètres et le profil actif sont relus à chaque passage, sans redémarrer `scan:run`. |
 
@@ -61,7 +77,7 @@ Tests : `backend/tests/Feature/ScanRobustnessTest.php`.
 | Réutilisation d’un code TOTP | **Corrigé** | Un code pouvait servir plusieurs fois pendant sa fenêtre de validité (environ 90 s). Le dernier pas de temps accepté est désormais mémorisé (`users.totp_last_counter`) : un code déjà utilisé est refusé. |
 | Indice d’existence d’un compte par le temps de réponse | **Corrigé** | Le mot de passe n’était vérifié que si l’email existait. Une vérification factice de même coût est faite pour un email inconnu. |
 | Limitation des tentatives | Conforme | 5 essais par minute par couple email + IP, et 10 requêtes par minute par IP sur `POST /login`. Message identique pour un email, un mot de passe ou un code faux. |
-| En-têtes de sécurité | **Complété** | `X-Content-Type-Options`, `X-Frame-Options: DENY`, `Referrer-Policy`, `Permissions-Policy` déjà présents ; HSTS en production HTTPS. Ajout d’une **Content-Security-Policy** avec nonce par requête (hors `local`, où Vite tourne sur une autre origine). Les pages d’erreur génériques de Laravel (419, 500) s’affichent sans mise en forme sous cette CSP. |
+| En-têtes de sécurité | **Complété** | `X-Content-Type-Options`, `X-Frame-Options: DENY`, `Referrer-Policy`, `Permissions-Policy` déjà présents ; HSTS en production HTTPS. Ajout d’une **Content-Security-Policy** avec nonce par requête (hors `local`, où Vite tourne sur une autre origine). Les pages d’erreur 419 et 500 sont personnalisées en français : leurs styles portent le nonce de la requête et restent lisibles sous cette CSP (test). |
 | Cookies | Conforme | Cookie de session `HttpOnly`, `SameSite=Lax`, `Secure` par défaut en production ; `deploy/.env.production.example` impose aussi `SESSION_ENCRYPT=true`. Session régénérée à la connexion, invalidée à la déconnexion. |
 | Secrets dans les journaux | Conforme (test) | Masquage automatique (voir « Robustesse »). |
 | Secrets dans l’historique Git | **Aucun trouvé** | 45 commits parcourus. Aucun fichier `.env` versionné (seulement les modèles `.example`). La clé API-Football et l’`APP_KEY` locales n’apparaissent dans aucun commit. Les correspondances au motif « clé » sont des exemples factices de la documentation API-Football (`XxXx…`), la valeur de test `test-api-key` et le `content-hash` de `composer.lock`. |

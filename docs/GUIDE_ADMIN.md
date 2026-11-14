@@ -58,24 +58,38 @@ Quelques événements fréquents :
 - **Alerte expirée** : 15 minutes sont passées sans but. Le signal n’est plus valable.
 - **Doublon évité** : une alerte identique est déjà active pour ce match ; aucune nouvelle alerte n’est envoyée.
 - **Incident** : une donnée manquait (cotes absentes, statistiques indisponibles, match introuvable). Le match est simplement ignoré à ce passage.
+- **Pas de scan (écart trop grand)** : l’écart du match dépasse 2,00, PronoFoot arrête de l’analyser. Une seule ligne est écrite à ce moment-là, puis une ligne **Scan repris** quand l’écart redescend.
+- Juste après un but, la justification indique souvent « tendance non calculable » : PronoFoot attend 2 minutes de cotes postérieures au but avant de juger la tendance.
 
 ## 5. Que veulent dire les décisions ?
 
 | Décision | Signification |
 |---|---|
-| **Alerte Critique** | Deux cas : la cote du prochain but de l’équipe désignée a **baissé de plus de 5 %** en deux minutes (le bookmaker a eu une information), ou elle est **plus basse** que la cote du score actuel (écart négatif). |
-| **Alerte Haute** | L’écart est positif mais faible (0,50 au plus) : un but de l’équipe désignée est probable. |
+| **Alerte Critique** | Un but de l’équipe désignée est très probable. Deux cas : la cote de son prochain but a **baissé de plus de 5 %** en deux minutes (le bookmaker a eu une information), ou cette cote est **plus basse** que celle du score actuel (écart négatif). |
+| **Alerte Haute** | Un but de l’équipe désignée est probable : la cote de son prochain but est un peu plus haute que celle du score actuel (écart entre 0 et 0,50). |
 | **Alerte Mi-temps** | À la mi-temps, la cote « moins de 2,5 buts » est entre 1,15 et 1,40 : signal « plus de 0,5 but en 2e mi-temps ». C’est la seule alerte possible pendant la mi-temps. |
 | **Pari neutre (Over 4.5)** | Match très ouvert (par exemple 2-3) où les cotes des scores suivants sont toutes à 8,00 ou moins. |
 | **Abstention** | Aucune alerte. La justification indique pourquoi : match « mort » (vitalité de 40 ou moins), cote stable ou en hausse, écart trop grand ou nul, donnée manquante… |
 
-L’ordre de vérification est toujours le même : mi-temps, match ouvert (Over 4.5), vitalité (40 ou moins : abstention), forte baisse de la cote (alerte Critique), hausse de la cote (abstention), puis l’écart (négatif : Critique ; au-delà de 0,50 : abstention ; entre 0 et 0,50 : Haute). L’alerte reçue rappelle le match, la minute, le score, le signal, l’écart, la vitalité, la tendance et l’heure d’expiration.
+PronoFoot vérifie toujours dans cet ordre et s’arrête à la première condition remplie :
+
+1. **Mi-temps** : cote « moins de 2,5 buts » entre 1,15 et 1,40 → Alerte Mi-temps ; sinon, rien pendant la mi-temps.
+2. **Match ouvert** : au moins 4 buts et cotes des scores suivants à 8,00 ou moins → Pari neutre Over 4.5.
+3. **Vitalité** de 40 ou moins → Abstention (match « mort »).
+4. **Forte baisse** de la cote du prochain but (plus de 5 % en deux minutes) → **Alerte Critique**.
+5. **Hausse** de cette cote, ou tendance pas encore calculable (moins de 2 minutes de cotes, par exemple juste après un but) → Abstention.
+6. **Écart négatif** → **Alerte Critique**.
+7. **Écart au-delà de 0,50** → Abstention.
+8. **Écart entre 0 et 0,50** → **Alerte Haute**.
+9. Sinon (écart nul) → Abstention.
+
+L’alerte reçue rappelle le match, la minute, le score, le niveau (Alerte Critique, Alerte Haute…), le signal, l’écart, la vitalité, la tendance et l’heure d’expiration.
 
 ## 6. Quand le quota est épuisé
 
-Le fournisseur de données limite le nombre de requêtes par jour.
+Le fournisseur de données limite le nombre de requêtes par jour : 7 500 avec le plan API-Football Pro. PronoFoot lit le quota du jour et le nombre de requêtes restantes à chaque appel ; ils s’affichent dans la Vue d’ensemble (« Quotas fournisseurs »).
 
-- **Quand il reste 10 % du quota** : vous recevez une alerte et PronoFoot passe en **mode économie** : il ne scanne plus que les matchs « chauds » (écart sous 1,50 ou cote en forte baisse). Un bandeau orange l’indique sur la Vue d’ensemble.
+- **Quand il reste 10 % du quota** (750 requêtes avec le plan Pro) : vous recevez une alerte et PronoFoot passe en **mode économie** : il ne scanne plus que les matchs « chauds » (écart sous 1,50 ou cote en forte baisse). Un bandeau orange l’indique sur la Vue d’ensemble.
 - **Quand le quota tombe à 0** : le live s’arrête avec le message **« Quota épuisé. Le live est arrêté. Rechargez le quota. »**
 
 Que faire :

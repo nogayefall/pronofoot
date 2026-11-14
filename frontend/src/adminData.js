@@ -162,6 +162,8 @@ const JOURNAL_INCIDENTS = {
   match_stopped: 'Match arrêté',
   quota_threshold_reached: 'Quota épuisé',
   match_processing_error: 'Incident : erreur de traitement',
+  scan_paused: 'Pas de scan (écart trop grand)',
+  scan_resumed: 'Scan repris',
 }
 
 const JOURNAL_DECISIONS = {

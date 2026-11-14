@@ -8,6 +8,7 @@ use Illuminate\Foundation\Http\Middleware\PreventRequestForgery;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Route;
 use Tests\TestCase;
 
 class AdministratorAuthenticationTest extends TestCase
@@ -145,6 +146,24 @@ class AdministratorAuthenticationTest extends TestCase
         $response->assertHeader('X-Frame-Options', 'DENY');
         $response->assertHeader('X-Content-Type-Options', 'nosniff');
         $this->assertNull($response->headers->get('Strict-Transport-Security'), 'HSTS seulement en production et en HTTPS.');
+    }
+
+    public function test_419_and_500_error_pages_keep_their_styles_under_the_content_security_policy(): void
+    {
+        $this->app['env'] = 'production';
+        config(['app.debug' => false]);
+        Route::middleware('web')->get('/test-erreur-serveur', fn () => throw new \RuntimeException('panne de test'));
+
+        foreach ([
+            [$this->post(route('login.store'), ['email' => 'admin@example.com', 'password' => 'x']), 419, 'Page expirée'],
+            [$this->get('/test-erreur-serveur'), 500, 'Erreur du serveur'],
+        ] as [$response, $status, $title]) {
+            $response->assertStatus($status)->assertSee($title);
+            $policy = (string) $response->headers->get('Content-Security-Policy');
+            $this->assertSame(1, preg_match("/style-src 'self' 'nonce-([A-Za-z0-9+\\/=]+)'/", $policy, $nonce), "CSP présente sur la page {$status}.");
+            $response->assertSee('<style nonce="'.$nonce[1].'">', false);
+            $response->assertDontSee('panne de test');
+        }
     }
 
     public function test_session_cookie_is_http_only_and_secure_by_default_in_production(): void

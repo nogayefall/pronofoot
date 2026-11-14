@@ -19,6 +19,7 @@ class TrackedMatch extends Model
         'tracking_mode',
         'last_goal_detected_at',
         'last_scanned_at',
+        'no_scan_since',
     ];
 
     protected function casts(): array
@@ -28,6 +29,7 @@ class TrackedMatch extends Model
             'is_active' => 'boolean',
             'last_goal_detected_at' => 'datetime',
             'last_scanned_at' => 'datetime',
+            'no_scan_since' => 'datetime',
         ];
     }
 

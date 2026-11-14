@@ -70,4 +70,6 @@ test('journalDecisionLabel shows French labels instead of internal codes', () =>
   assert.equal(journalDecisionLabel({ decision: 'duplicate_suppressed', eventType: 'evaluation' }), 'Doublon évité')
   assert.equal(journalDecisionLabel({ decision: 'reevaluate', eventType: 'goal_detected' }), 'But détecté')
   assert.equal(journalDecisionLabel({ decision: 'alert', eventType: 'evaluation' }), 'Alerte')
+  assert.equal(journalDecisionLabel({ decision: 'no_alert', eventType: 'scan_paused' }), 'Pas de scan (écart trop grand)')
+  assert.equal(journalDecisionLabel({ decision: 'no_alert', eventType: 'scan_resumed' }), 'Scan repris')
 })

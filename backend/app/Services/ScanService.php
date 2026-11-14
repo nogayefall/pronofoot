@@ -382,6 +382,7 @@ class ScanService
         return $trackedMatches->filter(function (TrackedMatch $trackedMatch) use ($hotInterval, $calmInterval, $hotGap, $noScanGap, $trendThreshold, $economyMode, $forceRefresh, $now): bool {
             $snapshot = $trackedMatch->snapshots()->latest('captured_at')->latest('id')->first();
             $heat = $this->matchHeat($snapshot, $hotGap, $noScanGap, $trendThreshold);
+            $this->recordNoScanTransition($trackedMatch, $snapshot, $heat === 'none', $noScanGap, $now);
             if ($heat === 'none' || ($economyMode && $heat !== 'hot')) {
                 return false;
             }
@@ -394,6 +395,36 @@ class ScanService
                 ->addSeconds($heat === 'hot' ? $hotInterval : $calmInterval)
                 ->lessThanOrEqualTo($now);
         })->values();
+    }
+
+    /**
+     * Une seule ligne au Journal quand un match passe en « pas de scan » (écart au-delà du seuil d’arrêt),
+     * et une autre quand il en sort (à confirmer). Rien n’est écrit tant que l’état ne change pas.
+     */
+    private function recordNoScanTransition(
+        TrackedMatch $trackedMatch,
+        ?MatchSnapshot $snapshot,
+        bool $noScan,
+        float $noScanGap,
+        CarbonImmutable $now,
+    ): void {
+        if ($noScan === ($trackedMatch->no_scan_since !== null)) {
+            return;
+        }
+
+        $trackedMatch->forceFill(['no_scan_since' => $noScan ? $now : null])->save();
+        $threshold = number_format($noScanGap, 2, '.', '');
+        $this->recordOpportunity(
+            $trackedMatch,
+            $snapshot,
+            null,
+            $noScan ? 'scan_paused' : 'scan_resumed',
+            'no_alert',
+            $noScan
+                ? "Écart supérieur à {$threshold} : match non scanné tant qu’il reste dans cet état (à confirmer)."
+                : "Écart revenu à {$threshold} ou moins : scan du match repris.",
+            $now,
+        );
     }
 
     /**
@@ -819,12 +850,20 @@ class ScanService
             return null;
         }
 
+        // Après un but, les relevés antérieurs au but sont ignorés : la cote du score suggéré change mécaniquement
+        // au moment du but. La tendance redevient calculable deux minutes après le but (à confirmer).
         $referenceTime = $now->subMinutes(2);
+        $lastGoalAt = $trackedMatch->last_goal_detected_at === null
+            ? null
+            : CarbonImmutable::instance($trackedMatch->last_goal_detected_at);
         $referenceSnapshot = $trackedMatch->snapshots()
             ->whereNotNull('exact_score_odds')
             ->whereNotNull('odds_captured_at')
             ->where('captured_at', '<=', $referenceTime)
             ->where('odds_captured_at', '<=', $referenceTime)
+            ->when($lastGoalAt !== null, fn ($query) => $query
+                ->where('captured_at', '>=', $lastGoalAt)
+                ->where('odds_captured_at', '>=', $lastGoalAt))
             ->latest('captured_at')
             ->first();
         $referencePrice = $referenceSnapshot?->exact_score_odds[$suggestedScoreKey] ?? null;
