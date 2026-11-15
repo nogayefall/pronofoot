@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Jobs\SendAdminNotification;
 use App\Jobs\SendAlertNotification;
 use App\Jobs\SendQuotaNotification;
 use App\Logging\SecretRedactor;
@@ -10,6 +11,7 @@ use App\Models\MatchSnapshot;
 use App\Models\OpportunityLog;
 use App\Models\RuleProfile;
 use App\Models\TrackedMatch;
+use App\Notifications\AlertMessageFormatter;
 use App\Providers\Contracts\FootballProvider;
 use App\Providers\Contracts\OddsProvider;
 use App\Providers\Data\FootballFeed;
@@ -45,6 +47,7 @@ class ScanService
         private readonly ScanSettings $settings,
         private readonly RuleConfigurationFactory $ruleConfigurationFactory,
         private readonly VitalityCalculator $vitalityCalculator = new VitalityCalculator,
+        private readonly AlertMessageFormatter $messageFormatter = new AlertMessageFormatter,
     ) {}
 
     public function runOnce(int $scanNumber = 0, bool $forceRefresh = true): ScanPassResult
@@ -729,7 +732,7 @@ class ScanService
             }
 
             $trackedMatch->forceFill(['last_goal_detected_at' => $now])->save();
-            $this->invalidateActiveAlerts($trackedMatch, $previous, $now);
+            $this->invalidateActiveAlerts($trackedMatch, $previous, $now, $footballMatch);
             $this->recordOpportunity(
                 $trackedMatch,
                 $previous,
@@ -755,11 +758,13 @@ class ScanService
         TrackedMatch $trackedMatch,
         MatchSnapshot $snapshot,
         CarbonImmutable $now,
+        ?FootballMatch $footballMatch = null,
     ): void {
         $alerts = Alert::query()
             ->whereIn('status', ['queued', 'sent'])
             ->whereHas('opportunityLog', fn ($query) => $query->where('tracked_match_id', $trackedMatch->id))
             ->get();
+        $adminWasAlerted = $alerts->contains(fn (Alert $alert): bool => $alert->status === 'sent');
 
         foreach ($alerts as $alert) {
             $alert->forceFill([
@@ -782,6 +787,18 @@ class ScanService
                 $opportunity?->filter_results ?? [],
                 $opportunity?->suggested_action,
             );
+        }
+
+        if ($adminWasAlerted && $footballMatch?->homeScore !== null && $footballMatch->awayScore !== null) {
+            SendAdminNotification::dispatch($this->messageFormatter->goalScored(
+                $trackedMatch->home_team,
+                $trackedMatch->away_team,
+                (int) $snapshot->home_score,
+                (int) $snapshot->away_score,
+                $footballMatch->homeScore,
+                $footballMatch->awayScore,
+                $footballMatch->minute,
+            ));
         }
     }
 
@@ -984,31 +1001,52 @@ class ScanService
         FootballMatch $footballMatch,
         CarbonImmutable $expiresAt,
     ): string {
-        $signal = match ($result->selection) {
-            'home' => "{$result->suggestedAction} : {$trackedMatch->home_team}",
-            'away' => "{$result->suggestedAction} : {$trackedMatch->away_team}",
-            default => (string) $result->suggestedAction,
+        $homeScore = $snapshot->home_score === null ? null : (int) $snapshot->home_score;
+        $awayScore = $snapshot->away_score === null ? null : (int) $snapshot->away_score;
+        $target = match ($result->selection) {
+            'home' => $trackedMatch->home_team,
+            'away' => $trackedMatch->away_team,
+            default => null,
         };
+        $oddsLines = [];
+        if ($result->selection !== null && $homeScore !== null && $awayScore !== null) {
+            $key = $result->selection === 'home' ? ($homeScore + 1).'-'.$awayScore : $homeScore.'-'.($awayScore + 1);
+            $price = $snapshot->exact_score_odds[$key] ?? null;
+            if (is_numeric($price)) {
+                $oddsLines["Cote suggérée ({$key})"] = (float) $price;
+            }
+        } elseif ($result->decisiveRule === 'F121-E2') {
+            $under = $result->rules['F121-E2']->details['under25Odds'] ?? null;
+            if (is_numeric($under)) {
+                $oddsLines['Cote Under 2.5'] = (float) $under;
+            }
+        } elseif ($result->decisiveRule === 'F121-D' && $homeScore !== null && $awayScore !== null) {
+            $details = $result->rules['F121-D']->details ?? [];
+            foreach ([($homeScore + 1).'-'.$awayScore => 'homeNextOdds', $homeScore.'-'.($awayScore + 1) => 'awayNextOdds'] as $score => $field) {
+                if (is_numeric($details[$field] ?? null)) {
+                    $oddsLines["Cote {$score}"] = (float) $details[$field];
+                }
+            }
+        }
         $gap = $result->filters['gap']->details['selectedGap'] ?? null;
-        $gapLabel = $result->selection !== null && is_numeric($gap)
-            ? number_format((float) $gap, 2, ',', ' ')
-            : 'non applicable';
-        $vitalityLabel = $snapshot->vitality_score === null
-            ? 'non calculable'
-            : number_format((float) $snapshot->vitality_score, 0, ',', ' ').'/100';
-        $trendLabel = $snapshot->odds_change_percent === null
-            ? 'non calculable'
-            : number_format((float) $snapshot->odds_change_percent, 2, ',', ' ').' %';
 
-        return implode("\n", [
-            "Match : {$trackedMatch->home_team} - {$trackedMatch->away_team}",
-            "Minute : {$snapshot->minute} | Score : {$snapshot->home_score}-{$snapshot->away_score}",
-            "Alerte {$result->level} | Règle : {$result->decisiveRule}",
-            "Signal : {$signal}",
-            "Écart : {$gapLabel} | Vitalité : {$vitalityLabel} | Tendance : {$trendLabel}",
-            'Score de confiance : '.($result->convergenceScore === null ? 'non calculé' : number_format($result->convergenceScore, 1, ',', ' ').' %'),
-            'Expiration : '.$expiresAt->format('H:i:s'),
-        ]);
+        return $this->messageFormatter->opportunity(
+            homeTeam: $trackedMatch->home_team,
+            awayTeam: $trackedMatch->away_team,
+            homeScore: $homeScore,
+            awayScore: $awayScore,
+            minute: $snapshot->minute === null ? null : (int) $snapshot->minute,
+            level: (string) $result->level,
+            rule: (string) $result->decisiveRule,
+            target: $target,
+            bet: $result->suggestedAction,
+            oddsLines: $oddsLines,
+            gap: $target !== null && is_numeric($gap) ? (float) $gap : null,
+            vitality: $snapshot->vitality_score === null ? null : (float) $snapshot->vitality_score,
+            trend: $snapshot->odds_change_percent === null ? null : (float) $snapshot->odds_change_percent,
+            expiresAt: $expiresAt,
+            confidence: $result->convergenceScore,
+        );
     }
 
     private function expireAlerts(CarbonImmutable $now): int
@@ -1021,10 +1059,20 @@ class ScanService
             ->get();
 
         foreach ($alerts as $alert) {
+            $adminWasAlerted = $alert->status === 'sent';
             $alert->forceFill(['status' => 'expired'])->save();
             $opportunity = $alert->opportunityLog;
             if ($opportunity?->trackedMatch === null) {
                 continue;
+            }
+
+            if ($adminWasAlerted) {
+                SendAdminNotification::dispatch($this->messageFormatter->expired(
+                    $opportunity->trackedMatch->home_team,
+                    $opportunity->trackedMatch->away_team,
+                    (string) $opportunity->rule_id,
+                    CarbonImmutable::instance($alert->expires_at),
+                ));
             }
 
             $this->recordOpportunity(

@@ -2,6 +2,8 @@
 
 namespace App\Services;
 
+use App\Notifications\AlertMessageFormatter;
+
 /**
  * États du quota API selon l’annexe Phase 1 corrigée : normal, économie (requêtes restantes ≤ pourcentage du quota
  * journalier) et épuisé (0 requête). Un quota ou une limite inconnus ne déclenchent aucun changement d’état.
@@ -56,8 +58,6 @@ final class QuotaGuard
 
     public static function economyMessage(int $requestsRemaining, int $requestsLimit, float $economyPercent): string
     {
-        $percent = rtrim(rtrim(number_format($economyPercent, 2, ',', ''), '0'), ',');
-
-        return "Alerte quota API : {$requestsRemaining} requêtes restantes sur {$requestsLimit} ({$percent} % ou moins). Mode économie : seuls les matchs chauds sont scannés.";
+        return (new AlertMessageFormatter)->quotaEconomy($requestsRemaining, $requestsLimit, $economyPercent);
     }
 }

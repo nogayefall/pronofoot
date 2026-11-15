@@ -52,7 +52,32 @@ Le pilote The Odds API (`ODDS_DRIVER=real`) signale explicitement « marché des
 ## 4. Vérifications avant le scan réel
 
 - Garder `ODDS_DRIVER=fake` et `FOOTBALL_DRIVER=fake` jusqu’à validation distincte de chaque pilote. API-Football peut être sélectionné par `ODDS_DRIVER=api_football` après configuration de sa clé. L’interface et l’API refusent le suivi si le marché 23 non suspendu manque ou si la couverture est explicitement `false`; une couverture absente/inconnue est autorisée avec avertissement.
-- Garder `NOTIFICATION_MODE=fake`. Les canaux WhatsApp et Telegram réels sont des refus explicites `NON VÉRIFIÉ` et ne font aucun appel tant que les comptes et formats n’ont pas été confirmés et implémentés. Le canal `log` est disponible pour valider la file en local.
+- Telegram réel est branché : voir la section « Notifications Telegram » ci-dessous. WhatsApp reste un refus explicite `NON VÉRIFIÉ` sans appel. Le canal `log` est disponible pour valider la file en local.
+
+## Notifications Telegram (pilote réel)
+
+Variables de `backend/.env` (modèle commenté dans `backend/.env.example`) :
+
+| Variable | Rôle |
+|---|---|
+| `NOTIFICATION_MODE=real` | Active les envois réels (`fake` = simulation). |
+| `NOTIFICATION_CHANNEL=telegram` | Canal principal. |
+| `NOTIFICATION_FALLBACK=log` | Canal de repli si Telegram échoue (`log` conseillé ; `none` = pas de repli). |
+| `TELEGRAM_BOT_TOKEN` | Jeton du robot donné par @BotFather. Secret. |
+| `TELEGRAM_CHAT_ID` | Identifiant de la conversation qui reçoit les alertes (lu dans la réponse de `getUpdates` après avoir écrit au robot). |
+| `TELEGRAM_TIMEOUT`, `TELEGRAM_RETRIES`, `TELEGRAM_RETRY_DELAY_MS` | Facultatifs (10 s, 2 nouvelles tentatives, 1 000 ms). |
+
+Après modification du `.env` en production : `php artisan config:cache`, puis `php artisan queue:restart`. Vérifier ensuite avec le bouton **Envoyer un message de test** de la page Paramètres.
+
+Ordre d’envoi d’une alerte :
+
+1. Le job d’envoi (file `database`, traité par `queue:work`) appelle le canal principal **Telegram** (`sendMessage`, délai maximal de 10 s).
+2. En cas de coupure réseau, de limite d’envoi (429, attente `retry_after` jusqu’à 5 s) ou d’erreur 5xx de Telegram, Telegram est retenté jusqu’à 2 fois, avec 1 s de pause. Un jeton invalide (401), une conversation introuvable (400) ou un robot bloqué (403) ne sont pas retentés.
+3. Si Telegram échoue encore, le **canal de repli** (`NOTIFICATION_FALLBACK`, par exemple `log`) reçoit le message ; l’alerte est marquée « envoyée » avec « repli utilisé ». Avec `log`, le message n’arrive que dans le journal Laravel, pas sur le téléphone.
+4. Si le repli échoue aussi (ou s’il vaut `none`), le job est relancé jusqu’à 3 fois au total (après 10 s puis 30 s) ; ensuite l’alerte passe en « échec » avec le motif.
+
+Le jeton et l’identifiant de conversation ne figurent jamais dans les messages d’erreur, le Journal ni les journaux (masquage automatique). WhatsApp reste non branché.
+
 - Exécuter `php artisan test` et `vendor\bin\pint --test`.
 - Configurer seulement les paramètres confirmés par le CDC et lancer `php artisan feasibility:test` ; ajouter `--capture` uniquement lorsque la réponse doit être enregistrée.
 - Confirmer les marchés et données live, les quotas et leur coût, la correspondance des matchs, ainsi que l’absence de données périmées.

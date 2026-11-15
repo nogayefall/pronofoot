@@ -43,7 +43,7 @@ Tests automatiques : `backend/tests/Feature/AcceptanceCriteriaTest.php`, `backen
 | Critère | Statut | Preuve | Remarque |
 |---|---|---|---|
 | Chaque règle est testée avec des cas écrits à l’avance (au moins 10 situations de l’admin, résultat identique) | **Conforme** | `AnnexSituationsTest` : les 10 situations, avec les données complètes du complément 2, donnent toutes la décision attendue | L’ordre de décision s’écarte du pseudo-code du client sur plusieurs points (voir `DECISIONS_ANNEXE_PHASE1.md`), à confirmer. |
-| Alerte reçue en moins de 60 secondes après la détection | **Conforme avec le canal `log`** ; WhatsApp **à confirmer** | `test_alert_is_delivered_through_the_log_channel_less_than_60_seconds_after_detection` : détection et envoi dans le même passage | En production, l’envoi passe par la file : `queue:work` doit tourner (Supervisor). WhatsApp réel n’est pas branché (hors périmètre de cette étape). |
+| Alerte reçue en moins de 60 secondes après la détection | **Conforme avec le canal `log`** ; Telegram branché, délai réel **à mesurer** (procédure ci-dessous) ; WhatsApp **à confirmer** | `test_alert_is_delivered_through_the_log_channel_less_than_60_seconds_after_detection` : détection et envoi dans le même passage | En production, l’envoi passe par la file : `queue:work` doit tourner (Supervisor). WhatsApp réel n’est pas branché (hors périmètre de cette étape). |
 | Aucune alerte si un des 3 filtres n’est pas validé ; refus noté au Journal | **À confirmer** | `test_no_alert_when_a_filter_is_refused_and_the_refusal_is_written_in_the_journal` (écart, vitalité, tendance) | Vitalité et hausse de cote bloquent toujours. Mais, selon le complément 2, une forte baisse (F162-Bis) déclenche une alerte même si l’écart dépasse 0.50 : le filtre d’écart ne bloque plus dans ce cas. Un match dont l’écart dépasse 2.00 n’est pas scanné : une ligne au Journal à l’entrée dans cet état et une à la sortie (à confirmer). |
 | Le Journal conserve les détections et permet le taux de réussite par règle | **Conforme** | `test_journal_gives_the_success_rate_per_rule` ; page Statistiques | Le résultat (gagné / perdu / annulé) est saisi par l’administrateur dans le Journal ; aucun calcul automatique du résultat d’un pari n’est prévu en Phase 1. |
 | Les paramètres se modifient depuis la page admin et s’appliquent au scan suivant | **Conforme** | `test_settings_changed_in_the_admin_page_apply_to_the_next_scan` | Les paramètres et le profil actif sont relus à chaque passage, sans redémarrer `scan:run`. |
@@ -54,7 +54,7 @@ Tests automatiques : `backend/tests/Feature/AcceptanceCriteriaTest.php`, `backen
 2. Lancer dans deux terminaux : `php artisan scan:run` et `php artisan queue:work --tries=3`.
 3. Attendre une alerte (Journal, décision « alert »).
 4. Comparer l’heure de détection (Journal, colonne date) et l’heure d’envoi (`alerts.sent_at`, ou la ligne correspondante dans `storage/logs/laravel.log`). L’écart doit rester sous 60 secondes.
-5. Refaire la mesure avec WhatsApp quand le canal réel sera branché.
+5. Refaire la mesure avec Telegram (`NOTIFICATION_MODE=real`, `NOTIFICATION_CHANNEL=telegram`) : comparer l’heure de détection et l’heure de réception sur le téléphone. Puis avec WhatsApp quand il sera branché.
 
 ## Robustesse de `scan:run` en continu
 

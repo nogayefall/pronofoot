@@ -219,6 +219,7 @@ function App() {
   const [statisticsFilters, setStatisticsFilters] = useState({ date_from: '', date_to: '' })
   const [apiError, setApiError] = useState('')
   const [actionMessage, setActionMessage] = useState('')
+  const [notificationTest, setNotificationTest] = useState(null)
   const [isBusy, setIsBusy] = useState(false)
   const [now, setNow] = useState(0)
   const [testFields, setTestFields] = useState({
@@ -485,9 +486,15 @@ function App() {
 
   async function runNotificationTest() {
     setIsBusy(true)
-    const result = await adminRequest('/admin/notifications/test', 'POST', {})
-    if (result) setActionMessage(`${result.message} Canal : ${result.channel}${result.fallbackUsed ? ' (repli utilisé)' : ''}${result.simulation ? ' — simulation' : ''}`)
-    setIsBusy(false)
+    setNotificationTest(null)
+    try {
+      const result = await requestAdminApi('/admin/notifications/test', csrfToken, { method: 'POST', body: {} })
+      setNotificationTest({ status: result.fallbackUsed || result.simulation ? 'warning' : 'success', text: result.message })
+    } catch (error) {
+      setNotificationTest({ status: 'error', text: error.message })
+    } finally {
+      setIsBusy(false)
+    }
   }
 
   async function updateOutcome(logId, outcome) {
@@ -654,8 +661,9 @@ function App() {
 
           {activePage === 'settings' && (
             <>
-              <PageHeading eyebrow="CONFIGURATION" title="Paramètres" description="Modifiez les paramètres enregistrés et consultez leur historique." action={<button className="secondary-button" type="button" onClick={() => void runNotificationTest()} disabled={isBusy}>Tester les notifications</button>} />
-              <div className="notice notice-warning"><span className="notice-icon"><Icon name="shield" size={18} /></span><div><strong>Les paramètres à confirmer sont laissés vides</strong><p>La tendance reste abstentionniste tant que les confirmations client ne sont pas renseignées. Aucun pari automatique n’est effectué.</p></div></div>
+              <PageHeading eyebrow="CONFIGURATION" title="Paramètres" description="Modifiez les paramètres enregistrés et consultez leur historique." action={<button className="secondary-button" type="button" onClick={() => void runNotificationTest()} disabled={isBusy}>Envoyer un message de test</button>} />
+              {notificationTest && <div className={notificationTest.status === 'error' ? 'form-error api-error' : notificationTest.status === 'warning' ? 'notice notice-warning' : 'success-message'} role={notificationTest.status === 'error' ? 'alert' : 'status'}><strong>{notificationTest.status === 'error' ? 'Échec de l’envoi : ' : notificationTest.status === 'warning' ? 'Attention : ' : 'Message envoyé : '}</strong>{notificationTest.text}</div>}
+              <div className="notice notice-warning"><span className="notice-icon"><Icon name="shield" size={18} /></span><div><strong>Les paramètres marqués « À confirmer » attendent une décision du client</strong><p>Leur valeur par défaut reste prudente. Aucun pari automatique n’est effectué.</p></div></div>
               <form className="content-panel settings-form" onSubmit={saveSettings}><div className="panel-heading"><div><h2>Paramètres du détecteur</h2><p>Les champs sans valeur ne déclenchent pas de comportement supposé.</p></div></div>
                 {settings.length ? <div className="settings-list">{settings.map((setting) => <label className="setting-row" key={setting.key}><span><strong>{settingLabels[setting.key] ?? setting.key}</strong><small>{settingDescriptions[setting.key] ?? 'Paramètre utilisé par le détecteur.'}{setting.needsConfirmation ? ' · À confirmer' : ''}</small></span>{setting.type === 'boolean' ? <input type="checkbox" checked={settingsDraft[setting.key] === true} onChange={(event) => setSettingsDraft((previous) => ({ ...previous, [setting.key]: event.target.checked }))} /> : setting.type === 'json' ? <textarea rows="3" value={settingsDraft[setting.key] ?? ''} onChange={(event) => setSettingsDraft((previous) => ({ ...previous, [setting.key]: event.target.value }))} placeholder="À confirmer" /> : setting.key === 'tendance_source' ? <select value={settingsDraft[setting.key] ?? ''} onChange={(event) => setSettingsDraft((previous) => ({ ...previous, [setting.key]: event.target.value }))}><option value="cote_suggeree">Cote du score suggéré</option></select> : <input type={setting.type === 'integer' || setting.type === 'decimal' ? 'number' : 'text'} min={setting.type === 'integer' || setting.type === 'decimal' ? '0' : undefined} step={setting.type === 'decimal' ? '0.01' : undefined} value={settingsDraft[setting.key] ?? ''} onChange={(event) => setSettingsDraft((previous) => ({ ...previous, [setting.key]: event.target.value }))} placeholder={setting.needsConfirmation ? 'À confirmer' : ''} />}</label>)}</div> : <EmptyState icon="settings" title="Paramètres indisponibles" message="Aucun paramètre enregistré n’a été retourné." />}
                 <div className="form-actions"><button className="primary-button" type="submit" disabled={isBusy || !settings.length}>Enregistrer</button><button className="secondary-button" type="button" onClick={() => void resetSettings()} disabled={isBusy}>Réinitialiser</button></div>

@@ -23,7 +23,7 @@ Ces points ne sont plus à fournir : vitalité (barème, bornes incluses, minimu
 - **Module 3.6 — poids et scores des méthodes** : le CDC montre des poids 60 / 30 / 10 % pour « Écart directionnel / Vitalité / Tendance », qui ne sont pas des méthodes à score dans le moteur, et dit que « chaque méthode donne un score » sans formule. Fournir les méthodes à pondérer, leurs poids et la façon de calculer chaque score (0–100). En attendant, les poids restent vides et l’étape convergence reste désactivée.
 - **Activation de la convergence** : faut-il l’ajouter à l’ordre de décision une fois les poids fournis ? Seuil de validation : 75 % (PRD) ou une autre valeur par profil ?
 - **Matchs à écart > 2.00** : non scannés selon l’annexe ; le Journal note désormais une ligne à l’entrée dans cet état et une à la sortie. Cela suffit-il ?
-- **Adresse e-mail** pour les alertes de quota : l’annexe cite l’e-mail, il faut une adresse. En attendant, les alertes passent par WhatsApp (Telegram en repli).
+- **Adresse e-mail** pour les alertes de quota : l’annexe cite l’e-mail, il faut une adresse. En attendant, les alertes de quota passent par le canal de notification (Telegram).
 - Les formules de F121-K, F121-T, F121-X, F122, F124 et F126 : ces règles restent « non définies ».
 - Confirmer les cadences de relance après but du TRD (15 secondes pendant 120 secondes).
 
@@ -35,8 +35,9 @@ Sans confirmation d’un paramètre nécessaire, le comportement reste l’abste
 - **Cote Under 2.5 (pari 36 « Over/Under Line »)** : capturée le 13 novembre 2026 et branchée pour F121-E2. Elle n’est demandée que lorsqu’un match suivi est à la mi-temps.
 - **The Odds API :** le catalogue officiel des marchés ne documente pas les scores exacts en direct ; le pilote réel refuse de l’inventer. API-Football (`ODDS_DRIVER=api_football`) le remplace.
 - Fournir un compte et un destinataire WhatsApp Business autorisés, ainsi qu’un modèle de message approuvé si nécessaire.
-- Fournir, si le repli est retenu, un bot Telegram et un identifiant de conversation, conservés uniquement dans `.env`.
-- Les canaux WhatsApp et Telegram réels restent `NON VÉRIFIÉS` : aucun appel ni format réel n’est branché.
+- **Telegram (branché)** : fournir le jeton d’un robot créé avec @BotFather et l’identifiant de la conversation de l’administrateur, à placer uniquement dans `.env` (`TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID`). Confirmer le format des messages (exemple de la section 5 du CDC) et l’envoi des messages « alerte expirée » et « but marqué ».
+- **Abstention** : le message existe, mais il n’est pas envoyé automatiquement (un match peut s’abstenir toutes les 30 secondes). Faut-il l’envoyer, et dans quels cas ?
+- WhatsApp reste `NON VÉRIFIÉ` : aucun appel ni format réel n’est branché.
 - Confirmer l’offre API-Football retenue : le plan Pro donne 7 500 requêtes par jour ; le compte de test actuel en donne 100, ce qui ne permet pas de suivre 30 à 50 matchs en continu. Le quota n’est pas à configurer : PronoFoot le lit à chaque appel dans les en-têtes `x-ratelimit-requests-limit` et `x-ratelimit-requests-remaining`.
 - **Déploiement** : serveur, nom de domaine, mécanisme de livraison du code (accès Git ou archive), durée de conservation des sauvegardes de la base et des instantanés. Les fichiers de `deploy/` sont prêts ; aucune mise en production n’a été faite.
 - Fournir un serveur et un nom de domaine lorsque la mise en production sera autorisée. Le guide [`DEPLOIEMENT.md`](./DEPLOIEMENT.md) décrit les prérequis, dont `npm run build` sur le serveur.

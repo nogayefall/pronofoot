@@ -98,7 +98,29 @@ Que faire :
 2. Demandez à votre prestataire de relancer le scan (voir ci-dessous).
 3. Pour économiser le quota, suivez moins de matchs.
 
-## 7. Lancer et arrêter le scan
+## 7. Recevoir les alertes sur Telegram
+
+Les alertes arrivent sur Telegram, dans la conversation avec le robot PronoFoot. Exemple :
+
+```text
+ALERTE HAUTE · valable jusqu’à 21:15
+Équipe A - Équipe B  0-0  34'
+Prochain but : Équipe A
+Cote suggérée (1-0) : 8.60 | Écart : +0.40
+Vitalité : 61/100 | Tendance : stable
+Règle : F121-C
+Signal de détection, sans garantie de gain. Aucun pari n’est placé.
+```
+
+Vous recevez aussi : **ALERTE EXPIRÉE** (15 minutes sans but), **BUT MARQUÉ · analyse relancée** (l’alerte en cours est annulée) et **QUOTA API À 10 %**.
+
+Pour vérifier que tout fonctionne, ouvrez **Paramètres** et cliquez sur **Envoyer un message de test** :
+
+- « Message envoyé » en vert : le message doit apparaître sur votre téléphone dans les secondes qui suivent.
+- « Attention » en orange : Telegram a échoué et le message est parti par le canal de secours (journal), ou le mode simulation est actif.
+- « Échec de l’envoi » en rouge : le motif est indiqué (jeton invalide, conversation introuvable, réseau…). Transmettez-le à votre prestataire.
+
+## 8. Lancer et arrêter le scan
 
 Sur le serveur, le scan est lancé et surveillé automatiquement : s’il s’arrête, il redémarre seul. La Vue d’ensemble indique **Actif** et l’heure du dernier passage.
 
@@ -113,7 +135,7 @@ Si vous devez intervenir (ou demander à votre prestataire de le faire), sur le 
 
 Le scan s’arrête toujours à la fin du passage en cours : aucune alerte n’est perdue ni envoyée deux fois. L’envoi des alertes dépend aussi du programme `pronofoot-queue`, qui doit être en état « RUNNING ».
 
-## 8. En cas de doute
+## 9. En cas de doute
 
 - Une alerte semble étrange : ouvrez le **Journal**, retrouvez la ligne et lisez la **Justification**.
 - Vous voulez comprendre une règle : utilisez le **Testeur manuel** avec les mêmes cotes.

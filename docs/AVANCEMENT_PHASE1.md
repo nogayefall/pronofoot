@@ -228,6 +228,13 @@ Détails et tableaux : [`CONFORMITE_PHASE1.md`](./CONFORMITE_PHASE1.md). Guide d
 - **Pages d’erreur 419 et 500** en français, lisibles sous la Content-Security-Policy (styles avec le nonce de la requête), sans divulguer le détail de l’erreur.
 - **Quota** : plan API-Football Pro = 7 500 requêtes par jour ; PronoFoot lit le quota dans les en-têtes, aucun réglage n’est nécessaire.
 
+### Notifications Telegram réelles (15 novembre 2026)
+
+- Pilote `TelegramNotificationChannel` : API Bot `sendMessage` en texte brut, délai maximal de 10 s, 2 nouvelles tentatives (réseau, 429 avec `retry_after` jusqu’à 5 s, 5xx), erreurs traduites en français (jeton invalide, conversation introuvable, robot bloqué, limite d’envoi). Jeton et identifiant de conversation absents des erreurs, du Journal et des journaux.
+- Messages courts d’après l’exemple du CDC (`AlertMessageFormatter`) : alerte (niveau Critique, Haute, Mi-temps ou Pari neutre, match, minute, score, équipe ciblée, cote suggérée, écart, vitalité, tendance, règle, heure d’expiration, sans promesse de gain), alerte expirée et but marqué (envoyés seulement si l’alerte avait été envoyée), quota à 10 %, abstention (message prêt, non envoyé automatiquement, à confirmer).
+- Bouton « Envoyer un message de test » : vrai message, résultat affiché en vert, orange (repli ou simulation) ou rouge (motif de l’échec).
+- Variables et ordre de repli : [`PASSER_EN_REEL.md`](./PASSER_EN_REEL.md#notifications-telegram-pilote-réel).
+
 ## Guide de démarrage et de test local
 
 ### 1. Démarrer les deux serveurs et ouvrir la connexion
@@ -346,7 +353,7 @@ Les tests automatisés ne remplacent pas les dix situations complètes avec déc
 
 5. **Terminé :** pilotes fake et real prudents, commande de faisabilité et capture sans clés.
 6. **Terminé :** scan paramétrable, instantanés, relance après but, anti-doublon et expiration.
-7. **Terminé en mode fake/log :** file d’attente, bouton de test et repli simulé. WhatsApp et Telegram réels restent bloqués tant que leurs comptes et formats ne sont pas validés.
+7. **Telegram réel terminé** (envoi, nouvelles tentatives, repli, bouton de test). WhatsApp réel reste bloqué tant que son compte et ses modèles de messages ne sont pas validés.
 8. **Terminé pour la préparation logicielle :** API et interface d’administration, journal, statistiques et guide de déploiement. La mise en production elle-même n’est pas incluse.
 
 ### Contrôles de l’étape 8

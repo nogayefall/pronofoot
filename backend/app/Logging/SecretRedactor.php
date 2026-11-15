@@ -26,14 +26,19 @@ final class SecretRedactor implements ProcessorInterface
                 $candidates[] = $value;
             }
         }
-        foreach (['services.football_api.api_key', 'services.odds_api.api_key'] as $path) {
+        foreach (['services.football_api.api_key', 'services.odds_api.api_key', 'services.telegram.bot_token'] as $path) {
             $candidates[] = config($path);
         }
 
-        $secrets = array_values(array_unique(array_filter(
+        $secrets = array_filter(
             $candidates,
             fn (mixed $value): bool => is_string($value) && strlen(trim($value)) >= 8,
-        )));
+        );
+        $chatId = config('services.telegram.chat_id');
+        if (is_scalar($chatId) && strlen(trim((string) $chatId)) >= 5) {
+            $secrets[] = trim((string) $chatId);
+        }
+        $secrets = array_values(array_unique($secrets));
         usort($secrets, fn (string $a, string $b): int => strlen($b) <=> strlen($a));
 
         return new self($secrets);

@@ -18,7 +18,7 @@ final class NotificationChannelFactory
 
         return match (config('services.pronofoot.notifications.mode', 'fake')) {
             'fake' => new FakeNotificationChannel($channel),
-            'real' => new UnverifiedNotificationChannel($channel),
+            'real' => $channel === 'telegram' ? new TelegramNotificationChannel : new UnverifiedNotificationChannel($channel),
             default => throw new InvalidArgumentException('NOTIFICATION_MODE doit être « fake » ou « real ».'),
         };
     }

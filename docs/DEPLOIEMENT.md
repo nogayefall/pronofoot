@@ -1,6 +1,6 @@
 # Préparer le déploiement PronoFoot
 
-Ce guide prépare un déploiement Linux ; aucun serveur n’est configuré ni aucune livraison réalisée. Garder les notifications en mode `fake` tant que WhatsApp et Telegram ne sont pas branchés et validés.
+Ce guide prépare un déploiement Linux ; aucun serveur n’est configuré ni aucune livraison réalisée. Telegram réel est branché (voir [`PASSER_EN_REEL.md`](./PASSER_EN_REEL.md)) ; WhatsApp ne l’est pas.
 
 ## Prérequis
 
@@ -75,7 +75,7 @@ Application :
 - [ ] Sauvegarde du jour présente et restauration testée hors production.
 - [ ] logrotate testé (`logrotate --debug /etc/logrotate.d/pronofoot`).
 - [ ] Pilotes réels activés un par un (voir [`PASSER_EN_REEL.md`](./PASSER_EN_REEL.md)) ; quota API-Football suffisant pour le nombre de matchs suivis.
-- [ ] Notifications laissées en `fake`/`log` tant que WhatsApp et Telegram ne sont pas branchés et validés.
+- [ ] Telegram : `NOTIFICATION_MODE=real`, `NOTIFICATION_CHANNEL=telegram`, `NOTIFICATION_FALLBACK=log`, jeton et identifiant de conversation renseignés ; bouton « Envoyer un message de test » réussi et message reçu sur le téléphone.
 
 Métier :
 

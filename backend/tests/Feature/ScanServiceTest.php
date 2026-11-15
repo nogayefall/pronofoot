@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Jobs\SendAdminNotification;
 use App\Jobs\SendAlertNotification;
 use App\Models\Alert;
 use App\Models\OpportunityLog;
@@ -15,6 +16,7 @@ use App\Services\ScanService;
 use Carbon\CarbonImmutable;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Artisan;
+use Illuminate\Support\Facades\Bus;
 use Illuminate\Support\Facades\Queue;
 use Tests\TestCase;
 
@@ -173,6 +175,52 @@ class ScanServiceTest extends TestCase
         $this->assertNull($match->fresh()->no_scan_since);
     }
 
+    public function test_admin_is_told_when_a_sent_alert_expires_but_not_for_an_unsent_one(): void
+    {
+        Bus::fake([SendAdminNotification::class]);
+        $match = $this->trackedMatch('fake-candidate');
+        foreach (['sent', 'queued'] as $status) {
+            OpportunityLog::query()->create([
+                'tracked_match_id' => $match->id,
+                'event_type' => 'evaluation',
+                'rule_id' => 'F121-E1',
+                'decision' => 'alert',
+                'rule_results' => [],
+                'filter_results' => [],
+                'reason' => 'Alerte de test.',
+                'evaluated_at' => CarbonImmutable::now()->subMinutes(16),
+            ])->alert()->create([
+                'channel' => 'log',
+                'status' => $status,
+                'message' => 'Alerte',
+                'expires_at' => CarbonImmutable::now()->subMinute(),
+            ]);
+        }
+
+        app(ScanService::class)->runOnce();
+
+        Bus::assertDispatchedTimes(SendAdminNotification::class, 1);
+        Bus::assertDispatched(SendAdminNotification::class, fn (SendAdminNotification $job): bool => str_contains($job->body, 'ALERTE EXPIRÉE')
+            && str_contains($job->body, 'Home - Away')
+            && str_contains($job->body, 'F121-E1'));
+    }
+
+    public function test_admin_is_told_when_a_goal_cancels_a_sent_alert(): void
+    {
+        Bus::fake([SendAdminNotification::class]);
+        $match = $this->trackedMatch('fake-goal-during-scan');
+        $this->referenceSnapshot($match, CarbonImmutable::now()->subMinutes(2));
+        $this->activeProfile();
+        $scanner = app(ScanService::class);
+
+        $scanner->runOnce(0);
+        $this->assertSame('sent', Alert::query()->sole()->status);
+        $scanner->runOnce(1);
+
+        Bus::assertDispatched(SendAdminNotification::class, fn (SendAdminNotification $job): bool => str_contains($job->body, 'BUT MARQUÉ · analyse relancée')
+            && str_contains($job->body, '0-0 → 1-0'));
+    }
+
     public function test_halftime_match_only_receives_the_f121_e2_signal(): void
     {
         $match = $this->trackedMatch('fake-halftime-signal');
@@ -184,7 +232,7 @@ class ScanServiceTest extends TestCase
         $this->assertSame(1, $result->alertsCreated);
         $this->assertSame('F121-E2', $log->rule_id);
         $this->assertSame('Over 0.5 buts en 2ème mi-temps', $log->suggested_action);
-        $this->assertStringContainsString('Alerte Mi-temps', Alert::query()->sole()->message);
+        $this->assertStringContainsString('SIGNAL MI-TEMPS', Alert::query()->sole()->message);
         $this->assertSame(9, $match->snapshots()->sole()->statistics['shots']);
     }
 

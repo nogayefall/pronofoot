@@ -47,6 +47,15 @@ return [
         ],
     ],
 
+    'telegram' => [
+        'bot_token' => env('TELEGRAM_BOT_TOKEN'),
+        'chat_id' => env('TELEGRAM_CHAT_ID'),
+        'base_url' => env('TELEGRAM_API_BASE_URL') ?: 'https://api.telegram.org',
+        'timeout' => (int) (env('TELEGRAM_TIMEOUT') ?: 10),
+        'retries' => (int) (env('TELEGRAM_RETRIES') ?: 2),
+        'retry_delay_ms' => (int) (env('TELEGRAM_RETRY_DELAY_MS') ?: 1000),
+    ],
+
     'odds_api' => [
         'api_key' => env('ODDS_API_KEY'),
     ],
