@@ -132,20 +132,27 @@ class ScanServiceTest extends TestCase
         ]);
 
         $justAfterGoal = app(ScanService::class)->runOnce(1);
-        $snapshot = $match->snapshots()->latest('captured_at')->latest('id')->firstOrFail();
+        $startingPoint = $match->snapshots()->latest('captured_at')->latest('id')->firstOrFail();
         $log = OpportunityLog::query()->where('event_type', 'evaluation')->latest('id')->firstOrFail();
 
         $this->assertSame(1, $justAfterGoal->goalsDetected);
         $this->assertSame(0, $justAfterGoal->alertsCreated, 'Sans le correctif : 2-0 de 9.60 à 7.10 = −26 %, alerte F162-Bis.');
-        $this->assertNull($snapshot->odds_change_percent, 'Le relevé d’avant le but est ignoré.');
+        $this->assertSame(0.0, (float) $startingPoint->odds_change_percent, 'La première cote après le but est le point de départ.');
+        $this->assertSame(7.1, (float) $startingPoint->exact_score_odds['2-0']);
         $this->assertSame('no_alert', $log->decision);
-        $this->assertStringContainsString('non calculable', $log->reason);
+        $this->assertStringNotContainsString('non calculable', $log->reason, 'Le système travaille tout de suite sur les nouvelles cotes.');
 
-        CarbonImmutable::setTestNow(CarbonImmutable::now()->addMinutes(2));
-        app(ScanService::class)->runOnce(1);
+        CarbonImmutable::setTestNow(CarbonImmutable::now()->addSeconds(15));
+        $nextReading = app(ScanService::class)->runOnce(2);
+        $alertLog = OpportunityLog::query()->where('decision', 'alert')->sole();
 
-        $this->assertSame(0.0, (float) $match->snapshots()->latest('captured_at')->latest('id')->firstOrFail()->odds_change_percent, 'Deux minutes après le but, la tendance se calcule sur un relevé postérieur au but.');
-        $this->assertSame(0, Alert::query()->count());
+        $this->assertSame(1, $nextReading->alertsCreated, '2-0 de 7.10 à 6.70 = −5.6 % dès le relevé suivant.');
+        $this->assertSame('F162-Bis', $alertLog->rule_id);
+        $this->assertStringContainsString('ALERTE CRITIQUE', Alert::query()->sole()->message);
+        $this->assertEqualsWithDelta(-5.63, (float) $alertLog->matchSnapshot->odds_change_percent, 0.01);
+
+        $preGoal = $match->snapshots()->where('captured_at', '<', CarbonImmutable::parse('2026-11-08 12:00:00'))->sole();
+        $this->assertSame(9.6, (float) $preGoal->exact_score_odds['2-0'], 'Les relevés d’avant le but restent en base.');
     }
 
     public function test_journal_has_one_line_when_a_match_enters_and_one_when_it_leaves_no_scan(): void

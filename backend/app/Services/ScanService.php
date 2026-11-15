@@ -867,22 +867,28 @@ class ScanService
             return null;
         }
 
-        // Après un but, les relevés antérieurs au but sont ignorés : la cote du score suggéré change mécaniquement
-        // au moment du but. La tendance redevient calculable deux minutes après le but (à confirmer).
+        // Après un but (à confirmer) : les relevés antérieurs au but sont ignorés pour le calcul (ils restent en base).
+        // Point de départ = première cote relevée après le dernier but ; la variation se calcule par rapport à lui dès
+        // le relevé suivant, sans attendre. Au-delà, la référence redevient le relevé d’il y a deux minutes, postérieur au but.
         $referenceTime = $now->subMinutes(2);
         $lastGoalAt = $trackedMatch->last_goal_detected_at === null
             ? null
             : CarbonImmutable::instance($trackedMatch->last_goal_detected_at);
-        $referenceSnapshot = $trackedMatch->snapshots()
+        $snapshotsWithOdds = fn () => $trackedMatch->snapshots()
             ->whereNotNull('exact_score_odds')
             ->whereNotNull('odds_captured_at')
-            ->where('captured_at', '<=', $referenceTime)
-            ->where('odds_captured_at', '<=', $referenceTime)
             ->when($lastGoalAt !== null, fn ($query) => $query
                 ->where('captured_at', '>=', $lastGoalAt)
-                ->where('odds_captured_at', '>=', $lastGoalAt))
+                ->where('odds_captured_at', '>=', $lastGoalAt));
+        $referenceSnapshot = $snapshotsWithOdds()
+            ->where('captured_at', '<=', $referenceTime)
+            ->where('odds_captured_at', '<=', $referenceTime)
             ->latest('captured_at')
+            ->latest('id')
             ->first();
+        if ($referenceSnapshot === null && $lastGoalAt !== null) {
+            $referenceSnapshot = $snapshotsWithOdds()->oldest('captured_at')->oldest('id')->first();
+        }
         $referencePrice = $referenceSnapshot?->exact_score_odds[$suggestedScoreKey] ?? null;
         if (! is_numeric($referencePrice) || ! is_finite((float) $referencePrice) || (float) $referencePrice <= 0) {
             return null;

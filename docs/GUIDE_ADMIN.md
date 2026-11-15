@@ -59,7 +59,7 @@ Quelques événements fréquents :
 - **Doublon évité** : une alerte identique est déjà active pour ce match ; aucune nouvelle alerte n’est envoyée.
 - **Incident** : une donnée manquait (cotes absentes, statistiques indisponibles, match introuvable). Le match est simplement ignoré à ce passage.
 - **Pas de scan (écart trop grand)** : l’écart du match dépasse 2,00, PronoFoot arrête de l’analyser. Une seule ligne est écrite à ce moment-là, puis une ligne **Scan repris** quand l’écart redescend.
-- Juste après un but, la justification indique souvent « tendance non calculable » : PronoFoot attend 2 minutes de cotes postérieures au but avant de juger la tendance.
+- Juste après un but, PronoFoot repart des nouvelles cotes : la première cote relevée après le but sert de point de départ, puis la tendance est jugée à chaque relevé suivant (toutes les 15 secondes pendant 2 minutes). Les cotes d’avant le but ne comptent plus (à confirmer).
 
 ## 5. Que veulent dire les décisions ?
 
@@ -77,7 +77,7 @@ PronoFoot vérifie toujours dans cet ordre et s’arrête à la première condit
 2. **Match ouvert** : au moins 4 buts et cotes des scores suivants à 8,00 ou moins → Pari neutre Over 4.5.
 3. **Vitalité** de 40 ou moins → Abstention (match « mort »).
 4. **Forte baisse** de la cote du prochain but (plus de 5 % en deux minutes) → **Alerte Critique**.
-5. **Hausse** de cette cote, ou tendance pas encore calculable (moins de 2 minutes de cotes, par exemple juste après un but) → Abstention.
+5. **Hausse** de cette cote, ou tendance pas encore calculable (moins de 2 minutes de cotes depuis le début du suivi) → Abstention. Après un but, la tendance se mesure depuis la première cote relevée après le but (à confirmer).
 6. **Écart négatif** → **Alerte Critique**.
 7. **Écart au-delà de 0,50** → Abstention.
 8. **Écart entre 0 et 0,50** → **Alerte Haute**.

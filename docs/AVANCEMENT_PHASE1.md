@@ -223,7 +223,7 @@ Détails et tableaux : [`CONFORMITE_PHASE1.md`](./CONFORMITE_PHASE1.md). Guide d
 
 ### Tendance après un but, Journal « pas de scan », pages d’erreur (14 novembre 2026)
 
-- **Tendance après un but** (à confirmer) : les relevés antérieurs au dernier but sont ignorés pour la variation sur 2 minutes (F162-Bis et hausse). La tendance est non calculable, donc abstention, jusqu’à 2 minutes après le but. Un test reproduit la « baisse » de −26 % constatée juste après le 0-3 de Serbie – Allemagne : aucune alerte.
+- **Tendance après un but** (à confirmer, révisée le 15 novembre 2026 d’après le client) : point de départ = première cote relevée après le dernier but ; variation (F162-Bis et hausse) calculée dès le relevé suivant, sans abstention de 2 minutes. Les relevés d’avant le but restent en base. Tests : la « baisse » mécanique de −26 % juste après le but ne donne aucune alerte ; une baisse de −5.6 % depuis la première cote après le but donne une alerte Critique.
 - **Journal** (à confirmer) : une ligne « Pas de scan » quand un match dépasse l’écart de 2.00, une ligne « Scan repris » quand il redescend, rien entre les deux.
 - **Pages d’erreur 419 et 500** en français, lisibles sous la Content-Security-Policy (styles avec le nonce de la requête), sans divulguer le détail de l’erreur.
 - **Quota** : plan API-Football Pro = 7 500 requêtes par jour ; PronoFoot lit le quota dans les en-têtes, aucun réglage n’est nécessaire.

@@ -21,9 +21,11 @@ final class SecretRedactor implements ProcessorInterface
     public static function fromEnvironment(): self
     {
         $candidates = [config('app.key')];
-        foreach ([...$_ENV, ...$_SERVER] as $name => $value) {
-            if (is_string($name) && is_string($value) && preg_match('/(KEY|TOKEN|SECRET|PASSWORD)/i', $name) === 1) {
-                $candidates[] = $value;
+        foreach ([$_ENV, $_SERVER, getenv()] as $variables) {
+            foreach ($variables as $name => $value) {
+                if (is_string($name) && is_string($value) && preg_match('/(KEY|TOKEN|SECRET|PASSWORD)/i', $name) === 1) {
+                    $candidates[] = $value;
+                }
             }
         }
         foreach (['services.football_api.api_key', 'services.odds_api.api_key', 'services.telegram.bot_token'] as $path) {
