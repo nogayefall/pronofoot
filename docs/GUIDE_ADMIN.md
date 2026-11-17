@@ -54,12 +54,12 @@ Le filtre en haut de page permet d’afficher seulement les alertes envoyées, e
 
 Quelques événements fréquents :
 
-- **But détecté** : un but vient d’être marqué. L’alerte précédente du match est **invalidée** et le match est réanalysé tout de suite.
+- **But détecté** : un but vient d’être marqué. L’alerte précédente du match est **invalidée** et PronoFoot attend la première cote après le but (le bookmaker rouvre ses cotes).
 - **Alerte expirée** : 15 minutes sont passées sans but. Le signal n’est plus valable.
 - **Doublon évité** : une alerte identique est déjà active pour ce match ; aucune nouvelle alerte n’est envoyée.
 - **Incident** : une donnée manquait (cotes absentes, statistiques indisponibles, match introuvable). Le match est simplement ignoré à ce passage.
 - **Pas de scan (écart trop grand)** : l’écart du match dépasse 2,00, PronoFoot arrête de l’analyser. Une seule ligne est écrite à ce moment-là, puis une ligne **Scan repris** quand l’écart redescend.
-- Juste après un but, PronoFoot repart des nouvelles cotes : la première cote relevée après le but sert de point de départ, puis la tendance est jugée à chaque relevé suivant (toutes les 15 secondes pendant 2 minutes). Les cotes d’avant le but ne comptent plus (à confirmer).
+- **Après un but** (règles du complément 4) : pendant 2 minutes, PronoFoot relève les cotes toutes les 15 secondes. Au **premier relevé** après le but, il décide tout de suite : écart négatif → **Alerte Critique** ; écart entre 0 et 0,50 (0 compris) → **Alerte Haute** ; écart au-delà de 0,50 → il attend. Aux **relevés suivants**, seule une baisse de plus de 5 % par rapport à cette première cote donne une **Alerte Critique** ; sinon, abstention. Un match « mort » (vitalité de 40 ou moins) reste en abstention (à confirmer). Un nouveau but relance une nouvelle fenêtre. Les cotes d’avant le but sont conservées mais ne comptent plus.
 
 ## 5. Que veulent dire les décisions ?
 
@@ -77,11 +77,13 @@ PronoFoot vérifie toujours dans cet ordre et s’arrête à la première condit
 2. **Match ouvert** : au moins 4 buts et cotes des scores suivants à 8,00 ou moins → Pari neutre Over 4.5.
 3. **Vitalité** de 40 ou moins → Abstention (match « mort »).
 4. **Forte baisse** de la cote du prochain but (plus de 5 % en deux minutes) → **Alerte Critique**.
-5. **Hausse** de cette cote, ou tendance pas encore calculable (moins de 2 minutes de cotes depuis le début du suivi) → Abstention. Après un but, la tendance se mesure depuis la première cote relevée après le but (à confirmer).
+5. **Hausse** de cette cote, ou tendance pas encore calculable (moins de 2 minutes de cotes depuis le début du suivi) → Abstention.
 6. **Écart négatif** → **Alerte Critique**.
 7. **Écart au-delà de 0,50** → Abstention.
 8. **Écart entre 0 et 0,50** → **Alerte Haute**.
 9. Sinon (écart nul) → Abstention.
+
+Dans les 2 minutes qui suivent un but, les étapes 4 à 9 sont remplacées par les règles « après un but » décrites dans la section 4 (premier relevé, puis baisse de plus de 5 % seulement).
 
 L’alerte reçue rappelle le match, la minute, le score, le niveau (Alerte Critique, Alerte Haute…), le signal, l’écart, la vitalité, la tendance et l’heure d’expiration.
 

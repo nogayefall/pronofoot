@@ -19,7 +19,7 @@ Ces points ne sont plus à fournir : vitalité (barème, bornes incluses, minimu
   - un match est-il bien chaud dès que l’écart est < 1.50 ou que la cote baisse de plus de 5 % ?
   - l’alerte se déclenche-t-elle à 10 % inclus ?
   - en permanence, un match dont l’écart dépasse 2.00 n’est jamais scanné : est-ce voulu hors mode économie ?
-- **Tendance après un but** : appliqué selon votre réponse — point de départ = première cote relevée après le but, variation calculée dès le relevé suivant, relevés d’avant le but conservés en base sans compter dans le calcul. À la première cote après le but, la variation vaut 0 % et les règles d’écart s’appliquent : à confirmer.
+- **Après un but (complément 4 appliqué)** : à confirmer — la vitalité ≤ 40 reste prioritaire au premier relevé après un but ; E2 et F121-D restent vérifiés avant ; si la cote n’est pas disponible au premier relevé, on attend le relevé suivant.
 - **Module 3.6 — poids et scores des méthodes** : le CDC montre des poids 60 / 30 / 10 % pour « Écart directionnel / Vitalité / Tendance », qui ne sont pas des méthodes à score dans le moteur, et dit que « chaque méthode donne un score » sans formule. Fournir les méthodes à pondérer, leurs poids et la façon de calculer chaque score (0–100). En attendant, les poids restent vides et l’étape convergence reste désactivée.
 - **Activation de la convergence** : faut-il l’ajouter à l’ordre de décision une fois les poids fournis ? Seuil de validation : 75 % (PRD) ou une autre valeur par profil ?
 - **Matchs à écart > 2.00** : non scannés selon l’annexe ; le Journal note désormais une ligne à l’entrée dans cet état et une à la sortie. Cela suffit-il ?

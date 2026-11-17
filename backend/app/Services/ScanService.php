@@ -38,6 +38,9 @@ class ScanService
     /** @var list<array{match: string, type: string, reason: string}> */
     private array $incidents = [];
 
+    /** @var list<int> Matchs dont un but a été détecté à ce passage. */
+    private array $goalMatchIds = [];
+
     private ?OddsFeed $cachedOddsFeed = null;
 
     public function __construct(
@@ -54,6 +57,7 @@ class ScanService
     {
         $now = CarbonImmutable::now();
         $this->incidents = [];
+        $this->goalMatchIds = [];
         Cache::put('pronofoot.scan.last_pass_at', $now->toIso8601String(), $now->addDays(30));
         $settingValues = $this->settings->all();
         $oddsInterval = $this->settings->integer($settingValues, 'scan.odds_interval_seconds');
@@ -232,6 +236,10 @@ class ScanService
                 );
                 $snapshotsStored++;
 
+                if (in_array($trackedMatch->id, $this->goalMatchIds, true)) {
+                    continue;
+                }
+
                 if (! $isDue) {
                     $this->refreshTrendForClassification($trackedMatch, $snapshot, $footballMatch, $oddsMatch, $settingValues, $now);
 
@@ -311,14 +319,17 @@ class ScanService
                     under25Odds: $oddsMatch->under25Odds,
                 );
                 $suggestedScoreKey = $this->ruleEngine->suggestedExactScoreKey($input, $configuration);
-                $trendChange = $this->calculateTrendChange(
-                    $trackedMatch,
-                    $oddsMatch->exactScoreOdds,
-                    $suggestedScoreKey,
-                    $this->settings->nullableString($settingValues, 'tendance_source'),
-                    $this->settings->nullableFloat($settingValues, 'tendance_seuil_stable'),
-                    $now,
-                );
+                [$postGoalPhase, $postGoalChange] = $this->postGoalPhase($trackedMatch, $oddsMatch, $suggestedScoreKey, $goalWindow, $now);
+                $trendChange = $postGoalPhase === null
+                    ? $this->calculateTrendChange(
+                        $trackedMatch,
+                        $oddsMatch->exactScoreOdds,
+                        $suggestedScoreKey,
+                        $this->settings->nullableString($settingValues, 'tendance_source'),
+                        $this->settings->nullableFloat($settingValues, 'tendance_seuil_stable'),
+                        $now,
+                    )
+                    : $postGoalChange;
                 $snapshot->forceFill(['odds_change_percent' => $trendChange])->save();
                 $result = $this->ruleEngine->evaluate(
                     new RuleInput(
@@ -331,6 +342,8 @@ class ScanService
                         halftime: $halftime,
                         under25Odds: $oddsMatch->under25Odds,
                         minute: $footballMatch->minute,
+                        postGoalPhase: $postGoalPhase,
+                        postGoalChangePercent: $postGoalChange,
                     ),
                     $configuration,
                 );
@@ -381,11 +394,16 @@ class ScanService
         $hotGap = $this->settings->decimal($settings, 'scan.hot_gap_threshold');
         $noScanGap = $this->settings->decimal($settings, 'scan.no_scan_gap_threshold');
         $trendThreshold = $this->settings->nullableFloat($settings, 'tendance_seuil_stable');
+        $goalWindow = $this->settings->integer($settings, 'scan.goal_window_seconds');
 
-        return $trackedMatches->filter(function (TrackedMatch $trackedMatch) use ($hotInterval, $calmInterval, $hotGap, $noScanGap, $trendThreshold, $economyMode, $forceRefresh, $now): bool {
+        return $trackedMatches->filter(function (TrackedMatch $trackedMatch) use ($hotInterval, $calmInterval, $hotGap, $noScanGap, $trendThreshold, $economyMode, $forceRefresh, $goalWindow, $now): bool {
             $snapshot = $trackedMatch->snapshots()->latest('captured_at')->latest('id')->first();
             $heat = $this->matchHeat($snapshot, $hotGap, $noScanGap, $trendThreshold);
             $this->recordNoScanTransition($trackedMatch, $snapshot, $heat === 'none', $noScanGap, $now);
+            if ($this->inPostGoalWindow($trackedMatch, $goalWindow, $now)) {
+                return true;
+            }
+
             if ($heat === 'none' || ($economyMode && $heat !== 'hot')) {
                 return false;
             }
@@ -398,6 +416,53 @@ class ScanService
                 ->addSeconds($heat === 'hot' ? $hotInterval : $calmInterval)
                 ->lessThanOrEqualTo($now);
         })->values();
+    }
+
+    private function inPostGoalWindow(TrackedMatch $trackedMatch, int $goalWindow, CarbonImmutable $now): bool
+    {
+        return $trackedMatch->last_goal_detected_at !== null
+            && CarbonImmutable::instance($trackedMatch->last_goal_detected_at)->addSeconds($goalWindow)->greaterThan($now);
+    }
+
+    /**
+     * Complément 4 : pendant la fenêtre après un but, le premier relevé évalué fixe le point de départ (première cote
+     * du score suggéré après le but) ; les relevés suivants donnent la variation depuis ce point. Si la cote n’est pas
+     * encore disponible (bookmaker fermé), le relevé suivant reste le « premier relevé ». Hors fenêtre : [null, null].
+     *
+     * @return array{0: string|null, 1: float|null}
+     */
+    private function postGoalPhase(
+        TrackedMatch $trackedMatch,
+        OddsMatch $oddsMatch,
+        ?string $suggestedScoreKey,
+        int $goalWindow,
+        CarbonImmutable $now,
+    ): array {
+        if (! $this->inPostGoalWindow($trackedMatch, $goalWindow, $now)) {
+            return [null, null];
+        }
+
+        if ($trackedMatch->post_goal_reference_odds === null) {
+            $price = $suggestedScoreKey === null ? null : ($oddsMatch->exactScoreOdds[$suggestedScoreKey] ?? null);
+            if (! is_numeric($price) || (float) $price <= 0) {
+                return [RuleInput::POST_GOAL_FIRST_READING, null];
+            }
+
+            $trackedMatch->forceFill([
+                'post_goal_reference_score' => $suggestedScoreKey,
+                'post_goal_reference_odds' => (float) $price,
+            ])->save();
+
+            return [RuleInput::POST_GOAL_FIRST_READING, 0.0];
+        }
+
+        $reference = (float) $trackedMatch->post_goal_reference_odds;
+        $price = $oddsMatch->exactScoreOdds[(string) $trackedMatch->post_goal_reference_score] ?? null;
+        if (! is_numeric($price) || $reference <= 0) {
+            return [RuleInput::POST_GOAL_WINDOW, null];
+        }
+
+        return [RuleInput::POST_GOAL_WINDOW, ((float) $price - $reference) / $reference * 100];
     }
 
     /**
@@ -731,7 +796,12 @@ class ScanService
                 continue;
             }
 
-            $trackedMatch->forceFill(['last_goal_detected_at' => $now])->save();
+            $trackedMatch->forceFill([
+                'last_goal_detected_at' => $now,
+                'post_goal_reference_score' => null,
+                'post_goal_reference_odds' => null,
+            ])->save();
+            $this->goalMatchIds[] = $trackedMatch->id;
             $this->invalidateActiveAlerts($trackedMatch, $previous, $now, $footballMatch);
             $this->recordOpportunity(
                 $trackedMatch,
@@ -740,7 +810,7 @@ class ScanService
                 'goal_detected',
                 'reevaluate',
                 sprintf(
-                    'Score modifié de %d-%d à %d-%d ; réévaluation immédiate demandée.',
+                    'Score modifié de %d-%d à %d-%d ; attente de la première cote après le but (le bookmaker rouvre ses cotes).',
                     $previous->home_score,
                     $previous->away_score,
                     $footballMatch->homeScore,

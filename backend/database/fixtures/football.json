@@ -229,6 +229,32 @@
             },
             "over_under_odds": {}
           }
+        },
+        {
+          "football": {
+            "status": "live",
+            "minute": 57,
+            "home_score": 2,
+            "away_score": 0,
+            "statistics": {
+              "shots": 8,
+              "shots_on_target": 4,
+              "possession": 55,
+              "corners": 4
+            },
+            "vitality_score": 64,
+            "method_scores": {
+              "F121-C": 90
+            }
+          },
+          "odds": {
+            "exact_score_odds": {
+              "2-0": 3.0,
+              "3-0": 3.0,
+              "2-1": 9.0
+            },
+            "over_under_odds": {}
+          }
         }
       ]
     },

@@ -144,6 +144,9 @@ const decisionStepLabels = {
   gap_too_high: 'Écart trop grand (F121-G)',
   gap_small: 'Petit écart (alerte haute)',
   fin: 'Fin de l’ordre de décision',
+  post_goal: 'Après un but',
+  post_goal_first_reading: 'Premier relevé après un but',
+  post_goal_window: 'Fenêtre après un but (2 min)',
   vitality: 'Vitalité',
   convergence: 'Convergence',
 }

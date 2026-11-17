@@ -116,7 +116,7 @@ class ScanServiceTest extends TestCase
         $this->assertSame(0, Alert::query()->count());
     }
 
-    public function test_a_mechanical_drop_just_after_a_goal_does_not_create_an_alert(): void
+    public function test_post_goal_window_follows_the_complement_4(): void
     {
         $match = $this->trackedMatch('fake-goal-during-scan');
         $this->activeProfile();
@@ -130,29 +130,65 @@ class ScanServiceTest extends TestCase
             'odds_captured_at' => $beforeGoal,
             'captured_at' => $beforeGoal,
         ]);
+        $at = fn (int $seconds) => CarbonImmutable::setTestNow(CarbonImmutable::parse('2026-11-08 12:00:00')->addSeconds($seconds));
+        $lastDecision = fn (): OpportunityLog => OpportunityLog::query()->where('event_type', 'evaluation')->latest('id')->firstOrFail();
 
-        $justAfterGoal = app(ScanService::class)->runOnce(1);
-        $startingPoint = $match->snapshots()->latest('captured_at')->latest('id')->firstOrFail();
-        $log = OpportunityLog::query()->where('event_type', 'evaluation')->latest('id')->firstOrFail();
+        $goal = app(ScanService::class)->runOnce(1);
+        $this->assertSame(1, $goal->goalsDetected);
+        $this->assertSame(0, OpportunityLog::query()->where('event_type', 'evaluation')->count(), 'Relevé de la détection : attente de la première cote.');
 
-        $this->assertSame(1, $justAfterGoal->goalsDetected);
-        $this->assertSame(0, $justAfterGoal->alertsCreated, 'Sans le correctif : 2-0 de 9.60 à 7.10 = −26 %, alerte F162-Bis.');
-        $this->assertSame(0.0, (float) $startingPoint->odds_change_percent, 'La première cote après le but est le point de départ.');
-        $this->assertSame(7.1, (float) $startingPoint->exact_score_odds['2-0']);
-        $this->assertSame('no_alert', $log->decision);
-        $this->assertStringNotContainsString('non calculable', $log->reason, 'Le système travaille tout de suite sur les nouvelles cotes.');
+        $at(15);
+        $this->assertSame(0, app(ScanService::class)->runOnce(1)->alertsCreated, 'Premier relevé : écart 7.10 − 5.20 = 1.90 > 0.50, attente.');
+        $this->assertStringContainsString('attente', $lastDecision()->reason);
+        $this->assertSame(7.1, $match->fresh()->post_goal_reference_odds, 'Point de départ = première cote post-but (pas la cote de 9.60 d’avant le but).');
 
-        CarbonImmutable::setTestNow(CarbonImmutable::now()->addSeconds(15));
-        $nextReading = app(ScanService::class)->runOnce(2);
-        $alertLog = OpportunityLog::query()->where('decision', 'alert')->sole();
+        $at(30);
+        $this->assertSame(0, app(ScanService::class)->runOnce(1)->alertsCreated, 'Cote stable depuis 7.10 : abstention ; l’écart ne redéclenche rien.');
+        $this->assertStringContainsString('Fenêtre après un but', $lastDecision()->reason);
 
-        $this->assertSame(1, $nextReading->alertsCreated, '2-0 de 7.10 à 6.70 = −5.6 % dès le relevé suivant.');
-        $this->assertSame('F162-Bis', $alertLog->rule_id);
-        $this->assertStringContainsString('ALERTE CRITIQUE', Alert::query()->sole()->message);
-        $this->assertEqualsWithDelta(-5.63, (float) $alertLog->matchSnapshot->odds_change_percent, 0.01);
+        $at(45);
+        $this->assertSame(1, app(ScanService::class)->runOnce(2)->alertsCreated, '7.10 → 6.70 = −5.6 % depuis la première cote post-but.');
+        $this->assertSame('F162-Bis', $lastDecision()->rule_id);
+        $this->assertEqualsWithDelta(-5.63, (float) $lastDecision()->matchSnapshot->odds_change_percent, 0.01);
 
-        $preGoal = $match->snapshots()->where('captured_at', '<', CarbonImmutable::parse('2026-11-08 12:00:00'))->sole();
-        $this->assertSame(9.6, (float) $preGoal->exact_score_odds['2-0'], 'Les relevés d’avant le but restent en base.');
+        $at(60);
+        $secondGoal = app(ScanService::class)->runOnce(3);
+        $this->assertSame(1, $secondGoal->goalsDetected, 'Second but pendant la fenêtre.');
+        $this->assertNull($match->fresh()->post_goal_reference_odds, 'Nouvelle fenêtre : le point de départ repart du nouveau but.');
+        $this->assertSame('invalidated', Alert::query()->sole()->status);
+
+        $at(75);
+        $this->assertSame(1, app(ScanService::class)->runOnce(3)->alertsCreated, 'Premier relevé après le second but : écart exactement 0, alerte Haute.');
+        $this->assertSame('F121-C.2', $lastDecision()->rule_id, '2-0 : l’équipe qui mène de deux buts est désignée, écart 3.00 − 3.00 = 0.');
+        $this->assertStringContainsString('ALERTE HAUTE', Alert::query()->latest('id')->firstOrFail()->message);
+
+        $this->assertSame(9.6, (float) $match->snapshots()->where('captured_at', '<', CarbonImmutable::parse('2026-11-08 12:00:00'))->sole()->exact_score_odds['2-0'], 'L’historique d’avant le but est conservé.');
+        $this->assertSame(7, $match->snapshots()->count(), 'Un relevé d’avant le but et six relevés : rien n’est supprimé.');
+    }
+
+    public function test_after_the_post_goal_window_the_normal_order_resumes_with_post_goal_odds(): void
+    {
+        $match = $this->trackedMatch('fake-goal-during-scan');
+        $this->activeProfile();
+        $match->snapshots()->create([
+            'minute' => 40,
+            'home_score' => 0,
+            'away_score' => 0,
+            'exact_score_odds' => ['0-0' => 7.5, '1-0' => 8.6, '0-1' => 9.8, '2-0' => 9.6],
+            'statistics' => [],
+            'odds_captured_at' => CarbonImmutable::now()->subMinutes(3),
+            'captured_at' => CarbonImmutable::now()->subMinutes(3),
+        ]);
+
+        app(ScanService::class)->runOnce(1);
+        CarbonImmutable::setTestNow('2026-11-08 12:00:15');
+        app(ScanService::class)->runOnce(1);
+        CarbonImmutable::setTestNow('2026-11-08 12:02:30');
+        app(ScanService::class)->runOnce(1);
+
+        $decision = OpportunityLog::query()->where('event_type', 'evaluation')->latest('id')->firstOrFail();
+        $this->assertSame(0.0, (float) $decision->matchSnapshot->odds_change_percent, 'Tendance sur 2 minutes avec des cotes postérieures au but (7.10 → 7.10), pas 9.60.');
+        $this->assertSame('Écart positif supérieur au seuil d’abstention (F121-G).', $decision->reason, 'Ordre normal : l’écart 1.90 donne F121-G.');
     }
 
     public function test_journal_has_one_line_when_a_match_enters_and_one_when_it_leaves_no_scan(): void

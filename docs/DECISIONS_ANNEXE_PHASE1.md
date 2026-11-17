@@ -1,9 +1,10 @@
-# PronoFoot — Application de l’annexe Phase 1 et de son complément 2
+# PronoFoot — Application de l’annexe Phase 1 et de ses compléments 2 et 4
 
 Sources :
 
 - `docs/PRONOFOOT_Annexe_Phase1_Corrigee.pdf` (« décisions figées ») : vitalité, tendance, F121-E1/E2, F121-D, quota, matchs surveillés, 10 situations.
 - `docs/PRONOFOOT_Annexe_Phase1_Complement2.pdf` : ordre de priorité des règles, données complètes des 10 situations (statistiques et cotes à T−2 min), pseudo-code du moteur.
+- `docs/PRONOFOOT_Annexe_Phase1_Complement4.pdf` : gestion des cotes après un but (remplace le complément 3, `docs/PRONOFOOT_Annexe_Phase1_Complement3.pdf`, conservé pour mémoire).
 
 ## Règles appliquées
 
@@ -58,12 +59,36 @@ Autres points à confirmer :
 
 - Une baisse de **exactement** 5 % n’est pas « plus de 5 % » : pas de F162-Bis, le moteur passe à l’écart.
 - Avec F162-Bis prioritaire, une forte baisse donne une alerte même si l’écart dépasse 0.50 : le « filtre » d’écart ne bloque plus dans ce cas, contrairement au critère d’acceptation du CDC Phase 1 (« aucune alerte si un des 3 filtres n’est pas validé »).
-- **Tendance après un but (à confirmer, d’après le client)** : après un but, le système travaille tout de suite sur les nouvelles cotes. Le point de départ de la tendance est la **première cote relevée après le dernier but** ; à ce relevé, la variation vaut 0 % et les autres règles (écart…) s’appliquent normalement. Dès le relevé suivant (toutes les 15 secondes pendant 2 minutes après un but), la variation de F162-Bis (baisse de plus de 5 %) et de la hausse se calcule par rapport à ce point de départ. Après 2 minutes, la référence redevient le relevé d’il y a 2 minutes, toujours postérieur au but. Il n’y a plus d’abstention de 2 minutes. Les relevés d’avant le but restent en base (ils serviront à régler le système) mais ne comptent pas dans le calcul. Exemple réel : 2-0 de 9.60 avant le but à 7.10 juste après (−26 % mécanique) → aucune alerte ; puis 7.10 → 6.70 au relevé suivant (−5.6 %) → alerte Critique (tests `test_a_mechanical_drop_just_after_a_goal_does_not_create_an_alert`).
+- **Tendance après un but** : voir la section « Gestion des cotes après un but (complément 4) ». La baisse mécanique de −26 % constatée en réel (2-0 de 9.60 avant le but à 7.10 après) ne compte plus : seules les cotes prises après le but servent.
 - **Journal « pas de scan » (à confirmer)** : une seule ligne quand un match passe en « pas de scan » (écart supérieur à 2.00), et une autre quand il en sort ; rien entre les deux.
 
 ## Cote Under 2.5 réelle (pari 36)
 
 Branchée d’après la capture réelle `backend/database/fixtures/api-football/odds-live-bet36.json` (13 novembre 2026, 43 matchs). Le pari 36 « Over/Under Line » donne des valeurs `Over`/`Under` avec un `handicap` texte égal au total de buts du match. Seule une valeur `Under` 2.5 unique et non suspendue est retenue ; la ligne 2.5 n’est pas toujours proposée (11 matchs sur 43). Le pari 36 n’est demandé que si un match suivi est à la mi-temps.
+
+## Gestion des cotes après un but (complément 4, validé par le client)
+
+Source : `docs/PRONOFOOT_Annexe_Phase1_Complement4.pdf`. Il **remplace le complément 3** : l’historique n’est jamais supprimé et on n’attend pas 2 minutes avant de recalculer.
+
+| Moment | Règle appliquée |
+|---|---|
+| Relevé où le but est détecté | Alerte précédente du match invalidée, nouvelle fenêtre de 2 minutes, scan toutes les 15 s. Aucune décision : on attend la première cote après le but (le bookmaker rouvre ses cotes). |
+| **Premier relevé après le but** (une seule fois par but) | Écart < 0 → **Alerte Critique** (F121-E1). 0 ≤ écart ≤ 0.50 (0 inclus) → **Alerte Haute**. Écart > 0.50 → attente, aucune alerte. La cote du score suggéré devient le **point de départ**. |
+| Relevés suivants pendant la fenêtre (2 minutes) | Seule une baisse de plus de 5 % par rapport au point de départ donne une **Alerte Critique** (F162-Bis). Sinon abstention. Les règles d’écart ne redéclenchent pas d’alerte. |
+| Après la fenêtre | Retour à l’ordre de décision normal (tendance sur 2 minutes), avec des cotes prises après le but uniquement. |
+| Nouveau but pendant la fenêtre | Nouvelle fenêtre et nouveau point de départ à partir de ce but. |
+
+Toujours appliqués : l’historique des cotes est conservé en entier (rien n’est supprimé) ; une seule alerte active par match, règle et sélection.
+
+À confirmer :
+
+- **Vitalité ≤ 40 prioritaire** : un match « mort » reste en abstention, y compris au premier relevé après un but. Le pseudo-code du complément 4 ne regarde pas la vitalité.
+- E2 (mi-temps) et F121-D (match ouvert) restent vérifiés avant la règle après but.
+- Si la cote du score suggéré n’est pas encore disponible au premier relevé (bookmaker fermé), le relevé suivant reste le « premier relevé ».
+- Le point de départ est la cote du score suggéré au premier relevé ; si l’équipe désignée change pendant la fenêtre, la variation suit toujours ce même score.
+- Le relevé de la détection du but n’est pas évalué, comme dans le pseudo-code (« attente première cote »).
+
+Tests : `test_post_goal_window_follows_the_complement_4` et `test_after_the_post_goal_window_the_normal_order_resumes_with_post_goal_odds` (scan), `test_first_reading_after_a_goal_alerts_immediately_on_a_favourable_gap` et `test_later_readings_in_the_post_goal_window_only_alert_on_a_strong_drop` (moteur).
 
 ## Quota et matchs surveillés (annexe, sections 5 et 6)
 

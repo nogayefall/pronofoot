@@ -18,6 +18,8 @@ class TrackedMatch extends Model
         'is_active',
         'tracking_mode',
         'last_goal_detected_at',
+        'post_goal_reference_score',
+        'post_goal_reference_odds',
         'last_scanned_at',
         'no_scan_since',
     ];
@@ -28,6 +30,7 @@ class TrackedMatch extends Model
             'kickoff_at' => 'datetime',
             'is_active' => 'boolean',
             'last_goal_detected_at' => 'datetime',
+            'post_goal_reference_odds' => 'float',
             'last_scanned_at' => 'datetime',
             'no_scan_since' => 'datetime',
         ];

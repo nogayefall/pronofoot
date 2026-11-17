@@ -84,6 +84,11 @@ final class RuleEngine
         }
 
         foreach ($configuration->pipeline as $step) {
+            if ($input->postGoalPhase !== null
+                && in_array($step, ['trend_drop', 'trend_rise', 'gap_negative', 'gap_too_high', 'gap_small'], true)) {
+                return $this->postGoalDecision($input, $configuration, $designation, $team, $gap, $abstain, $alert);
+            }
+
             switch ($step) {
                 case 'F121-E2':
                     $rule = $available['F121-E2'];
@@ -203,6 +208,55 @@ final class RuleEngine
         return $abstain('fin', $gap !== null && $gap == 0.0
             ? 'Écart nul : aucune règle satisfaite, abstention.'
             : 'Aucune règle satisfaite : abstention.');
+    }
+
+    /**
+     * Complément 4 : après un but, les étapes de tendance et d’écart sont remplacées (E2, F121-D et la vitalité
+     * restent appliqués avant, à confirmer).
+     *  - Premier relevé après le but, une seule fois : écart < 0 → alerte critique (F121-E1) ; 0 ≤ écart ≤ 0.50 →
+     *    alerte haute ; écart > 0.50 → attente.
+     *  - Relevés suivants pendant la fenêtre : seule une baisse de plus du seuil (5 %) depuis la première cote
+     *    après le but donne une alerte critique (F162-Bis) ; sinon abstention. Les règles d’écart ne s’appliquent pas.
+     */
+    private function postGoalDecision(
+        RuleInput $input,
+        RuleConfiguration $configuration,
+        ?RuleResult $designation,
+        ?string $team,
+        ?float $gap,
+        \Closure $abstain,
+        \Closure $alert,
+    ): EngineResult {
+        if ($team === null || $gap === null) {
+            return $abstain('post_goal', 'Après un but : aucune équipe désignée ('.($designation?->reason ?? 'F121-C est inactive.').').');
+        }
+
+        if ($input->postGoalPhase === RuleInput::POST_GOAL_FIRST_READING) {
+            if ($gap < 0) {
+                if (! $configuration->isActive('F121-E1')) {
+                    return $abstain('post_goal_first_reading', 'Premier relevé après un but : écart négatif, mais F121-E1 est inactive.');
+                }
+
+                return $alert('post_goal_first_reading', 'F121-E1', $configuration->negativeGapLevel, $team, 'Prochain but', 'Premier relevé après un but : écart négatif, alerte immédiate (F121-E1).');
+            }
+
+            if ($gap <= $configuration->abstentionGapThreshold) {
+                return $alert('post_goal_first_reading', $designation->ruleId, $configuration->positiveGapLevel, $team, 'Prochain but', 'Premier relevé après un but : écart entre 0 et le seuil, alerte immédiate.');
+            }
+
+            return $abstain('post_goal_first_reading', 'Premier relevé après un but : écart supérieur au seuil, attente (aucune alerte).');
+        }
+
+        $change = $input->postGoalChangePercent;
+        if ($change === null || ! is_finite($change)) {
+            return $abstain('post_goal_window', 'Fenêtre après un but : variation depuis la première cote post-but non calculable.');
+        }
+
+        if ($configuration->isActive('F162-Bis') && $change < -(float) $configuration->stableOddsChangePercent) {
+            return $alert('post_goal_window', 'F162-Bis', $configuration->negativeGapLevel, $team, 'Prochain but', 'Fenêtre après un but : baisse de plus du seuil depuis la première cote post-but (F162-Bis).');
+        }
+
+        return $abstain('post_goal_window', 'Fenêtre après un but : pas de baisse de plus du seuil depuis la première cote post-but, abstention.');
     }
 
     public function suggestedExactScoreKey(RuleInput $input, RuleConfiguration $configuration): ?string

@@ -7,6 +7,18 @@ use InvalidArgumentException;
 final readonly class RuleInput
 {
     /**
+     * Complément 4 : premier relevé après un but (règle d’écart, une seule fois).
+     */
+    public const POST_GOAL_FIRST_READING = 'first_reading';
+
+    /**
+     * Complément 4 : relevés suivants dans la fenêtre après un but (seule une forte baisse depuis la première cote).
+     */
+    public const POST_GOAL_WINDOW = 'window';
+
+    /**
+     * @param  string|null  $postGoalPhase  Phase après un but : premier relevé, fenêtre, ou null hors fenêtre.
+     * @param  float|null  $postGoalChangePercent  Variation depuis la première cote relevée après le dernier but.
      * @param  array<string, int|float>  $exactScoreOdds
      * @param  array<string, int|float>  $methodScores
      * @param  bool|null  $halftime  Match arrêté à la mi-temps.
@@ -23,7 +35,13 @@ final readonly class RuleInput
         public ?bool $halftime = null,
         public ?float $under25Odds = null,
         public ?int $minute = null,
+        public ?string $postGoalPhase = null,
+        public ?float $postGoalChangePercent = null,
     ) {
+        if ($postGoalPhase !== null && ! in_array($postGoalPhase, [self::POST_GOAL_FIRST_READING, self::POST_GOAL_WINDOW], true)) {
+            throw new InvalidArgumentException('Phase après un but inconnue.');
+        }
+
         if ($homeScore < 0 || $awayScore < 0) {
             throw new InvalidArgumentException('Les scores du match doivent être positifs ou nuls.');
         }

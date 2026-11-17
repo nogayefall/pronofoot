@@ -204,6 +204,67 @@ class RuleEngineTest extends TestCase
         $this->assertTrue($configured->shouldAlert);
     }
 
+    public function test_first_reading_after_a_goal_alerts_immediately_on_a_favourable_gap(): void
+    {
+        $firstReading = fn (float $nextOdds, float $vitality = 64.0): EngineResult => (new RuleEngine)->evaluate(
+            new RuleInput(
+                homeScore: 1,
+                awayScore: 0,
+                exactScoreOdds: ['1-0' => 3.0, '2-0' => $nextOdds, '1-1' => 9.0],
+                vitalityScore: $vitality,
+                oddsChangePercent: 25.0,
+                postGoalPhase: RuleInput::POST_GOAL_FIRST_READING,
+                postGoalChangePercent: 0.0,
+            ),
+            new RuleConfiguration,
+        );
+
+        $zeroGap = $firstReading(3.0);
+        $this->assertTrue($zeroGap->shouldAlert, 'Écart exactement 0 au premier relevé : alerte Haute (0 inclus).');
+        $this->assertSame('Haute', $zeroGap->level);
+        $this->assertSame('post_goal_first_reading', last($zeroGap->steps)['step']);
+
+        $negative = $firstReading(2.8);
+        $this->assertSame('F121-E1', $negative->decisiveRule);
+        $this->assertSame('Critique', $negative->level);
+
+        $this->assertSame('Haute', $firstReading(3.5)->level, 'Écart 0.50 inclus.');
+
+        $wide = $firstReading(3.8);
+        $this->assertFalse($wide->shouldAlert, 'Écart 0.80 : attente.');
+        $this->assertStringContainsString('attente', $wide->reason);
+
+        $dead = $firstReading(2.8, 40.0);
+        $this->assertFalse($dead->shouldAlert, 'Vitalité ≤ 40 prioritaire, même au premier relevé après un but (à confirmer).');
+        $this->assertSame('vitality', last($dead->steps)['step']);
+    }
+
+    public function test_later_readings_in_the_post_goal_window_only_alert_on_a_strong_drop(): void
+    {
+        $inWindow = fn (float $change): EngineResult => (new RuleEngine)->evaluate(
+            new RuleInput(
+                homeScore: 1,
+                awayScore: 0,
+                exactScoreOdds: ['1-0' => 3.0, '2-0' => 2.8, '1-1' => 9.0],
+                vitalityScore: 64,
+                oddsChangePercent: $change,
+                postGoalPhase: RuleInput::POST_GOAL_WINDOW,
+                postGoalChangePercent: $change,
+            ),
+            new RuleConfiguration,
+        );
+
+        $drop = $inWindow(-6.0);
+        $this->assertTrue($drop->shouldAlert);
+        $this->assertSame('F162-Bis', $drop->decisiveRule);
+        $this->assertSame('Critique', $drop->level);
+
+        $stable = $inWindow(0.0);
+        $this->assertFalse($stable->shouldAlert, 'Écart négatif (−0.20), mais les règles d’écart ne redéclenchent pas dans la fenêtre.');
+        $this->assertStringContainsString('Fenêtre après un but', $stable->reason);
+        $this->assertFalse($inWindow(-5.0)->shouldAlert, 'Exactement −5 % : pas « plus de 5 % ».');
+    }
+
     public function test_undefined_and_ambiguous_rules_never_produce_a_candidate(): void
     {
         $undefinedRuleIds = ['F121-E', 'F121-K', 'F121-T', 'F121-X', 'F122', 'F124', 'F126'];

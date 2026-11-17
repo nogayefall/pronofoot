@@ -28,7 +28,8 @@ Référence : `PRONOFOOT_CDC_V9.1.pdf`, section 4.1. Le constructeur de règles 
 | 2. F121-D | Au moins 4 buts (à confirmer) et cotes des deux scores suivants ≤ 8.00 | **Pari neutre** Over 4.5 |
 | 3. Vitalité | ≤ 40 ou non calculable | Abstention |
 | 4. F162-Bis | Baisse de la cote du score suggéré de plus de 5 % en 2 minutes | **Alerte Critique** (prioritaire sur l’écart) |
-| 5. Hausse | Variation > 0, ou tendance non calculable (moins de 2 minutes de cotes depuis le début du suivi). Après un but, variation mesurée depuis la première cote relevée après le but (à confirmer) | Abstention |
+| 5. Hausse | Variation > 0, ou tendance non calculable (moins de 2 minutes de cotes depuis le début du suivi) | Abstention |
+| Après un but (complément 4) | Pendant 2 minutes, les étapes 4 à 9 sont remplacées : premier relevé → écart < 0 Critique, 0 ≤ écart ≤ 0.50 Haute, sinon attente ; relevés suivants → seule une baisse de plus de 5 % depuis la première cote post-but donne une alerte Critique | Voir `DECISIONS_ANNEXE_PHASE1.md` |
 | 6. F121-E1 | Écart < 0 | **Alerte Critique** |
 | 7. F121-G | Écart > 0.50 | Abstention |
 | 8. Petit écart | 0 < écart ≤ 0.50 | **Alerte Haute** |
