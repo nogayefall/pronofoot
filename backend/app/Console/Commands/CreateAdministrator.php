@@ -28,6 +28,13 @@ class CreateAdministrator extends Command
         $identityErrors = Validator::make(
             ['name' => $name, 'email' => $email],
             ['name' => ['required', 'string', 'max:255'], 'email' => ['required', 'email', 'max:255']],
+            [
+                'name.required' => 'Le nom est obligatoire.',
+                'name.max' => 'Le nom ne doit pas dépasser 255 caractères.',
+                'email.required' => 'L’adresse courriel est obligatoire.',
+                'email.email' => 'L’adresse courriel n’est pas valide.',
+                'email.max' => 'L’adresse courriel ne doit pas dépasser 255 caractères.',
+            ],
         )->errors();
 
         if ($identityErrors->isNotEmpty()) {
@@ -48,10 +55,15 @@ class CreateAdministrator extends Command
         $passwordErrors = Validator::make(
             ['password' => $password, 'password_confirmation' => $passwordConfirmation],
             ['password' => ['required', 'confirmed', Password::min(12)]],
+            [
+                'password.required' => 'Le mot de passe est obligatoire.',
+                'password.confirmed' => 'Les deux mots de passe ne correspondent pas.',
+                'password.min' => 'Le mot de passe doit contenir au moins 12 caractères.',
+            ],
         )->errors();
 
         if ($passwordErrors->isNotEmpty()) {
-            $this->error($passwordErrors->first());
+            $this->error($passwordErrors->first().' Aucun compte n’a été créé.');
 
             return self::FAILURE;
         }

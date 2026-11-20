@@ -382,6 +382,29 @@ class AdministratorAuthenticationTest extends TestCase
         $this->assertDatabaseMissing('users', ['email' => CreateTestAdministrator::EMAIL]);
     }
 
+    public function test_admin_create_explains_password_errors_in_french_without_translation_files(): void
+    {
+        $this->app->setLocale('fr');
+
+        $this->artisan('admin:create')
+            ->expectsQuestion('Nom de l’administrateur', 'Admin')
+            ->expectsQuestion('Adresse courriel', 'admin@example.com')
+            ->expectsQuestion('Mot de passe (12 caractères minimum)', 'court')
+            ->expectsQuestion('Confirme le mot de passe', 'court')
+            ->expectsOutput('Le mot de passe doit contenir au moins 12 caractères. Aucun compte n’a été créé.')
+            ->assertExitCode(1);
+
+        $this->artisan('admin:create')
+            ->expectsQuestion('Nom de l’administrateur', 'Admin')
+            ->expectsQuestion('Adresse courriel', 'admin@example.com')
+            ->expectsQuestion('Mot de passe (12 caractères minimum)', 'un-long-mot-de-passe')
+            ->expectsQuestion('Confirme le mot de passe', 'un-autre-mot-de-passe')
+            ->expectsOutput('Les deux mots de passe ne correspondent pas. Aucun compte n’a été créé.')
+            ->assertExitCode(1);
+
+        $this->assertDatabaseMissing('users', ['email' => 'admin@example.com']);
+    }
+
     public function test_local_test_administrator_can_be_created_without_an_authenticator_app(): void
     {
         $this->app->detectEnvironment(fn () => 'local');
