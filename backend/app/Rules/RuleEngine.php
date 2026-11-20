@@ -214,7 +214,8 @@ final class RuleEngine
     ): EngineResult {
         $sides = [SideOutcome::HOME, SideOutcome::AWAY];
         $leadMargin = $input->homeScore - $input->awayScore;
-        if ($configuration->followLeader && abs($leadMargin) >= 2) {
+        // F121-C.2 : le réglage ET la case du profil, comme les autres règles.
+        if ($configuration->followLeader && $configuration->isActive('F121-C.2') && abs($leadMargin) >= 2) {
             $leader = $leadMargin > 0 ? SideOutcome::HOME : SideOutcome::AWAY;
             $sides = [$leader];
             $steps[] = [

@@ -60,6 +60,7 @@ final class SideEvaluator
             return match (true) {
                 $gap < 0 && ! $configuration->isActive('F121-E1') => $abstain('premier relevé après un but : écart négatif, mais F121-E1 est inactive', 'post_goal_first_reading'),
                 $gap < 0 => $alert(2, 'F121-E1', 'premier relevé après un but : écart négatif, alerte immédiate (F121-E1)', 'post_goal_first_reading'),
+                $gap <= $configuration->abstentionGapThreshold && ! $configuration->isActive('F121-C') => $abstain('premier relevé après un but : écart entre 0 et le seuil, mais F121-C est inactive', 'post_goal_first_reading'),
                 $gap <= $configuration->abstentionGapThreshold => $alert(1, 'F121-C', 'premier relevé après un but : écart entre 0 et le seuil, alerte immédiate', 'post_goal_first_reading'),
                 default => $abstain('premier relevé après un but : écart supérieur au seuil, attente', 'post_goal_first_reading'),
             };
@@ -129,7 +130,9 @@ final class SideEvaluator
 
                 case 'gap_small':
                     if ($gap > 0 && $gap <= $configuration->abstentionGapThreshold) {
-                        return $alert(1, 'F121-C', 'petit écart positif : un but de cette équipe est probable', $step);
+                        return $configuration->isActive('F121-C')
+                            ? $alert(1, 'F121-C', 'petit écart positif : un but de cette équipe est probable', $step)
+                            : $abstain('petit écart positif, mais F121-C est inactive', $step);
                     }
 
                     $continue($step);

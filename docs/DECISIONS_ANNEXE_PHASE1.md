@@ -56,9 +56,9 @@ Avant, seule l’équipe « désignée » (F121-C : plus petit écart, ou F121-C
 | Cote de l’option neutre | Lue dans le pari 36 (« Over/Under Line ») d’API-Football, ligne Over (buts actuels + 0,5). Demandée **une seule fois, à la création d’une alerte**, jamais à chaque relevé ; la réponse est gardée 60 secondes (plusieurs alertes créées dans la minute partagent la même requête). Marché indisponible : « cote non disponible ». |
 | F121-D | Inchangée : Over 4.5, sans option ciblée. |
 | F121-X (écart croisé) | \|écart domicile − écart extérieur\| < 1.00 et match ouvert (au moins 4 buts, seuil de F121-D) → pari neutre « un but de plus ». **Désactivée par défaut, à confirmer** (définition du « match ouvert » à confirmer). | `rules.f121x_enabled`, `rules.f121x_cross_gap_max` = 1.00 |
-| F121-C.2 (suivre le leader) | Si une équipe mène de 2 buts ou plus, seule elle est évaluée. **Désactivée par défaut, à confirmer.** | `rules.follow_leader_enabled` |
+| F121-C.2 (suivre le leader) | Si une équipe mène de 2 buts ou plus, seule elle est évaluée. **Désactivée par défaut, à confirmer.** Active seulement si le paramètre est activé et la case F121-C.2 cochée dans le profil actif. | `rules.follow_leader_enabled` |
 | Justification au Journal | Les deux côtés : « Domicile (2-0) : cote 3.20, écart +0.91, tendance +12 % → abstention (la cote monte) ; Extérieur (1-1) : cote 4.75, écart +2.99, tendance −8 % → … ». Le message « aucune équipe désignée (F121-C est inactive) » n’existe plus. |
-| F121-C et F121-C.2 | Plus nécessaires pour ce calcul ; elles restent calculées à titre indicatif. Une alerte « petit écart » porte toujours la règle F121-C. |
+| F121-C et F121-C.2 | Comme les autres règles, elles respectent la case du profil actif : l’alerte Haute (petit écart, y compris au premier relevé après un but) exige F121-C cochée ; le suivi du leader exige le paramètre **et** la case F121-C.2. |
 
 Le Testeur manuel n’a qu’un champ de variation : il s’applique à l’équipe à l’écart le plus faible (comme avant) ; l’autre équipe a une tendance non calculable, donc s’abstient.
 

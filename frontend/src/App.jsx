@@ -536,7 +536,7 @@ function App() {
     const result = await adminRequest('/admin/api/rule-profiles', 'POST', { name: newProfileName.trim() })
     if (result) {
       setNewProfileName('')
-      setActionMessage(`Profil « ${result.created.name} » créé. Les poids restent vides tant qu’ils ne sont pas confirmés.`)
+      setActionMessage(`Profil « ${result.created.name} » créé. Les règles par défaut sont cochées ; les poids restent vides tant qu’ils ne sont pas confirmés.`)
       await loadRuleProfile(result.created.id)
     }
     setIsBusy(false)
@@ -858,6 +858,7 @@ function App() {
 
           {activePage === 'rules' && (
             <>
+              {ruleProfile?.profile && (ruleProfile.profile.activeRules ?? []).length === 0 && <div className="message message-critical" role="alert"><Icon name="shield" size={18} /><span><strong>Le profil actif « {ruleProfile.profile.name} » n’a aucune règle cochée.</strong> Aucune alerte de règle ne peut être produite (ni mi-temps, ni écart, ni forte baisse). Cochez les règles voulues ci-dessous puis sauvegardez le profil.</span></div>}
               <div className="message message-warning"><Icon name="shield" size={18} /><span><strong>Les règles non définies ne déclenchent jamais de signal.</strong> Les poids de convergence sont laissés vides jusqu’à validation par le client.</span></div>
               <Section title="Règles Phase 1" aside={`${ruleDescriptions.length} règles documentées · activation limitée aux règles disponibles dans le moteur.`}>
                 <div className="panel panel-flush rule-table">{ruleDescriptions.map((rule) => <article className="rule-row" key={rule.id}><span className="rule-id num">{rule.id}</span><div className="rule-info"><strong>{rule.title}</strong><p>{rule.detail}</p></div><Pill tone={rule.status === 'Disponible' ? 'alert' : rule.status === 'Partiel' ? 'high' : 'dead'}>{rule.status}</Pill></article>)}</div>

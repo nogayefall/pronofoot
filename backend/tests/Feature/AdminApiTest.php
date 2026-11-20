@@ -388,7 +388,8 @@ class AdminApiTest extends TestCase
         $first = $this->postJson(route('admin.api.rule-profiles.store'), ['name' => 'Profil A'])
             ->assertCreated()
             ->assertJsonPath('created.isActive', true)
-            ->assertJsonPath('created.activeRules', [])
+            ->assertJsonPath('created.activeRules', RuleConfiguration::DEFINED_RULES)
+            ->assertJsonPath('created.methodWeights', [])
             ->json('created.id');
         $second = $this->postJson(route('admin.api.rule-profiles.store'), ['name' => 'Profil B'])
             ->assertCreated()

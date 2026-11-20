@@ -42,7 +42,8 @@ final class RuleProfileController extends Controller
             'name' => $validated['name'],
             'description' => $validated['description'] ?? null,
             'is_active' => ! RuleProfile::query()->where('is_active', true)->exists(),
-            'settings' => ['active_rules' => [], 'method_weights' => []],
+            // Règles par défaut cochées (comme le profil par défaut du code), pour éviter un profil vide.
+            'settings' => ['active_rules' => RuleConfiguration::DEFINED_RULES, 'method_weights' => []],
         ]);
 
         return response()->json(['created' => $this->serialize($profile), ...$this->show()->getData(true)], 201);

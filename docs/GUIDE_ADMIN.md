@@ -21,7 +21,7 @@ Pour vous déconnecter, utilisez le bouton **Se déconnecter** en haut à droite
 |---|---|
 | **Tableau de bord** | Quatre indicateurs (matchs suivis, alertes actives, quota API restant, fréquence de scan), une carte par alerte active (niveau, minute et score, score suggéré, cote, écart, compte à rebours) et le tableau des matchs suivis avec leur vitalité et leur décision. L’état du scan et l’heure du dernier relevé sont en bas du menu. Un bandeau orange apparaît en mode économie, rouge quand le quota est épuisé. |
 | **Matchs suivis** | Choisir les matchs à surveiller, voir leur fiche (tirs, tirs cadrés, corners, possession de chaque équipe, vitalité). |
-| **Moteur de règles** | Les règles disponibles, et vos **profils** : méthodes activées, poids, seuil de validation. Vous pouvez créer un profil, l’enregistrer, l’activer et le tester. |
+| **Moteur de règles** | Les règles disponibles, et vos **profils** : méthodes activées, poids, seuil de validation. Vous pouvez créer un profil, l’enregistrer, l’activer et le tester. Un nouveau profil démarre avec les règles par défaut cochées ; un avertissement rouge s’affiche si le profil actif n’a aucune règle cochée (aucune alerte de règle possible). Une règle décochée ne donne jamais d’alerte. |
 | **Testeur manuel** | Essayer une situation (score, cotes, vitalité, tendance, mi-temps) pour voir la décision du moteur. Rien n’est envoyé. |
 | **Journal des décisions** | Tout ce que le système a vu et décidé, match par match. C’est ici que vous notez si une alerte a été gagnée ou perdue. |
 | **Statistiques** | Le nombre d’alertes et le taux de réussite, au total et par règle, à partir des résultats notés dans le Journal. |

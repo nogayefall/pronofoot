@@ -193,6 +193,21 @@ class TwoSidedRuleTest extends TestCase
         $this->assertStringContainsString('Vitalité non disponible (statistiques non couvertes)', $result->reason);
     }
 
+    public function test_the_high_alert_and_follow_the_leader_respect_the_profile_checkboxes(): void
+    {
+        $smallGap = ['1-0' => 3.00, '2-0' => 3.30, '1-1' => 9.00];
+        $this->assertSame('Haute', $this->decide(1, 0, $smallGap, ['home' => -1.0, 'away' => 0.0])->level, 'F121-C cochée : alerte Haute.');
+
+        $withoutC = $this->decide(1, 0, $smallGap, ['home' => -1.0, 'away' => 0.0], new RuleConfiguration(activeRules: ['F121-E2', 'F121-D', 'F121-E1', 'F162-Bis']));
+        $this->assertFalse($withoutC->shouldAlert, 'F121-C décochée : pas d’alerte Haute.');
+        $this->assertStringContainsString('petit écart positif, mais F121-C est inactive', $withoutC->reason);
+
+        $odds = ['2-0' => 3.00, '3-0' => 4.00, '2-1' => 4.50];
+        $leaderUnchecked = $this->decide(2, 0, $odds, ['home' => 2.0, 'away' => -8.0], new RuleConfiguration(activeRules: ['F121-C', 'F162-Bis', 'F121-E1'], followLeader: true));
+        $this->assertSame('away', $leaderUnchecked->selection, 'Réglage activé mais F121-C.2 décochée : les deux équipes restent évaluées.');
+        $this->assertCount(2, $leaderUnchecked->sides);
+    }
+
     public function test_the_rule_no_longer_needs_f121_c_to_be_active(): void
     {
         $result = $this->decide(
