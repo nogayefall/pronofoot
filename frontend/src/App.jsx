@@ -106,6 +106,7 @@ function Icon({ name, size = 20 }) {
     clock: <><circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 2" /></>,
     shield: <><path d="M12 3 20 6v5c0 5.1-3.4 8.3-8 10-4.6-1.7-8-4.9-8-10V6l8-3Z" /><path d="m9 12 2 2 4-4" /></>,
     search: <><circle cx="10.8" cy="10.8" r="6.8" /><path d="m16 16 5 5" /></>,
+    logout: <><path d="M10 4H6a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h4" /><path d="M15 16l4-4-4-4M19 12H9" /></>,
   }
 
   return <svg {...common}>{paths[name] ?? paths.grid}</svg>
@@ -528,7 +529,7 @@ function App() {
         <div className="sidebar-spacer" />
         <div className="phase-card"><span className="phase-card-icon"><Icon name="shield" size={18} /></span><div><strong>Phase 1</strong><p>Détecteur live · aucun pari automatique</p></div></div>
         <button className="profile-button" type="button" onClick={logout}>
-          <span className="avatar">{adminName.slice(0, 1).toUpperCase()}</span><span className="profile-copy"><strong>{adminName}</strong><small>Administrateur</small></span><span className="profile-exit">↗</span>
+          <span className="avatar">{adminName.slice(0, 1).toUpperCase()}</span><span className="profile-copy"><strong>{adminName}</strong><small>Administrateur</small></span><span className="profile-exit"><Icon name="logout" size={16} />Déconnexion</span>
         </button>
         {logoutError && <p className="sidebar-error" role="alert">{logoutError}</p>}
       </aside>
@@ -537,7 +538,8 @@ function App() {
         <header className="topbar">
           <button className="mobile-menu-button" type="button" aria-label="Ouvrir le menu" onClick={() => setMobileMenuOpen((open) => !open)}><span /><span /><span /></button>
           <div className="breadcrumb"><span>Administration</span><Icon name="arrow" size={14} /><strong>{activeLabel}</strong></div>
-          <div className="topbar-right"><span className="secure-label"><span className="secure-dot" /> Session sécurisée</span><span className="topbar-avatar">{adminName.slice(0, 1).toUpperCase()}</span></div>
+          <div className="topbar-right"><span className="secure-label"><span className="secure-dot" /> Session sécurisée</span><span className="topbar-avatar">{adminName.slice(0, 1).toUpperCase()}</span><button className="logout-button" type="button" onClick={logout}><Icon name="logout" size={16} /><span>Se déconnecter</span></button></div>
+          {logoutError && <p className="topbar-error" role="alert">{logoutError}</p>}
         </header>
 
         <div className="content">

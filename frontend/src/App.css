@@ -220,8 +220,64 @@ textarea:focus-visible {
 }
 
 .profile-exit {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
   color: #9aac9f;
-  font-size: 16px;
+  font-size: 13px;
+  white-space: nowrap;
+}
+
+.profile-button:hover .profile-exit {
+  color: #ffffff;
+}
+
+.logout-button {
+  display: inline-flex;
+  min-height: 36px;
+  align-items: center;
+  gap: 7px;
+  padding: 0 12px;
+  border: 1px solid #e4eae6;
+  border-radius: 7px;
+  background: white;
+  color: #53665b;
+  font-size: 14px;
+  font-weight: 650;
+  white-space: nowrap;
+  transition: background 140ms ease, color 140ms ease;
+}
+
+.logout-button:hover {
+  background: #f3f6f4;
+  color: #253a30;
+}
+
+.topbar-error {
+  position: absolute;
+  top: 100%;
+  right: 18px;
+  margin: 6px 0 0;
+  padding: 6px 10px;
+  border-radius: 7px;
+  background: #fff1ef;
+  color: #a2301f;
+  font-size: 14px;
+}
+
+@media (max-width: 520px) {
+  .logout-button {
+    padding: 0 9px;
+  }
+
+  .logout-button span {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    white-space: nowrap;
+  }
 }
 
 .sidebar-error {
