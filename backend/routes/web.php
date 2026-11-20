@@ -6,6 +6,7 @@ use App\Http\Controllers\Admin\Api\OpportunityLogController;
 use App\Http\Controllers\Admin\Api\RuleProfileController;
 use App\Http\Controllers\Admin\Api\SettingsController;
 use App\Http\Controllers\Admin\Api\TrackedMatchController;
+use App\Http\Controllers\Admin\Api\UpcomingMatchController;
 use App\Http\Controllers\Admin\NotificationTestController;
 use App\Http\Controllers\Admin\RuleSimulationController;
 use App\Http\Controllers\Auth\AuthenticatedSessionController;
@@ -30,6 +31,8 @@ Route::middleware(['auth', EnsureAdministrator::class])->group(function () {
     Route::prefix('/admin/api')->name('admin.api.')->middleware('throttle:60,1')->group(function () {
         Route::get('/dashboard', AdminDashboardController::class)->name('dashboard');
         Route::get('/matches', [TrackedMatchController::class, 'index'])->name('matches.index');
+        Route::get('/matches/upcoming', [UpcomingMatchController::class, 'index'])->name('matches.upcoming');
+        Route::post('/matches/scheduled', [UpcomingMatchController::class, 'store'])->name('matches.schedule');
         Route::post('/matches', [TrackedMatchController::class, 'store'])->name('matches.store');
         Route::delete('/matches/{trackedMatch}', [TrackedMatchController::class, 'destroy'])->name('matches.destroy');
         Route::get('/settings', [SettingsController::class, 'index'])->name('settings.index');

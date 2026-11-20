@@ -8,6 +8,20 @@ use App\Providers\Data\OddsMatch;
 
 final class FakeOddsProvider implements OddsProvider
 {
+    public function getOverLineOdds(): array
+    {
+        $lines = [];
+        foreach ($this->fixtures->load()['matches'] as $match) {
+            foreach (is_array($match['timeline'] ?? null) ? $match['timeline'] : [] as $snapshot) {
+                if (is_array($snapshot['odds']['over_line_odds'] ?? null)) {
+                    $lines[(string) $match['id']] = array_map('floatval', $snapshot['odds']['over_line_odds']);
+                }
+            }
+        }
+
+        return $lines;
+    }
+
     public function __construct(private readonly FakeFixtureLoader $fixtures) {}
 
     public function getLiveOdds(int $scanNumber = 0, bool $includeUnder25 = false): OddsFeed

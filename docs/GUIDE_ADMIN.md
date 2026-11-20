@@ -33,6 +33,10 @@ Pour vous déconnecter, utilisez le bouton **Se déconnecter** en haut à droite
 
 **Matchs sans statistiques.** Un match dont la ligue ne fournit pas de statistiques peut être suivi s’il a des cotes de score exact (badge « Sans stats ») : la vitalité n’est pas disponible et son filtre n’est pas appliqué (à confirmer), les alertes le mentionnent. Sans cotes, « Suivre » reste indisponible et la raison est affichée. Paramètre « Autoriser le suivi sans statistiques ».
 
+**Matchs à venir aujourd’hui.** Sous les rencontres en direct, la liste des matchs du jour pas encore commencés (heure, compétition, équipes), avec le même filtre par championnat et la même recherche. Elle est relue au plus toutes les 15 minutes. **Suivre dès le coup d’envoi** planifie le suivi : rien n’est demandé au fournisseur avant le coup d’envoi, puis le suivi démarre tout seul dès que le match est en direct. **Annuler** retire la planification.
+
+**Cote du pari neutre.** Dans une alerte, l’option « un but de plus dans le match » affiche sa cote quand le marché Over/Under est disponible ; elle est demandée une seule fois, au moment où l’alerte est créée.
+
 **Mode de scan.** En haut de « Matchs suivis » et de « Paramètres » : **Automatique** (les 7 championnats suivis et vos matchs) ou **Manuel** (seulement les matchs que vous ajoutez), et **Pause / Reprendre** (en pause, aucune requête n’est faite). Le changement s’applique au tour suivant du scan, sans redémarrage ; il apparaît dans l’historique des paramètres. L’état (« Scan automatique », « Scan manuel », « Scan en pause ») est rappelé en bas du menu.
 
 **Journal plus court.** Quand un relevé donne exactement la même décision et la même justification que le précédent pour un match, la ligne existante est mise à jour (« N relevés identiques depuis… ») au lieu d’en ajouter une.

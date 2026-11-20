@@ -92,14 +92,28 @@ class ScanService
         $matchesEnded = $this->endOverdueMatches($trackedMatches, $maxMatchMinutes, $now);
         $trackedMatches = $trackedMatches->filter(fn (TrackedMatch $trackedMatch): bool => $trackedMatch->is_active)->values();
 
-        if ($trackedMatches->isEmpty() && ! $autoMode) {
+        // Suivis planifiés (« Suivre dès le coup d’envoi ») : aucun appel avant l’heure du coup d’envoi ; ensuite, le flux
+        // en direct est lu pour les activer dès qu’ils sont en jeu. Plafond de 4 h 30 après le coup d’envoi prévu.
+        $scheduled = TrackedMatch::query()
+            ->where('tracking_mode', 'scheduled')
+            ->where('is_active', false)
+            ->whereNull('ended_at')
+            ->get();
+        $matchesEnded += $this->endOverdueMatches($scheduled, $maxMatchMinutes, $now);
+        $scheduledDue = $scheduled
+            ->filter(fn (TrackedMatch $trackedMatch): bool => $trackedMatch->ended_at === null
+                && $trackedMatch->kickoff_at !== null
+                && CarbonImmutable::instance($trackedMatch->kickoff_at)->lessThanOrEqualTo($now))
+            ->values();
+
+        if ($trackedMatches->isEmpty() && ! $autoMode && $scheduledDue->isEmpty()) {
             return new ScanPassResult(0, 0, 0, $expiredAlerts, 0, 0, $oddsInterval, incidents: $this->incidents, matchesEnded: $matchesEnded);
         }
 
         // Veille : aucun match suivi et aucun match des championnats suivis en direct au dernier relevé → pas d’appel
         // avant la fin de la pause (scan:once, qui force le relevé, l’ignore).
         $idleUntil = Cache::get('pronofoot.scan.idle_until');
-        if ($trackedMatches->isEmpty() && ! $forceRefresh && is_string($idleUntil)
+        if ($trackedMatches->isEmpty() && $scheduledDue->isEmpty() && ! $forceRefresh && is_string($idleUntil)
             && CarbonImmutable::parse($idleUntil)->greaterThan($now)) {
             return new ScanPassResult(0, 0, 0, $expiredAlerts, 0, 0, max(1, (int) ceil($now->diffInSeconds(CarbonImmutable::parse($idleUntil), true))), incidents: $this->incidents, matchesEnded: $matchesEnded, idle: true);
         }
@@ -157,10 +171,16 @@ class ScanService
         $trackedMatches = $trackedMatches->filter(fn (TrackedMatch $trackedMatch): bool => $trackedMatch->is_active)->values();
         $dueMatchIds = array_values(array_intersect($dueMatchIds, $trackedMatches->pluck('id')->all()));
 
-        if ($trackedMatches->isEmpty() && $autoMode && ! $this->hasLiveMatchInLeagues($footballFeed, $autoLeagueIds)) {
-            Cache::put('pronofoot.scan.idle_until', $now->addSeconds($idleInterval)->toIso8601String(), $now->addSeconds($idleInterval));
+        $scheduledActivated = $this->activateScheduledMatches($scheduledDue, $footballMatches, $now);
 
-            return new ScanPassResult(0, 0, 0, $expiredAlerts, 0, 0, $idleInterval, incidents: $this->incidents, matchesEnded: $matchesEnded, idle: true);
+        // Rien à analyser à ce tour (les matchs activés le seront au tour suivant) : ni cotes, ni statistiques.
+        if ($trackedMatches->isEmpty() && ! ($autoMode && $this->hasLiveMatchInLeagues($footballFeed, $autoLeagueIds))) {
+            $waiting = $scheduledDue->isNotEmpty();
+            if (! $waiting) {
+                Cache::put('pronofoot.scan.idle_until', $now->addSeconds($idleInterval)->toIso8601String(), $now->addSeconds($idleInterval));
+            }
+
+            return new ScanPassResult(0, 0, 0, $expiredAlerts, 0, 0, $waiting ? $oddsInterval : $idleInterval, incidents: $this->incidents, matchesEnded: $matchesEnded, idle: ! $waiting, scheduledActivated: $scheduledActivated);
         }
         Cache::forget('pronofoot.scan.idle_until');
 
@@ -404,6 +424,7 @@ class ScanService
             matchesNotScanned: $matchesNotScanned,
             autoTracked: $autoTracked,
             matchesEnded: $matchesEnded,
+            scheduledActivated: $scheduledActivated,
         );
     }
 
@@ -655,6 +676,86 @@ class ScanService
             'no_alert',
             "Match terminé : suivi arrêté ({$reason}).".($expired > 0 ? " {$expired} alerte".($expired > 1 ? 's actives expirées.' : ' active expirée.') : ''),
             $now,
+        );
+    }
+
+    /**
+     * Active les suivis planifiés dont le match est en jeu dans le flux en direct (un événement au Journal chacun).
+     *
+     * @param  Collection<int, TrackedMatch>  $scheduledDue
+     * @param  array<string, FootballMatch|OddsMatch>  $footballMatches
+     */
+    private function activateScheduledMatches(Collection $scheduledDue, array $footballMatches, CarbonImmutable $now): int
+    {
+        $activated = 0;
+        foreach ($scheduledDue as $trackedMatch) {
+            $footballMatch = $footballMatches[$trackedMatch->provider_match_id] ?? null;
+            if (! $footballMatch instanceof FootballMatch || $footballMatch->inPlay === false
+                || MatchStatus::isFinished(MatchStatus::code($footballMatch))) {
+                continue;
+            }
+
+            $trackedMatch->forceFill([
+                'is_active' => true,
+                'tracking_mode' => 'manual',
+                'status' => $footballMatch->status,
+                'statistics_available' => $footballMatch->statisticsCoverage !== false,
+                'missing_readings' => 0,
+            ])->save();
+            $this->recordOpportunity($trackedMatch, null, null, 'scheduled_started', 'no_alert', 'Match planifié passé en direct : suivi activé.', $now);
+            $activated++;
+        }
+
+        return $activated;
+    }
+
+    /**
+     * Cote de l’option neutre (Over buts + 0,5), demandée une seule fois à la création de l’alerte (réponse gardée 60 s
+     * par le pilote), jamais à chaque relevé. Marché indisponible : l’option reste « cote non disponible ».
+     */
+    private function withNeutralOptionOdds(TrackedMatch $trackedMatch, EngineResult $result): EngineResult
+    {
+        $index = null;
+        foreach ($result->options as $position => $option) {
+            if (($option['type'] ?? null) === 'neutral' && ($option['odds'] ?? null) === null) {
+                $index = $position;
+            }
+        }
+        if ($index === null) {
+            return $result;
+        }
+
+        $line = trim(str_replace('Over', '', (string) $result->options[$index]['line']));
+        try {
+            $odds = $this->oddsProvider->getOverLineOdds()[$trackedMatch->provider_match_id][$line] ?? null;
+        } catch (Throwable) {
+            $odds = null;
+        }
+        if (! is_numeric($odds) || (float) $odds <= 0) {
+            return $result;
+        }
+
+        $options = $result->options;
+        $options[$index]['odds'] = (float) $odds;
+        $reason = str_replace(
+            $options[$index]['line'].', cote non disponible',
+            $options[$index]['line'].', cote '.number_format((float) $odds, 2, '.', ''),
+            $result->reason,
+        );
+
+        return new EngineResult(
+            $result->shouldAlert,
+            $result->convergenceScore,
+            $result->rules,
+            $result->filters,
+            $reason,
+            $result->steps,
+            $result->decisiveRule,
+            $result->level,
+            $result->selection,
+            $result->suggestedAction,
+            $result->sides,
+            $options,
         );
     }
 
@@ -1234,6 +1335,7 @@ class ScanService
                 return 0;
             }
 
+            $result = $this->withNeutralOptionOdds($trackedMatch, $result);
             $expiresAt = $now->addMinutes($this->settings->integer(
                 $this->settings->all(),
                 'alerts.expiration_minutes',

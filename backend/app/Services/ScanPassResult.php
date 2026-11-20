@@ -23,5 +23,6 @@ final readonly class ScanPassResult
         public int $matchesEnded = 0,
         public bool $idle = false,
         public bool $paused = false,
+        public int $scheduledActivated = 0,
     ) {}
 }

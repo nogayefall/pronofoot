@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { createRuleTestPayload, requestAdminApi, teamStatisticsRows, journalDecisionLabel, parseAlertMessage, trackedMatchDecision, quotaSummary, elapsedLabel, scanModeLabel, matchStatusLabel, unavailableReason, availableMatchesView, leagueFilters, leagueFilterCounts, leagueFilterFromUrl, effectiveLeagueFilter, leagueChosenInUrl, DEFAULT_TRACKED_LEAGUE_IDS } from './adminData'
+import { createRuleTestPayload, requestAdminApi, teamStatisticsRows, journalDecisionLabel, parseAlertMessage, trackedMatchDecision, quotaSummary, elapsedLabel, scanModeLabel, upcomingMatchesView, matchStatusLabel, unavailableReason, availableMatchesView, leagueFilters, leagueFilterCounts, leagueFilterFromUrl, effectiveLeagueFilter, leagueChosenInUrl, DEFAULT_TRACKED_LEAGUE_IDS } from './adminData'
 import { AlertCard, Brand, EmptyState, Icon, MetricCard, Pill, ScanModeControl, Section, VitalityBar } from './ui'
 import './App.css'
 
@@ -247,6 +247,9 @@ function App() {
   const [leagueFilter, setLeagueFilter] = useState(() => leagueFilterFromUrl(window.location.search, leagueFilters(DEFAULT_TRACKED_LEAGUE_IDS)))
   const [leagueChosen, setLeagueChosen] = useState(() => leagueChosenInUrl(window.location.search, leagueFilters(DEFAULT_TRACKED_LEAGUE_IDS)))
   const [visibleMatchCount, setVisibleMatchCount] = useState(MATCHES_PAGE_SIZE)
+  const [upcomingData, setUpcomingData] = useState(null)
+  const [upcomingError, setUpcomingError] = useState('')
+  const [visibleUpcomingCount, setVisibleUpcomingCount] = useState(MATCHES_PAGE_SIZE)
   const [testError, setTestError] = useState('')
   const [isTesting, setIsTesting] = useState(false)
   const [logoutError, setLogoutError] = useState('')
@@ -273,6 +276,13 @@ function App() {
     requestAdminApi('/admin/api/matches', csrfToken)
       .then((result) => {
         if (active) setMatchesData(result)
+      })
+      .catch((error) => {
+        if (active) setApiError(error.message)
+      })
+    requestAdminApi('/admin/api/matches/upcoming', csrfToken)
+      .then((result) => {
+        if (active) setUpcomingData(result)
       })
       .catch((error) => {
         if (active) setApiError(error.message)
@@ -404,7 +414,10 @@ function App() {
     setTestResult(null)
     setTestError('')
     if (page === 'overview') void loadDashboard()
-    if (page === 'matches') void loadMatches()
+    if (page === 'matches') {
+      void loadMatches()
+      void loadUpcoming()
+    }
     if (page === 'rules') void loadRuleProfile()
     if (page === 'settings') void loadSettings()
     if (page === 'journal') void loadJournal()
@@ -554,6 +567,27 @@ function App() {
     }
   }
 
+  async function loadUpcoming() {
+    setUpcomingError('')
+    try {
+      setUpcomingData(await requestAdminApi('/admin/api/matches/upcoming', csrfToken))
+    } catch (error) {
+      setUpcomingError(error.message)
+    }
+  }
+
+  async function toggleSchedule(match) {
+    setIsBusy(true)
+    const result = match.scheduled
+      ? await adminRequest(`/admin/api/matches/${match.trackedId}`, 'DELETE')
+      : await adminRequest('/admin/api/matches/scheduled', 'POST', { provider_match_id: match.providerMatchId })
+    if (result) {
+      setActionMessage(match.scheduled ? 'Suivi planifié annulé.' : `Suivi planifié : ${match.homeTeam} – ${match.awayTeam} démarrera dès le coup d’envoi.`)
+      await loadUpcoming()
+    }
+    setIsBusy(false)
+  }
+
   async function changeScanMode(changes, message) {
     setIsBusy(true)
     const result = await adminRequest('/admin/api/settings', 'PATCH', { settings: changes })
@@ -634,6 +668,11 @@ function App() {
   const autoOpenedOthers = shownLeague !== leagueFilter
   const activeLeague = leagueChips.find((chip) => chip.key === shownLeague) ?? leagueChips[0]
   const matchesView = availableMatchesView(matchesData?.matches ?? [], { leagueIds: trackedLeagueIds, league: activeLeague.key, query: matchSearch, alertMatchNames })
+  const upcomingView = upcomingMatchesView(upcomingData?.matches ?? [], { leagueIds: trackedLeagueIds, league: activeLeague.key, query: matchSearch })
+  const visibleUpcoming = upcomingView.slice(0, visibleUpcomingCount)
+  const scheduleButton = (match) => (match.scheduled
+    ? <button className="button button-compact button-ghost" type="button" disabled={isBusy} onClick={() => void toggleSchedule(match)}>Annuler</button>
+    : <button className="button button-compact button-secondary" type="button" disabled={isBusy} onClick={() => void toggleSchedule(match)}>Suivre dès le coup d’envoi</button>)
   const visibleMatchRows = matchesView.slice(0, visibleMatchCount).map((match) => ({
     match,
     reason: unavailableReason(match, matchesData?.quotaRemaining, allowWithoutStatistics),
@@ -785,6 +824,22 @@ function App() {
                   })}</ul></> : <EmptyState icon="search" title={matchesData?.matches?.length ? 'Aucune rencontre pour ce filtre' : 'Aucune rencontre disponible'} message={matchesData?.matches?.length ? 'Modifiez la recherche ou choisissez un autre championnat (« Autres » regroupe les compétitions non suivies).' : 'Le fournisseur n’a retourné aucun match pour le moment.'} />}
                   {matchesView.length > visibleMatchCount && <div className="table-more"><button className="button button-ghost" type="button" onClick={() => setVisibleMatchCount((count) => count + MATCHES_PAGE_SIZE)}>Afficher plus <span className="num">({matchesView.length - visibleMatchCount} restante{matchesView.length - visibleMatchCount > 1 ? 's' : ''})</span></button></div>}
                   {matchesView.some((match) => match.statisticsCoverageFallback) && <p className="table-footnote">* Couverture des statistiques lue sur la saison courante.</p>}
+                </div>
+              </Section>
+              <Section title="Matchs à venir aujourd’hui" aside={upcomingData?.cachedAt ? `Liste du jour lue à ${formatTime(upcomingData.cachedAt)}, actualisée au plus toutes les 15 minutes. Pas de cotes ni de statistiques avant le coup d’envoi.` : 'Liste du jour, actualisée au plus toutes les 15 minutes.'}>
+                <div className="panel panel-flush">
+                  {upcomingError && <p className="message message-error" role="alert">{upcomingError}</p>}
+                  {visibleUpcoming.length ? <><div className="table-scroll hide-on-phone"><table className="data-table data-table-matches"><thead><tr><th scope="col">Heure</th><th scope="col">Compétition</th><th scope="col">Rencontre</th><th scope="col">Suivi</th><th scope="col">Action</th></tr></thead><tbody>{visibleUpcoming.map((match) => (
+                    <tr key={match.providerMatchId} className={match.scheduled ? 'row-highlight' : undefined}><td className="num cell-nowrap">{match.kickoffAt ? formatTime(match.kickoffAt) : '—'}</td><td className="cell-muted cell-ellipsis" title={match.competition ?? undefined}>{match.competition ?? '—'}</td><td><strong>{match.homeTeam} – {match.awayTeam}</strong></td><td>{match.scheduled ? <Pill tone="alert">Planifié</Pill> : <Pill tone="watch">Non planifié</Pill>}</td><td className="cell-action">{scheduleButton(match)}</td></tr>
+                  ))}</tbody></table></div>
+                  <ul className="match-cards show-on-phone">{visibleUpcoming.map((match) => (
+                    <li key={match.providerMatchId} className={`match-card ${match.scheduled ? 'match-card-highlight' : ''}`}>
+                      <div className="match-card-top"><strong>{match.homeTeam} – {match.awayTeam}</strong><span className="num match-card-score">{match.kickoffAt ? formatTime(match.kickoffAt) : '—'}</span></div>
+                      <div className="match-card-meta"><span>{match.competition ?? 'Compétition inconnue'}</span>{match.scheduled && <Pill tone="alert">Planifié</Pill>}</div>
+                      <div className="match-card-foot"><small>Coup d’envoi {match.kickoffAt ? formatTime(match.kickoffAt) : 'non précisé'}</small>{scheduleButton(match)}</div>
+                    </li>
+                  ))}</ul></> : <EmptyState icon="clock" title={upcomingData ? 'Aucun match à venir pour ce filtre' : 'Liste du jour non chargée'} message={upcomingData ? 'Choisissez un autre championnat ou modifiez la recherche.' : 'Elle se charge à l’ouverture de la page.'} />}
+                  {upcomingView.length > visibleUpcomingCount && <div className="table-more"><button className="button button-ghost" type="button" onClick={() => setVisibleUpcomingCount((count) => count + MATCHES_PAGE_SIZE)}>Afficher plus <span className="num">({upcomingView.length - visibleUpcomingCount} restants)</span></button></div>}
                 </div>
               </Section>
               <Section title="Fiches des matchs suivis" aside="Statistiques brutes du dernier relevé, par équipe. Elles ne sont pas converties en vitalité.">

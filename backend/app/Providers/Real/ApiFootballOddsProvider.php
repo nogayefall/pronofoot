@@ -7,6 +7,7 @@ use App\Providers\Data\OddsFeed;
 use App\Providers\Data\OddsMatch;
 use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Http\Client\Response;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
 
 final class ApiFootballOddsProvider implements OddsProvider
@@ -132,6 +133,29 @@ final class ApiFootballOddsProvider implements OddsProvider
             matchesWithExactScoreMarket: $feed->matchesWithExactScoreMarket,
             requestsLimit: $requestsLimit,
         );
+    }
+
+    public function getOverLineOdds(): array
+    {
+        $baseUrl = rtrim(trim((string) config('services.football_api.base_url')), '/');
+        $apiKey = trim((string) config('services.football_api.api_key'));
+        if ($baseUrl === '' || $apiKey === '' || parse_url($baseUrl, PHP_URL_SCHEME) !== 'https') {
+            return [];
+        }
+
+        // Une seule requête odds/live?bet=36 par minute au plus, quel que soit le nombre d’alertes créées.
+        return Cache::remember('pronofoot.odds.over_lines', 60, function () use ($baseUrl, $apiKey): array {
+            try {
+                $response = Http::acceptJson()
+                    ->timeout((int) config('services.football_api.timeout', 10))
+                    ->withHeaders(['x-apisports-key' => $apiKey])
+                    ->get($baseUrl.'/odds/live', ['bet' => 36]);
+            } catch (ConnectionException) {
+                return [];
+            }
+
+            return $response->successful() ? ($this->mapper->mapOverLineOdds($response->body()) ?? []) : [];
+        });
     }
 
     private function remaining(Response $response): ?int

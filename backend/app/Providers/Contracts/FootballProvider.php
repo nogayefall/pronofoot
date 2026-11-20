@@ -20,4 +20,9 @@ interface FootballProvider
         ?int $quotaAlertThreshold = null,
         ?array $coverageLeagueIds = null,
     ): FootballFeed;
+
+    /**
+     * Tous les matchs d’une date (AAAA-MM-JJ), toutes compétitions, en une requête (fixtures?date=).
+     */
+    public function getFixturesByDate(string $date): FootballFeed;
 }

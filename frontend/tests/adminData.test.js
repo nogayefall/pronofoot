@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { createRuleTestPayload, parseCorrectScoreOdds, teamStatisticsRows, journalDecisionLabel, parseAlertMessage, trackedMatchDecision, quotaSummary, elapsedLabel, matchStatusLabel, unavailableReason, availableMatchesView, leagueFilters, leagueFilterCounts, leagueFilterFromUrl, effectiveLeagueFilter, leagueChosenInUrl, scanModeLabel } from '../src/adminData.js'
+import { createRuleTestPayload, parseCorrectScoreOdds, teamStatisticsRows, journalDecisionLabel, parseAlertMessage, trackedMatchDecision, quotaSummary, elapsedLabel, matchStatusLabel, unavailableReason, availableMatchesView, leagueFilters, leagueFilterCounts, leagueFilterFromUrl, effectiveLeagueFilter, leagueChosenInUrl, scanModeLabel, upcomingMatchesView } from '../src/adminData.js'
 
 test('parseCorrectScoreOdds reads decimal comma and dot formats', () => {
   assert.deepEqual(parseCorrectScoreOdds('0-0 = 7,50\n1-0 : 8.60\n0-1 = 9,80'), {
@@ -267,4 +267,17 @@ test('scanModeLabel shows automatic, manual or paused', () => {
   assert.equal(scanModeLabel({ mode: 'manual', paused: false }), 'Scan manuel')
   assert.equal(scanModeLabel({ mode: 'manual', paused: true }), 'Scan en pause')
   assert.equal(scanModeLabel(null), 'État du scan…')
+})
+
+test("upcomingMatchesView applies the league chip and the search and keeps the kickoff order", () => {
+  const upcoming = [
+    { providerMatchId: "901", homeTeam: "Arsenal", awayTeam: "Everton", competition: "Premier League · England", leagueId: 39, kickoffAt: "2026-11-21T21:00:00+00:00" },
+    { providerMatchId: "902", homeTeam: "Van", awayTeam: "Ararat", competition: "Premier League · Armenia", leagueId: 342, kickoffAt: "2026-11-21T22:00:00+00:00" },
+    { providerMatchId: "903", homeTeam: "Lens", awayTeam: "Nantes", competition: "Ligue 1 · France", leagueId: 61, kickoffAt: "2026-11-21T23:00:00+00:00" },
+  ]
+  const ids = (matches) => matches.map((match) => match.providerMatchId)
+
+  assert.deepEqual(ids(upcomingMatchesView(upcoming)), ["901", "903"])
+  assert.deepEqual(ids(upcomingMatchesView(upcoming, { league: "autres" })), ["902"])
+  assert.deepEqual(ids(upcomingMatchesView(upcoming, { league: "tous", query: "nantes" })), ["903"])
 })

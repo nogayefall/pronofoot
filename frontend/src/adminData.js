@@ -463,3 +463,17 @@ export function scanModeLabel(scanMode) {
 
   return scanMode.mode === 'manual' ? 'Scan manuel' : 'Scan automatique'
 }
+
+/**
+ * Matchs à venir : même filtre par championnat et même recherche que les matchs en direct ; ordre du serveur
+ * (heure de coup d’envoi) conservé.
+ */
+export function upcomingMatchesView(matches, { leagueIds = DEFAULT_TRACKED_LEAGUE_IDS, league = 'tous', query = '' } = {}) {
+  const filters = leagueFilters(leagueIds)
+  const filter = filters.find((candidate) => candidate.key === league) ?? filters[0]
+  const search = normalizeSearch(query.trim())
+
+  return matches
+    .filter((match) => matchesLeagueFilter(match, filter))
+    .filter((match) => search === '' || normalizeSearch(`${match.homeTeam} ${match.awayTeam} ${match.competition}`).includes(search))
+}

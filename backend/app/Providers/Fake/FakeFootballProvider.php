@@ -87,6 +87,23 @@ final class FakeFootballProvider implements FootballProvider
     /**
      * @param  array<string, mixed>  $statistics
      */
+    /**
+     * Simulation : les matchs « à venir » du jeu de données fictif, quelle que soit la date.
+     */
+    public function getFixturesByDate(string $date): FootballFeed
+    {
+        $feed = $this->getLiveMatches(includeStatistics: false);
+
+        return new FootballFeed(
+            driver: $feed->driver,
+            reachable: $feed->reachable,
+            statisticsAvailable: null,
+            statusMessage: 'Simulation : matchs à venir fictifs, aucune API.',
+            matches: array_values(array_filter($feed->matches, fn (FootballMatch $match): bool => $match->statusShort === 'NS')),
+            requestsUsed: 0,
+        );
+    }
+
     private function statisticsCoverage(array $statistics): ?bool
     {
         if ($statistics === []) {

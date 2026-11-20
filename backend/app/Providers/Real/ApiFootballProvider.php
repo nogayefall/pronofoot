@@ -243,6 +243,44 @@ final class ApiFootballProvider implements FootballProvider
     /**
      * @return array{string, string}|null
      */
+    public function getFixturesByDate(string $date): FootballFeed
+    {
+        $credentials = $this->credentials();
+        if ($credentials === null) {
+            return new FootballFeed(driver: 'real', reachable: null, statisticsAvailable: null, statusMessage: 'NON VÉRIFIÉ : configurez API_FOOTBALL_API_KEY avant tout appel.');
+        }
+
+        [$baseUrl, $apiKey] = $credentials;
+        if (parse_url($baseUrl, PHP_URL_SCHEME) !== 'https') {
+            return new FootballFeed(driver: 'real', reachable: false, statisticsAvailable: null, statusMessage: 'API_FOOTBALL_BASE_URL doit utiliser HTTPS.');
+        }
+
+        try {
+            $response = $this->request($baseUrl.'/fixtures', ['date' => $date], $apiKey);
+        } catch (ConnectionException) {
+            return new FootballFeed(driver: 'real', reachable: false, statisticsAvailable: null, statusMessage: 'Échec de connexion au point API-Football fixtures?date=.', requestsUsed: 1);
+        }
+
+        if (! $response->successful()) {
+            return new FootballFeed(
+                driver: 'real',
+                reachable: false,
+                statisticsAvailable: null,
+                statusMessage: "API-Football a répondu HTTP {$response->status()} pour fixtures?date=.",
+                requestsUsed: 1,
+                requestsRemaining: $this->remaining($response),
+                requestsLimit: $this->limit($response),
+            );
+        }
+
+        return $this->mapper->mapFootball(
+            rawResponse: $response->body(),
+            requestsUsed: 1,
+            requestsRemaining: $this->remaining($response),
+            requestsLimit: $this->limit($response),
+        );
+    }
+
     private function credentials(): ?array
     {
         $baseUrl = rtrim(trim((string) config('services.football_api.base_url')), '/');
