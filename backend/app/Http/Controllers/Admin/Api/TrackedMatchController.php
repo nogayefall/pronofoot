@@ -62,6 +62,7 @@ final class TrackedMatchController extends Controller
                     'homeTeam' => $match->homeTeam,
                     'awayTeam' => $match->awayTeam,
                     'competition' => $match->competition,
+                    'leagueId' => $match->leagueId,
                     'kickoffAt' => $match->kickoffAt,
                     'status' => $match->status,
                     'minute' => $match->minute,

@@ -971,6 +971,225 @@ code {
   font-size: 14px;
 }
 
+/* ---------- Rencontres disponibles ---------- */
+
+.matches-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 14px 24px;
+  padding: 18px 20px;
+  border-bottom: 1px solid var(--line);
+}
+
+.matches-search {
+  min-width: min(100%, 260px);
+  flex: 1 1 320px;
+}
+
+.matches-count {
+  margin-left: auto;
+  padding-bottom: 12px;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.switch {
+  display: inline-flex;
+  min-height: 46px;
+  align-items: center;
+  gap: 10px;
+  color: var(--text);
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.switch input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+}
+
+.switch-track {
+  position: relative;
+  width: 40px;
+  height: 22px;
+  flex: none;
+  border: 1px solid var(--line-input);
+  border-radius: var(--radius-pill);
+  background: var(--input-bg);
+  transition: background 140ms ease, border-color 140ms ease;
+}
+
+.switch-track::after {
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: var(--muted-2);
+  content: '';
+  transition: transform 140ms ease, background 140ms ease;
+}
+
+.switch input:checked + .switch-track {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+
+.switch input:checked + .switch-track::after {
+  background: var(--accent);
+  transform: translateX(18px);
+}
+
+.switch input:focus-visible + .switch-track {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.switch input:disabled + .switch-track {
+  opacity: .5;
+}
+
+.table-scroll-sticky {
+  max-height: min(70vh, 1000px);
+  overflow: auto;
+}
+
+.table-scroll-sticky thead th {
+  position: sticky;
+  z-index: 2;
+  top: 0;
+  background: var(--surface);
+}
+
+.data-table-matches {
+  font-size: 13px;
+}
+
+.data-table-matches th {
+  padding: 12px 10px;
+  font-size: 12px;
+}
+
+.data-table-matches th:first-child,
+.data-table-matches td:first-child {
+  padding-left: 18px;
+}
+
+.data-table-matches td {
+  height: 64px;
+  padding: 8px 10px;
+}
+
+.data-table-matches th:last-child,
+.data-table-matches td:last-child {
+  padding-right: 18px;
+}
+
+.data-table-matches td small {
+  margin-top: 2px;
+}
+
+.cell-ellipsis {
+  max-width: 170px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.data-table-matches .pill {
+  gap: 6px;
+  padding: 3px 9px;
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.cell-action {
+  position: sticky;
+  right: 0;
+  background: var(--surface);
+  box-shadow: -14px 0 14px -14px rgba(0, 0, 0, .7);
+  text-align: right;
+  white-space: nowrap;
+}
+
+.data-table-matches thead th:last-child {
+  position: sticky;
+  z-index: 3;
+  right: 0;
+  text-align: right;
+}
+
+.data-table-matches tbody tr:hover td.cell-action {
+  background: #111f18;
+}
+
+.tracked-note {
+  display: none;
+}
+
+@media (max-width: 1360px) {
+  .col-tracking {
+    display: none;
+  }
+
+  .tracked-note {
+    display: inline;
+    color: var(--accent);
+  }
+}
+
+.row-highlight td:first-child {
+  box-shadow: inset 3px 0 0 var(--accent);
+}
+
+.button-unavailable {
+  position: relative;
+  border-color: var(--line-input);
+  background: transparent;
+  color: var(--muted-2);
+  cursor: help;
+}
+
+.button-unavailable[data-tooltip]:hover::after,
+.button-unavailable[data-tooltip]:focus-visible::after {
+  position: absolute;
+  z-index: 5;
+  top: 50%;
+  right: calc(100% + 10px);
+  width: max-content;
+  max-width: 260px;
+  padding: 8px 11px;
+  border: 1px solid var(--line-input);
+  border-radius: var(--radius-field);
+  background: var(--surface-2);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, .35);
+  color: var(--text);
+  content: attr(data-tooltip);
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 1.4;
+  text-align: left;
+  white-space: normal;
+  transform: translateY(-50%);
+}
+
+.table-more {
+  display: flex;
+  justify-content: center;
+  padding: 14px;
+  border-top: 1px solid var(--line);
+}
+
+.table-footnote {
+  padding: 0 20px 14px;
+  color: var(--muted);
+  font-size: 13px;
+}
+
 /* ---------- Règles ---------- */
 
 .rule-row {
@@ -1468,10 +1687,19 @@ input[type='date'] {
     padding: 0 12px;
   }
 
-  .panel,
+  .panel:not(.panel-flush),
   .metric-card,
   .alert-card {
     padding: 18px;
+  }
+
+  .matches-toolbar {
+    padding: 16px;
+  }
+
+  .matches-count {
+    margin-left: 0;
+    padding-bottom: 0;
   }
 
   .form-actions-sticky {

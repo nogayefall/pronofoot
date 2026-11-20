@@ -45,7 +45,8 @@ class AdminApiTest extends TestCase
             ->assertJsonPath('matches.6.status', 'upcoming')
             ->assertJsonPath('matches.0.exactScoreMarketAvailable', true)
             ->assertJsonPath('matches.0.statisticsCoverage', true)
-            ->assertJsonPath('matches.5.statisticsCoverage', null);
+            ->assertJsonPath('matches.5.statisticsCoverage', null)
+            ->assertJsonStructure(['matches' => ['*' => ['leagueId', 'competition', 'status', 'minute']]]);
         $matchId = $response->json('matches.0.providerMatchId');
 
         $created = $this->postJson(route('admin.api.matches.store'), [

@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { createRuleTestPayload, requestAdminApi, teamStatisticsRows, journalDecisionLabel, parseAlertMessage, trackedMatchDecision, quotaSummary, elapsedLabel } from './adminData'
+import { createRuleTestPayload, requestAdminApi, teamStatisticsRows, journalDecisionLabel, parseAlertMessage, trackedMatchDecision, quotaSummary, elapsedLabel, matchStatusLabel, unavailableReason, availableMatchesView } from './adminData'
 import { AlertCard, Brand, EmptyState, Icon, MetricCard, Pill, Section, VitalityBar } from './ui'
 import './App.css'
 
@@ -16,6 +16,12 @@ const navigation = [
 const providerLabels = { api_football: 'API-Football', real: 'API-Football', the_odds_api: 'The Odds API', fake: 'pilote fictif' }
 
 const journalTones = { alert: 'alert', duplicate_suppressed: 'watch', reevaluate: 'high', invalidated: 'dead', expired: 'dead' }
+
+const MATCHES_PAGE_SIZE = 15
+
+function formatTime(value) {
+  return value ? new Date(value).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }) : '—'
+}
 
 function initials(name) {
   return name.split(/\s+/).filter(Boolean).slice(0, 2).map((word) => word[0].toUpperCase()).join('') || 'A'
@@ -208,6 +214,9 @@ function App() {
     under25Odds: '',
   })
   const [testResult, setTestResult] = useState(null)
+  const [matchSearch, setMatchSearch] = useState('')
+  const [showAllCompetitions, setShowAllCompetitions] = useState(false)
+  const [visibleMatchCount, setVisibleMatchCount] = useState(MATCHES_PAGE_SIZE)
   const [testError, setTestError] = useState('')
   const [isTesting, setIsTesting] = useState(false)
   const [logoutError, setLogoutError] = useState('')
@@ -513,6 +522,9 @@ function App() {
   const alertChannels = [...new Set(activeAlerts.map((alert) => alert.channel).filter(Boolean))]
   const lastPassAt = dashboard?.scan?.lastPassAt
   const scanActive = dashboard?.scan?.active === true
+  const autoLeagueIds = Array.isArray(settingValue('scan.auto_league_ids')) ? settingValue('scan.auto_league_ids') : null
+  const alertMatchNames = activeAlerts.map((alert) => alert.match).filter(Boolean)
+  const matchesView = availableMatchesView(matchesData?.matches ?? [], { leagueIds: autoLeagueIds ?? [], showAll: showAllCompetitions || autoLeagueIds === null, query: matchSearch, alertMatchNames })
 
   const pages = {
     overview: {
@@ -607,16 +619,27 @@ function App() {
               <div className="message message-neutral"><Icon name="clock" size={18} /><span><strong>{matchesData?.message ?? 'Le flux sera consulté à l’ouverture de cette page.'}</strong> Quota restant : <span className="num">{matchesData?.quotaRemaining ?? 'inconnu'}</span>. Aucun match ne peut être suivi si le fournisseur indique un quota nul.</span></div>
               <Section title="Rencontres disponibles" aside={simulation ? 'Données fictives (voir le bandeau).' : 'Flux du fournisseur, actualisé à l’ouverture de la page.'} action={<button className="button button-ghost" type="button" onClick={() => void loadMatches()}><Icon name="refresh" size={16} />Actualiser</button>}>
                 <div className="panel panel-flush">
-                  {matchesData?.matches?.length ? <div className="table-scroll"><table className="data-table"><thead><tr><th scope="col">Rencontre</th><th scope="col">Compétition</th><th scope="col">État</th><th scope="col">Score</th><th scope="col">Cotes score exact</th><th scope="col">Statistiques</th><th scope="col">Suivi</th><th scope="col"><span className="visually-hidden">Action</span></th></tr></thead><tbody>{matchesData.matches.map((match) => {
-                    const eligible = match.exactScoreMarketAvailable && match.statisticsCoverage !== false
-                    const statisticsStatus = match.statisticsCoverage === null ? 'inconnu' : match.statisticsCoverage ? 'oui' : 'non'
-                    const statisticsWarning = match.statisticsCoverage === null
-                      ? 'Statistiques non confirmées'
+                  <div className="matches-toolbar">
+                    <label className="field matches-search">Rechercher une équipe ou une compétition<input type="search" value={matchSearch} onChange={(event) => { setMatchSearch(event.target.value); setVisibleMatchCount(MATCHES_PAGE_SIZE) }} placeholder="Ex. Arsenal, Ligue 1…" /></label>
+                    <label className="switch"><input type="checkbox" role="switch" checked={showAllCompetitions || autoLeagueIds === null} disabled={autoLeagueIds === null} onChange={(event) => { setShowAllCompetitions(event.target.checked); setVisibleMatchCount(MATCHES_PAGE_SIZE) }} /><span className="switch-track" aria-hidden="true" /><span>Afficher toutes les compétitions</span></label>
+                    <p className="matches-count">{matchesData?.matches ? <><span className="num">{matchesView.length}</span> rencontre{matchesView.length > 1 ? 's' : ''} sur <span className="num">{matchesData.matches.length}</span>{!showAllCompetitions && autoLeagueIds !== null ? ` · ${plural(autoLeagueIds.length, 'championnat')} suivi${autoLeagueIds.length > 1 ? 's' : ''} et matchs déjà suivis` : ' · toutes les compétitions'}</> : 'Flux non chargé'}</p>
+                  </div>
+                  {matchesView.length ? <div className="table-scroll table-scroll-sticky"><table className="data-table data-table-matches"><thead><tr><th scope="col">Rencontre</th><th scope="col">Compétition</th><th scope="col">État</th><th scope="col">Score</th><th scope="col">Cotes score exact</th><th scope="col">Statistiques</th><th scope="col" className="col-tracking">Suivi</th><th scope="col">Action</th></tr></thead><tbody>{matchesView.slice(0, visibleMatchCount).map((match) => {
+                    const reason = unavailableReason(match, matchesData.quotaRemaining)
+                    const statisticsNote = match.statisticsCoverage === null
+                      ? 'Couverture des statistiques non confirmée par le fournisseur.'
                       : match.statisticsCoverageFallback
-                        ? `Saison courante utilisée (${match.statisticsCoverageSeason ?? 'année inconnue'})`
-                        : null
-                    return <tr key={match.providerMatchId}><td><strong>{match.homeTeam} – {match.awayTeam}</strong><small>{match.kickoffAt ? formatDate(match.kickoffAt) : 'Horaire non disponible'}</small></td><td className="cell-muted">{match.competition}</td><td className="cell-nowrap">{match.status}{match.minute === null ? '' : <span className="num"> · {match.minute}'</span>}</td><td className="num">{match.homeScore ?? '—'}-{match.awayScore ?? '—'}</td><td>{match.exactScoreMarketAvailable ? 'oui' : 'non'}</td><td>{statisticsStatus}{statisticsWarning && <small>{statisticsWarning}</small>}</td><td>{match.tracked ? <Pill tone="alert">Suivi</Pill> : <Pill tone="watch">Non suivi</Pill>}</td><td><button className={`button button-compact ${match.tracked ? 'button-ghost' : 'button-primary'}`} type="button" disabled={isBusy || (!match.tracked && (!eligible || matchesData.quotaRemaining === 0))} onClick={() => void toggleMatch(match)}>{match.tracked ? 'Retirer' : eligible ? 'Suivre' : 'Indisponible'}</button></td></tr>
-                  })}</tbody></table></div> : <EmptyState icon="search" title="Aucune rencontre disponible" message="Le fournisseur n’a retourné aucun match pour le moment." />}
+                        ? `Couverture lue sur la saison courante (${match.statisticsCoverageSeason ?? 'année inconnue'}).`
+                        : undefined
+                    const alerted = alertMatchNames.includes(`${match.homeTeam} - ${match.awayTeam}`)
+                    return <tr key={match.providerMatchId} className={match.tracked || alerted ? 'row-highlight' : undefined}><td><strong>{match.homeTeam} – {match.awayTeam}</strong><small>{match.tracked ? <span className="tracked-note">Suivi · </span> : null}{alerted ? 'Alerte active · ' : ''}{match.kickoffAt ? `Début ${formatTime(match.kickoffAt)}` : 'Horaire non disponible'}</small></td><td className="cell-muted cell-ellipsis" title={match.competition ?? undefined}>{match.competition ?? '—'}</td><td className="num cell-nowrap">{matchStatusLabel(match.status, match.minute)}</td><td className="num cell-nowrap">{match.homeScore ?? '—'}-{match.awayScore ?? '—'}</td><td>{match.exactScoreMarketAvailable ? <Pill tone="alert">Disponible</Pill> : <Pill tone="dead">Non disponible</Pill>}</td><td><span title={statisticsNote}>{match.statisticsCoverage === null ? <Pill tone="watch">Non confirmées</Pill> : match.statisticsCoverage ? <Pill tone="alert">{match.statisticsCoverageFallback ? 'Disponible*' : 'Disponible'}</Pill> : <Pill tone="dead">Non disponible</Pill>}</span></td><td className="col-tracking">{match.tracked ? <Pill tone="alert">Suivi</Pill> : <Pill tone="watch">Non suivi</Pill>}</td><td className="cell-action">{match.tracked
+                      ? <button className="button button-compact button-ghost" type="button" disabled={isBusy} onClick={() => void toggleMatch(match)}>Retirer</button>
+                      : reason
+                        ? <button className="button button-compact button-unavailable" type="button" aria-disabled="true" data-tooltip={reason} onClick={(event) => event.preventDefault()}>Indisponible<span className="visually-hidden"> : {reason}</span></button>
+                        : <button className="button button-compact button-primary" type="button" disabled={isBusy} onClick={() => void toggleMatch(match)}>Suivre</button>}</td></tr>
+                  })}</tbody></table></div> : <EmptyState icon="search" title={matchesData?.matches?.length ? 'Aucune rencontre pour ce filtre' : 'Aucune rencontre disponible'} message={matchesData?.matches?.length ? 'Modifiez la recherche ou activez « Afficher toutes les compétitions ».' : 'Le fournisseur n’a retourné aucun match pour le moment.'} />}
+                  {matchesView.length > visibleMatchCount && <div className="table-more"><button className="button button-ghost" type="button" onClick={() => setVisibleMatchCount((count) => count + MATCHES_PAGE_SIZE)}>Afficher plus <span className="num">({matchesView.length - visibleMatchCount} restante{matchesView.length - visibleMatchCount > 1 ? 's' : ''})</span></button></div>}
+                  {matchesView.some((match) => match.statisticsCoverageFallback) && <p className="table-footnote">* Couverture des statistiques lue sur la saison courante.</p>}
                 </div>
               </Section>
               <Section title="Fiches des matchs suivis" aside="Statistiques brutes du dernier relevé, par équipe. Elles ne sont pas converties en vitalité.">

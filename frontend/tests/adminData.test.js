@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { createRuleTestPayload, parseCorrectScoreOdds, teamStatisticsRows, journalDecisionLabel, parseAlertMessage, trackedMatchDecision, quotaSummary, elapsedLabel } from '../src/adminData.js'
+import { createRuleTestPayload, parseCorrectScoreOdds, teamStatisticsRows, journalDecisionLabel, parseAlertMessage, trackedMatchDecision, quotaSummary, elapsedLabel, matchStatusLabel, unavailableReason, availableMatchesView } from '../src/adminData.js'
 
 test('parseCorrectScoreOdds reads decimal comma and dot formats', () => {
   assert.deepEqual(parseCorrectScoreOdds('0-0 = 7,50\n1-0 : 8.60\n0-1 = 9,80'), {
@@ -147,4 +147,46 @@ test('quotaSummary and elapsedLabel describe the real provider quota and scan fr
   assert.equal(elapsedLabel('2026-11-20T10:00:18Z', now), 'il y a 12 s')
   assert.equal(elapsedLabel('2026-11-20T09:57:30Z', now), 'il y a 3 min')
   assert.equal(elapsedLabel(null, now), 'aucun relevé')
+})
+
+test('matchStatusLabel translates every API-Football status and adds the minute only while the ball is in play', () => {
+  assert.equal(matchStatusLabel('First Half', 6), "1re MT · 6'")
+  assert.equal(matchStatusLabel('First Half, Kick Off', 6), "1re MT · 6'")
+  assert.equal(matchStatusLabel('Second Half', 63), "2e MT · 63'")
+  assert.equal(matchStatusLabel('Halftime', 45), 'Mi-temps')
+  assert.equal(matchStatusLabel('Match Finished', 90), 'Terminé')
+  assert.equal(matchStatusLabel('Extra Time', 97), "Prolongation · 97'")
+  assert.equal(matchStatusLabel('Penalty In Progress', 120), 'Tirs au but')
+  assert.equal(matchStatusLabel('Match Postponed', null), 'Reporté')
+  assert.equal(matchStatusLabel('WalkOver', null), 'Forfait')
+  assert.equal(matchStatusLabel('In Progress', null), 'En cours')
+  assert.equal(matchStatusLabel('2H', 70), "2e MT · 70'")
+  assert.equal(matchStatusLabel('live', 12), "En cours · 12'")
+  assert.equal(matchStatusLabel('upcoming', null), 'À venir')
+  assert.equal(matchStatusLabel('Statut inédit', 30), "Statut inédit · 30'")
+})
+
+test('unavailableReason explains why a match cannot be tracked', () => {
+  assert.equal(unavailableReason({ tracked: false, exactScoreMarketAvailable: true, statisticsCoverage: true }, 100), null)
+  assert.equal(unavailableReason({ tracked: true, exactScoreMarketAvailable: false }, 0), null)
+  assert.equal(unavailableReason({ tracked: false, exactScoreMarketAvailable: false, statisticsCoverage: true }, 100), 'Cotes de score exact non disponibles pour ce match.')
+  assert.equal(unavailableReason({ tracked: false, exactScoreMarketAvailable: true, statisticsCoverage: false }, 0), 'Statistiques non couvertes pour cette compétition ; quota API épuisé.')
+})
+
+test('availableMatchesView keeps the tracked leagues, searches, and sorts tracked or alerted matches first, then by minute', () => {
+  const matches = [
+    { providerMatchId: 1, homeTeam: 'Van', awayTeam: 'Ararat-Armenia', competition: 'Premier League · Armenia', leagueId: 342, minute: 8, tracked: false },
+    { providerMatchId: 2, homeTeam: 'Arsenal', awayTeam: 'Everton', competition: 'Premier League · England', leagueId: 39, minute: 20, tracked: false },
+    { providerMatchId: 3, homeTeam: 'Lens', awayTeam: 'Nantes', competition: 'Ligue 1 · France', leagueId: 61, minute: 70, tracked: false },
+    { providerMatchId: 4, homeTeam: 'Atlético', awayTeam: 'Getafe', competition: 'La Liga · Spain', leagueId: 140, minute: 10, tracked: true },
+    { providerMatchId: 5, homeTeam: 'Zira', awayTeam: 'Imisli', competition: 'Premyer Liqa · Azerbaijan', leagueId: 419, minute: 37, tracked: true },
+  ]
+  const leagueIds = [39, 140, 135, 78, 61, 2, 3]
+
+  assert.deepEqual(availableMatchesView(matches, { leagueIds }).map((match) => match.providerMatchId), [5, 4, 3, 2])
+  assert.deepEqual(availableMatchesView(matches, { leagueIds, alertMatchNames: ['Arsenal - Everton'] }).map((match) => match.providerMatchId), [5, 2, 4, 3])
+  assert.deepEqual(availableMatchesView(matches, { leagueIds, showAll: true }).map((match) => match.providerMatchId), [5, 4, 3, 2, 1])
+  assert.deepEqual(availableMatchesView(matches, { leagueIds, showAll: true, query: 'atletico' }).map((match) => match.providerMatchId), [4])
+  assert.deepEqual(availableMatchesView(matches, { leagueIds, query: 'armenia' }).map((match) => match.providerMatchId), [])
+  assert.deepEqual(availableMatchesView(matches, { leagueIds, showAll: true, query: 'PREMIER league' }).map((match) => match.providerMatchId), [2, 1])
 })

@@ -306,3 +306,74 @@ export function elapsedLabel(value, now) {
 
   return `il y a ${Math.floor(seconds / 86400)} j`
 }
+
+// Statuts API-Football (libellés longs renvoyés par fixtures?live=all, codes courts et statuts du pilote fictif).
+const MATCH_STATUSES = [
+  [['first half', 'first half, kick off', '1h'], '1re MT', true],
+  [['halftime', 'ht'], 'Mi-temps', false],
+  [['second half', 'second half, 2nd half started', '2h'], '2e MT', true],
+  [['extra time', 'et'], 'Prolongation', true],
+  [['break time', 'bt'], 'Pause avant prolongation', false],
+  [['penalty in progress', 'p'], 'Tirs au but', false],
+  [['match suspended', 'susp'], 'Suspendu', false],
+  [['match interrupted', 'int'], 'Interrompu', false],
+  [['match finished', 'ft', 'finished'], 'Terminé', false],
+  [['match finished after extra time', 'aet'], 'Terminé après prolongation', false],
+  [['match finished after penalty', 'pen'], 'Terminé aux tirs au but', false],
+  [['match postponed', 'pst'], 'Reporté', false],
+  [['match cancelled', 'canc'], 'Annulé', false],
+  [['match abandoned', 'abd'], 'Abandonné', false],
+  [['technical loss', 'awd'], 'Défaite technique', false],
+  [['walkover', 'wo'], 'Forfait', false],
+  [['in progress', 'live'], 'En cours', true],
+  [['not started', 'ns', 'upcoming'], 'À venir', false],
+  [['time to be defined', 'tbd'], 'Horaire à définir', false],
+]
+
+/**
+ * État d'un match en français, avec la minute pour les phases de jeu : « 1re MT · 6' », « Mi-temps », « Terminé ».
+ */
+export function matchStatusLabel(status, minute) {
+  const key = String(status ?? '').trim().toLowerCase()
+  const known = MATCH_STATUSES.find(([names]) => names.includes(key))
+  const label = known ? known[1] : (String(status ?? '').trim() || 'État inconnu')
+  const withMinute = (known ? known[2] : true) && typeof minute === 'number'
+
+  return withMinute ? `${label} · ${minute}'` : label
+}
+
+/**
+ * Raison pour laquelle un match ne peut pas être suivi, ou null s'il peut l'être.
+ */
+export function unavailableReason(match, quotaRemaining) {
+  if (match.tracked) return null
+  const reasons = []
+  if (!match.exactScoreMarketAvailable) reasons.push('cotes de score exact non disponibles pour ce match')
+  if (match.statisticsCoverage === false) reasons.push('statistiques non couvertes pour cette compétition')
+  if (quotaRemaining === 0) reasons.push('quota API épuisé')
+  if (!reasons.length) return null
+
+  const text = reasons.join(' ; ')
+  return `${text[0].toUpperCase()}${text.slice(1)}.`
+}
+
+function normalizeSearch(text) {
+  return String(text ?? '').normalize('NFD').replace(/\p{Diacritic}/gu, '').toLowerCase()
+}
+
+/**
+ * Rencontres à afficher : championnats suivis seulement (sauf « toutes les compétitions »), recherche sur
+ * les équipes et la compétition, puis matchs suivis ou en alerte d'abord, et minute la plus avancée d'abord.
+ */
+export function availableMatchesView(matches, { leagueIds = [], showAll = false, query = '', alertMatchNames = [] } = {}) {
+  const leagues = new Set(leagueIds.map(Number))
+  const alerts = new Set(alertMatchNames)
+  const search = normalizeSearch(query.trim())
+  const priority = (match) => (match.tracked || alerts.has(`${match.homeTeam} - ${match.awayTeam}`) ? 0 : 1)
+  const minute = (match) => (typeof match.minute === 'number' ? match.minute : -1)
+
+  return matches
+    .filter((match) => showAll || leagues.has(Number(match.leagueId)) || match.tracked)
+    .filter((match) => search === '' || normalizeSearch(`${match.homeTeam} ${match.awayTeam} ${match.competition}`).includes(search))
+    .sort((left, right) => priority(left) - priority(right) || minute(right) - minute(left))
+}
