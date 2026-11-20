@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { createRuleTestPayload, parseCorrectScoreOdds, teamStatisticsRows, journalDecisionLabel, parseAlertMessage, trackedMatchDecision, quotaSummary, elapsedLabel, matchStatusLabel, unavailableReason, availableMatchesView, leagueFilters, leagueFilterCounts, leagueFilterFromUrl } from '../src/adminData.js'
+import { createRuleTestPayload, parseCorrectScoreOdds, teamStatisticsRows, journalDecisionLabel, parseAlertMessage, trackedMatchDecision, quotaSummary, elapsedLabel, matchStatusLabel, unavailableReason, availableMatchesView, leagueFilters, leagueFilterCounts, leagueFilterFromUrl, effectiveLeagueFilter, leagueChosenInUrl } from '../src/adminData.js'
 
 test('parseCorrectScoreOdds reads decimal comma and dot formats', () => {
   assert.deepEqual(parseCorrectScoreOdds('0-0 = 7,50\n1-0 : 8.60\n0-1 = 9,80'), {
@@ -220,4 +220,18 @@ test('leagueFilterFromUrl reads ?ligue= and falls back to Tous', () => {
   assert.equal(leagueFilterFromUrl('?page=matches&ligue=autres', filters), 'autres')
   assert.equal(leagueFilterFromUrl('?ligue=n-importe-quoi', filters), 'tous')
   assert.equal(leagueFilterFromUrl('', filters), 'tous')
+})
+
+test('effectiveLeagueFilter opens Autres when Tous is empty, unless the administrator chose a league', () => {
+  assert.equal(effectiveLeagueFilter('tous', false, { tous: 0, autres: 15 }), 'autres')
+  assert.equal(effectiveLeagueFilter('tous', false, { tous: 3, autres: 15 }), 'tous')
+  assert.equal(effectiveLeagueFilter('tous', false, { tous: 0, autres: 0 }), 'tous')
+  assert.equal(effectiveLeagueFilter('tous', true, { tous: 0, autres: 15 }), 'tous')
+  assert.equal(effectiveLeagueFilter('ligue-1', false, { tous: 0, autres: 15 }), 'ligue-1')
+
+  const filters = leagueFilters()
+  assert.equal(leagueChosenInUrl('?ligue=tous', filters), true)
+  assert.equal(leagueChosenInUrl('?ligue=auto', filters), false)
+  assert.equal(leagueChosenInUrl('?ligue=inconnu', filters), false)
+  assert.equal(leagueChosenInUrl('', filters), false)
 })

@@ -428,3 +428,22 @@ export function availableMatchesView(matches, { leagueIds = DEFAULT_TRACKED_LEAG
     .filter((match) => search === '' || normalizeSearch(`${match.homeTeam} ${match.awayTeam} ${match.competition}`).includes(search))
     .sort((left, right) => priority(left) - priority(right) || minute(right) - minute(left))
 }
+
+/**
+ * Pastille réellement affichée : si l'administrateur n'a pas choisi de championnat et qu'aucun match des
+ * championnats suivis n'est en direct, « Autres » s'ouvre à la place de « Tous » (vide).
+ */
+export function effectiveLeagueFilter(selected, chosen, counts) {
+  if (chosen || selected !== 'tous') return selected
+
+  return counts.tous === 0 && counts.autres > 0 ? 'autres' : 'tous'
+}
+
+/**
+ * Le paramètre ?ligue= désigne-t-il un choix explicite de l'administrateur (et non « auto ») ?
+ */
+export function leagueChosenInUrl(search, filters) {
+  const value = new URLSearchParams(search).get('ligue')
+
+  return value !== null && value !== 'auto' && filters.some((filter) => filter.key === value)
+}
