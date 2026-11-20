@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { createRuleTestPayload, requestAdminApi, teamStatisticsRows, journalDecisionLabel, parseAlertMessage, trackedMatchDecision, quotaSummary, elapsedLabel, matchStatusLabel, unavailableReason, availableMatchesView } from './adminData'
+import { createRuleTestPayload, requestAdminApi, teamStatisticsRows, journalDecisionLabel, parseAlertMessage, trackedMatchDecision, quotaSummary, elapsedLabel, matchStatusLabel, unavailableReason, availableMatchesView, leagueFilters, leagueFilterCounts, leagueFilterFromUrl, DEFAULT_TRACKED_LEAGUE_IDS } from './adminData'
 import { AlertCard, Brand, EmptyState, Icon, MetricCard, Pill, Section, VitalityBar } from './ui'
 import './App.css'
 
@@ -180,7 +180,7 @@ function formatCountdown(value, now) {
 }
 
 function App() {
-  const [activePage, setActivePage] = useState('overview')
+  const [activePage, setActivePage] = useState(() => (new URLSearchParams(window.location.search).has('ligue') ? 'matches' : 'overview'))
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
   const [dashboard, setDashboard] = useState(null)
   const [matchesData, setMatchesData] = useState(null)
@@ -215,7 +215,7 @@ function App() {
   })
   const [testResult, setTestResult] = useState(null)
   const [matchSearch, setMatchSearch] = useState('')
-  const [showAllCompetitions, setShowAllCompetitions] = useState(false)
+  const [leagueFilter, setLeagueFilter] = useState(() => leagueFilterFromUrl(window.location.search, leagueFilters(DEFAULT_TRACKED_LEAGUE_IDS)))
   const [visibleMatchCount, setVisibleMatchCount] = useState(MATCHES_PAGE_SIZE)
   const [testError, setTestError] = useState('')
   const [isTesting, setIsTesting] = useState(false)
@@ -236,6 +236,25 @@ function App() {
 
     return () => { active = false }
   }, [csrfToken])
+
+  useEffect(() => {
+    if (!new URLSearchParams(window.location.search).has('ligue')) return undefined
+    let active = true
+    requestAdminApi('/admin/api/matches', csrfToken)
+      .then((result) => {
+        if (active) setMatchesData(result)
+      })
+      .catch((error) => {
+        if (active) setApiError(error.message)
+      })
+
+    return () => { active = false }
+  }, [csrfToken])
+
+  useEffect(() => {
+    if (activePage !== 'matches') return
+    document.querySelector('.league-chip[aria-pressed="true"]')?.scrollIntoView({ block: 'nearest', inline: 'center' })
+  }, [activePage, leagueFilter, matchesData])
 
   useEffect(() => {
     const timer = window.setInterval(() => setNow(Date.now()), 1000)
@@ -308,8 +327,23 @@ function App() {
     if (result) setStatistics(result)
   }
 
+  function syncLeagueInUrl(page, league) {
+    const url = new URL(window.location.href)
+    if (page === 'matches' && league !== 'tous') url.searchParams.set('ligue', league)
+    else if (page === 'matches') url.searchParams.set('ligue', 'tous')
+    else url.searchParams.delete('ligue')
+    window.history.replaceState(null, '', url)
+  }
+
+  function chooseLeague(league) {
+    setLeagueFilter(league)
+    setVisibleMatchCount(MATCHES_PAGE_SIZE)
+    syncLeagueInUrl('matches', league)
+  }
+
   function selectPage(page) {
     setActivePage(page)
+    syncLeagueInUrl(page, leagueFilter)
     setMobileMenuOpen(false)
     setActionMessage('')
     setApiError('')
@@ -524,7 +558,11 @@ function App() {
   const scanActive = dashboard?.scan?.active === true
   const autoLeagueIds = Array.isArray(settingValue('scan.auto_league_ids')) ? settingValue('scan.auto_league_ids') : null
   const alertMatchNames = activeAlerts.map((alert) => alert.match).filter(Boolean)
-  const matchesView = availableMatchesView(matchesData?.matches ?? [], { leagueIds: autoLeagueIds ?? [], showAll: showAllCompetitions || autoLeagueIds === null, query: matchSearch, alertMatchNames })
+  const trackedLeagueIds = autoLeagueIds ?? DEFAULT_TRACKED_LEAGUE_IDS
+  const leagueChips = leagueFilters(trackedLeagueIds)
+  const leagueCounts = leagueFilterCounts(matchesData?.matches ?? [], leagueChips)
+  const activeLeague = leagueChips.find((chip) => chip.key === leagueFilter) ?? leagueChips[0]
+  const matchesView = availableMatchesView(matchesData?.matches ?? [], { leagueIds: trackedLeagueIds, league: activeLeague.key, query: matchSearch, alertMatchNames })
 
   const pages = {
     overview: {
@@ -621,8 +659,10 @@ function App() {
                 <div className="panel panel-flush">
                   <div className="matches-toolbar">
                     <label className="field matches-search">Rechercher une équipe ou une compétition<input type="search" value={matchSearch} onChange={(event) => { setMatchSearch(event.target.value); setVisibleMatchCount(MATCHES_PAGE_SIZE) }} placeholder="Ex. Arsenal, Ligue 1…" /></label>
-                    <label className="switch"><input type="checkbox" role="switch" checked={showAllCompetitions || autoLeagueIds === null} disabled={autoLeagueIds === null} onChange={(event) => { setShowAllCompetitions(event.target.checked); setVisibleMatchCount(MATCHES_PAGE_SIZE) }} /><span className="switch-track" aria-hidden="true" /><span>Afficher toutes les compétitions</span></label>
-                    <p className="matches-count">{matchesData?.matches ? <><span className="num">{matchesView.length}</span> rencontre{matchesView.length > 1 ? 's' : ''} sur <span className="num">{matchesData.matches.length}</span>{!showAllCompetitions && autoLeagueIds !== null ? ` · ${plural(autoLeagueIds.length, 'championnat')} suivi${autoLeagueIds.length > 1 ? 's' : ''} et matchs déjà suivis` : ' · toutes les compétitions'}</> : 'Flux non chargé'}</p>
+                    <p className="matches-count">{matchesData?.matches ? <><span className="num">{matchesView.length}</span> rencontre{matchesView.length > 1 ? 's' : ''} sur <span className="num">{matchesData.matches.length}</span>{` · ${activeLeague.key === 'tous' ? `${plural(trackedLeagueIds.length, 'championnat')} suivi${trackedLeagueIds.length > 1 ? 's' : ''}` : activeLeague.key === 'autres' ? 'autres championnats' : activeLeague.label}`}</> : 'Flux non chargé'}</p>
+                    <div className="league-filter" role="group" aria-label="Filtrer par championnat">
+                      {leagueChips.map((chip) => <button key={chip.key} type="button" className={`league-chip ${leagueCounts[chip.key] === 0 ? 'league-chip-empty' : ''}`} aria-pressed={activeLeague.key === chip.key} onClick={() => chooseLeague(chip.key)}>{chip.label}<span className="num league-chip-count" aria-label={`${leagueCounts[chip.key]} match${leagueCounts[chip.key] > 1 ? 's' : ''} en direct`}>{leagueCounts[chip.key]}</span></button>)}
+                    </div>
                   </div>
                   {matchesView.length ? <div className="table-scroll table-scroll-sticky"><table className="data-table data-table-matches"><thead><tr><th scope="col">Rencontre</th><th scope="col">Compétition</th><th scope="col">État</th><th scope="col">Score</th><th scope="col">Cotes score exact</th><th scope="col">Statistiques</th><th scope="col" className="col-tracking">Suivi</th><th scope="col">Action</th></tr></thead><tbody>{matchesView.slice(0, visibleMatchCount).map((match) => {
                     const reason = unavailableReason(match, matchesData.quotaRemaining)
@@ -637,7 +677,7 @@ function App() {
                       : reason
                         ? <button className="button button-compact button-unavailable" type="button" aria-disabled="true" data-tooltip={reason} onClick={(event) => event.preventDefault()}>Indisponible<span className="visually-hidden"> : {reason}</span></button>
                         : <button className="button button-compact button-primary" type="button" disabled={isBusy} onClick={() => void toggleMatch(match)}>Suivre</button>}</td></tr>
-                  })}</tbody></table></div> : <EmptyState icon="search" title={matchesData?.matches?.length ? 'Aucune rencontre pour ce filtre' : 'Aucune rencontre disponible'} message={matchesData?.matches?.length ? 'Modifiez la recherche ou activez « Afficher toutes les compétitions ».' : 'Le fournisseur n’a retourné aucun match pour le moment.'} />}
+                  })}</tbody></table></div> : <EmptyState icon="search" title={matchesData?.matches?.length ? 'Aucune rencontre pour ce filtre' : 'Aucune rencontre disponible'} message={matchesData?.matches?.length ? 'Modifiez la recherche ou choisissez un autre championnat (« Autres » regroupe les compétitions non suivies).' : 'Le fournisseur n’a retourné aucun match pour le moment.'} />}
                   {matchesView.length > visibleMatchCount && <div className="table-more"><button className="button button-ghost" type="button" onClick={() => setVisibleMatchCount((count) => count + MATCHES_PAGE_SIZE)}>Afficher plus <span className="num">({matchesView.length - visibleMatchCount} restante{matchesView.length - visibleMatchCount > 1 ? 's' : ''})</span></button></div>}
                   {matchesView.some((match) => match.statisticsCoverageFallback) && <p className="table-footnote">* Couverture des statistiques lue sur la saison courante.</p>}
                 </div>

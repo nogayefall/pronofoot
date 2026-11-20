@@ -357,23 +357,74 @@ export function unavailableReason(match, quotaRemaining) {
   return `${text[0].toUpperCase()}${text.slice(1)}.`
 }
 
+// Noms affichés des championnats suivis par défaut (identifiants API-Football).
+const LEAGUE_NAMES = {
+  39: ['premier-league', 'Premier League'],
+  140: ['liga', 'Liga'],
+  135: ['serie-a', 'Serie A'],
+  78: ['bundesliga', 'Bundesliga'],
+  61: ['ligue-1', 'Ligue 1'],
+  2: ['ligue-des-champions', 'Ligue des champions'],
+  3: ['europa-league', 'Europa League'],
+}
+
+export const DEFAULT_TRACKED_LEAGUE_IDS = [39, 140, 135, 78, 61, 2, 3]
+
+/**
+ * Pastilles du filtre par championnat : « Tous » (championnats suivis), un par championnat suivi, « Autres ».
+ * Chaque pastille a une clé stable, utilisée dans l'URL (?ligue=).
+ */
+export function leagueFilters(leagueIds = DEFAULT_TRACKED_LEAGUE_IDS) {
+  const ids = leagueIds.map(Number).filter(Number.isFinite)
+
+  return [
+    { key: 'tous', label: 'Tous', leagueIds: ids },
+    ...ids.map((id) => ({ key: LEAGUE_NAMES[id]?.[0] ?? `ligue-${id}`, label: LEAGUE_NAMES[id]?.[1] ?? `Ligue ${id}`, leagueIds: [id] })),
+    { key: 'autres', label: 'Autres', leagueIds: null, excludedLeagueIds: ids },
+  ]
+}
+
+function matchesLeagueFilter(match, filter) {
+  const leagueId = Number(match.leagueId)
+  if (filter.leagueIds === null) return !filter.excludedLeagueIds.includes(leagueId)
+
+  return filter.leagueIds.includes(leagueId)
+}
+
+/**
+ * Nombre de matchs du flux en direct par pastille (indépendant de la recherche).
+ */
+export function leagueFilterCounts(matches, filters) {
+  return Object.fromEntries(filters.map((filter) => [filter.key, matches.filter((match) => matchesLeagueFilter(match, filter)).length]))
+}
+
+/**
+ * Clé de pastille valide à partir du paramètre ?ligue= de l'URL ; « tous » par défaut.
+ */
+export function leagueFilterFromUrl(search, filters) {
+  const value = new URLSearchParams(search).get('ligue')
+
+  return filters.some((filter) => filter.key === value) ? value : 'tous'
+}
+
 function normalizeSearch(text) {
   return String(text ?? '').normalize('NFD').replace(/\p{Diacritic}/gu, '').toLowerCase()
 }
 
 /**
- * Rencontres à afficher : championnats suivis seulement (sauf « toutes les compétitions »), recherche sur
+ * Rencontres à afficher : championnat choisi (« Tous » = championnats suivis, « Autres » = le reste), recherche sur
  * les équipes et la compétition, puis matchs suivis ou en alerte d'abord, et minute la plus avancée d'abord.
  */
-export function availableMatchesView(matches, { leagueIds = [], showAll = false, query = '', alertMatchNames = [] } = {}) {
-  const leagues = new Set(leagueIds.map(Number))
+export function availableMatchesView(matches, { leagueIds = DEFAULT_TRACKED_LEAGUE_IDS, league = 'tous', query = '', alertMatchNames = [] } = {}) {
+  const filters = leagueFilters(leagueIds)
+  const filter = filters.find((candidate) => candidate.key === league) ?? filters[0]
   const alerts = new Set(alertMatchNames)
   const search = normalizeSearch(query.trim())
   const priority = (match) => (match.tracked || alerts.has(`${match.homeTeam} - ${match.awayTeam}`) ? 0 : 1)
   const minute = (match) => (typeof match.minute === 'number' ? match.minute : -1)
 
   return matches
-    .filter((match) => showAll || leagues.has(Number(match.leagueId)) || match.tracked)
+    .filter((match) => matchesLeagueFilter(match, filter))
     .filter((match) => search === '' || normalizeSearch(`${match.homeTeam} ${match.awayTeam} ${match.competition}`).includes(search))
     .sort((left, right) => priority(left) - priority(right) || minute(right) - minute(left))
 }

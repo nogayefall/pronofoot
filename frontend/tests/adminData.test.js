@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { createRuleTestPayload, parseCorrectScoreOdds, teamStatisticsRows, journalDecisionLabel, parseAlertMessage, trackedMatchDecision, quotaSummary, elapsedLabel, matchStatusLabel, unavailableReason, availableMatchesView } from '../src/adminData.js'
+import { createRuleTestPayload, parseCorrectScoreOdds, teamStatisticsRows, journalDecisionLabel, parseAlertMessage, trackedMatchDecision, quotaSummary, elapsedLabel, matchStatusLabel, unavailableReason, availableMatchesView, leagueFilters, leagueFilterCounts, leagueFilterFromUrl } from '../src/adminData.js'
 
 test('parseCorrectScoreOdds reads decimal comma and dot formats', () => {
   assert.deepEqual(parseCorrectScoreOdds('0-0 = 7,50\n1-0 : 8.60\n0-1 = 9,80'), {
@@ -173,20 +173,51 @@ test('unavailableReason explains why a match cannot be tracked', () => {
   assert.equal(unavailableReason({ tracked: false, exactScoreMarketAvailable: true, statisticsCoverage: false }, 0), 'Statistiques non couvertes pour cette compétition ; quota API épuisé.')
 })
 
-test('availableMatchesView keeps the tracked leagues, searches, and sorts tracked or alerted matches first, then by minute', () => {
-  const matches = [
-    { providerMatchId: 1, homeTeam: 'Van', awayTeam: 'Ararat-Armenia', competition: 'Premier League · Armenia', leagueId: 342, minute: 8, tracked: false },
-    { providerMatchId: 2, homeTeam: 'Arsenal', awayTeam: 'Everton', competition: 'Premier League · England', leagueId: 39, minute: 20, tracked: false },
-    { providerMatchId: 3, homeTeam: 'Lens', awayTeam: 'Nantes', competition: 'Ligue 1 · France', leagueId: 61, minute: 70, tracked: false },
-    { providerMatchId: 4, homeTeam: 'Atlético', awayTeam: 'Getafe', competition: 'La Liga · Spain', leagueId: 140, minute: 10, tracked: true },
-    { providerMatchId: 5, homeTeam: 'Zira', awayTeam: 'Imisli', competition: 'Premyer Liqa · Azerbaijan', leagueId: 419, minute: 37, tracked: true },
-  ]
-  const leagueIds = [39, 140, 135, 78, 61, 2, 3]
+const LIVE_MATCHES = [
+  { providerMatchId: 1, homeTeam: 'Van', awayTeam: 'Ararat-Armenia', competition: 'Premier League · Armenia', leagueId: 342, minute: 8, tracked: false },
+  { providerMatchId: 2, homeTeam: 'Arsenal', awayTeam: 'Everton', competition: 'Premier League · England', leagueId: 39, minute: 20, tracked: false },
+  { providerMatchId: 3, homeTeam: 'Lens', awayTeam: 'Nantes', competition: 'Ligue 1 · France', leagueId: 61, minute: 70, tracked: false },
+  { providerMatchId: 4, homeTeam: 'Atlético', awayTeam: 'Getafe', competition: 'La Liga · Spain', leagueId: 140, minute: 10, tracked: true },
+  { providerMatchId: 5, homeTeam: 'Zira', awayTeam: 'Imisli', competition: 'Premyer Liqa · Azerbaijan', leagueId: 419, minute: 37, tracked: true },
+  { providerMatchId: 6, homeTeam: 'Chelsea', awayTeam: 'Fulham', competition: 'Premier League · England', leagueId: 39, minute: 75, tracked: false },
+]
+const ids = (matches) => matches.map((match) => match.providerMatchId)
 
-  assert.deepEqual(availableMatchesView(matches, { leagueIds }).map((match) => match.providerMatchId), [5, 4, 3, 2])
-  assert.deepEqual(availableMatchesView(matches, { leagueIds, alertMatchNames: ['Arsenal - Everton'] }).map((match) => match.providerMatchId), [5, 2, 4, 3])
-  assert.deepEqual(availableMatchesView(matches, { leagueIds, showAll: true }).map((match) => match.providerMatchId), [5, 4, 3, 2, 1])
-  assert.deepEqual(availableMatchesView(matches, { leagueIds, showAll: true, query: 'atletico' }).map((match) => match.providerMatchId), [4])
-  assert.deepEqual(availableMatchesView(matches, { leagueIds, query: 'armenia' }).map((match) => match.providerMatchId), [])
-  assert.deepEqual(availableMatchesView(matches, { leagueIds, showAll: true, query: 'PREMIER league' }).map((match) => match.providerMatchId), [2, 1])
+test('leagueFilters builds Tous, one chip per tracked league and Autres, with live counts including empty leagues', () => {
+  const filters = leagueFilters()
+
+  assert.deepEqual(filters.map((filter) => filter.label), ['Tous', 'Premier League', 'Liga', 'Serie A', 'Bundesliga', 'Ligue 1', 'Ligue des champions', 'Europa League', 'Autres'])
+  assert.deepEqual(leagueFilterCounts(LIVE_MATCHES, filters), {
+    tous: 4,
+    'premier-league': 2,
+    liga: 1,
+    'serie-a': 0,
+    bundesliga: 0,
+    'ligue-1': 1,
+    'ligue-des-champions': 0,
+    'europa-league': 0,
+    autres: 2,
+  })
+  assert.deepEqual(leagueFilters([39, 999]).map((filter) => filter.key), ['tous', 'premier-league', 'ligue-999', 'autres'])
+})
+
+test('availableMatchesView filters by league chip, combines with the search and keeps tracked or alerted matches first, then by minute', () => {
+  assert.deepEqual(ids(availableMatchesView(LIVE_MATCHES)), [4, 6, 3, 2], 'Tous : les championnats suivis seulement, la Premier League arménienne exclue')
+  assert.deepEqual(ids(availableMatchesView(LIVE_MATCHES, { league: 'premier-league' })), [6, 2])
+  assert.deepEqual(ids(availableMatchesView(LIVE_MATCHES, { league: 'autres' })), [5, 1])
+  assert.deepEqual(ids(availableMatchesView(LIVE_MATCHES, { league: 'serie-a' })), [])
+  assert.deepEqual(ids(availableMatchesView(LIVE_MATCHES, { league: 'premier-league', alertMatchNames: ['Arsenal - Everton'] })), [2, 6])
+  assert.deepEqual(ids(availableMatchesView(LIVE_MATCHES, { league: 'premier-league', query: 'everton' })), [2])
+  assert.deepEqual(ids(availableMatchesView(LIVE_MATCHES, { league: 'autres', query: 'premier league' })), [1])
+  assert.deepEqual(ids(availableMatchesView(LIVE_MATCHES, { league: 'tous', query: 'atletico' })), [4])
+  assert.deepEqual(ids(availableMatchesView(LIVE_MATCHES, { league: 'inconnu' })), [4, 6, 3, 2], 'Clé inconnue : retour à « Tous »')
+})
+
+test('leagueFilterFromUrl reads ?ligue= and falls back to Tous', () => {
+  const filters = leagueFilters()
+
+  assert.equal(leagueFilterFromUrl('?ligue=ligue-1', filters), 'ligue-1')
+  assert.equal(leagueFilterFromUrl('?page=matches&ligue=autres', filters), 'autres')
+  assert.equal(leagueFilterFromUrl('?ligue=n-importe-quoi', filters), 'tous')
+  assert.equal(leagueFilterFromUrl('', filters), 'tous')
 })
