@@ -12,7 +12,7 @@ Sources :
 |---|---|---|
 | Vitalité (F166/F167) | Totaux des deux équipes, bornes incluses. Tirs ≥ 15 : 30, ≥ 8 : 20, ≥ 3 : 10. Cadrés ≥ 6 : 30, ≥ 3 : 20, ≥ 1 : 10. Possession de l’équipe la plus haute ≥ 60 % : 20, ≥ 50 % : 10. Corners ≥ 8 : 20, ≥ 4 : 10. Une statistique manquante rend l’indice non calculable, jamais 0. | `rules.vitality_normalization_references` |
 | Vitalité | ≤ 40 « match mort » : abstention. | `rules.minimum_vitality` = 41 |
-| Tendance | Variation de la cote du score suggéré (score après le but de l’équipe désignée) sur 2 minutes. | `tendance_source` |
+| Tendance | Pour **chaque équipe** : variation sur 2 minutes de la cote du score de son prochain but (domicile h+1-a, extérieur h-a+1). | `tendance_source` |
 | F162-Bis (baisse obligatoire) | Baisse de plus de 5 % : alerte Critique, **prioritaire sur l’écart**. | `tendance_seuil_stable` = 5 |
 | Hausse | Variation > 0 : abstention. Une baisse faible ou une cote stable ne bloque plus. | — |
 | F121-E1 (écart négatif) | Écart = cote du prochain but − cote du score actuel. Négatif : alerte Critique. | `alerts.level_negative_gap` |
@@ -39,7 +39,26 @@ Sources :
 - `minutes_remaining` (`rules.minutes_remaining_enabled`, N = `rules.minutes_remaining_min` = 10) : abstention s’il reste moins de N minutes sur 90. **Ne figure pas dans le pseudo-code du client ; à confirmer.** Insérée juste après F121-E2 quand elle est activée.
 - `convergence` (`rules.convergence_enabled`) : une alerte sur une équipe exige un score de confiance supérieur au seuil du profil.
 
-L’équipe désignée (dont on suit le « prochain but ») vient de F121-C (plus petit écart), remplacé par F121-C.2 si une équipe mène d’au moins deux buts.
+Les étapes 1 à 3 (et les facultatives `minutes_remaining`, `convergence`) sont communes au match. Les étapes 4 à 9 sont appliquées **à chaque équipe** (voir ci-dessous).
+
+## Règle F121 pour les deux équipes (retour du client, 20 novembre 2026)
+
+Avant, seule l’équipe « désignée » (F121-C : plus petit écart, ou F121-C.2 si une équipe mène de deux buts) était évaluée : après un but, le moteur s’abstenait souvent (« aucune équipe désignée »). Désormais :
+
+| Point | Application |
+|---|---|
+| Deux candidats à chaque relevé | Domicile : prochain but à domicile (score h+1-a). Extérieur : prochain but à l’extérieur (score h-a+1). |
+| Écart de chaque équipe | Cote du score de son prochain but − cote du score actuel. |
+| Tendance de chaque équipe | Variation de la cote de ce score par rapport au relevé d’il y a 2 minutes ; après un but, par rapport à la première cote après le but (complément 4, une référence par équipe). |
+| Ordre de décision | Étapes 4 à 9 appliquées à chaque équipe (forte baisse, hausse, écart négatif, écart > 0.50, petit écart). Vitalité, E2 et F121-D restent communs au match. |
+| Résultat du match | Critique avant Haute avant abstention. Les deux équipes au même niveau : l’écart le plus négatif l’emporte, sinon la baisse la plus forte ; l’autre équipe est citée dans la justification. **À confirmer avec le client.** |
+| Alerte | Précise l’équipe et le score suggéré : « Prochain but : Sénégal », « Cote suggérée (2-0) ». |
+| Justification au Journal | Les deux côtés : « Domicile (2-0) : cote 3.20, écart +0.91, tendance +12 % → abstention (la cote monte) ; Extérieur (1-1) : cote 4.75, écart +2.99, tendance −8 % → … ». Le message « aucune équipe désignée (F121-C est inactive) » n’existe plus. |
+| F121-C et F121-C.2 | Plus nécessaires pour ce calcul ; elles restent calculées à titre indicatif. Une alerte « petit écart » porte toujours la règle F121-C. |
+
+Le Testeur manuel n’a qu’un champ de variation : il s’applique à l’équipe à l’écart le plus faible (comme avant) ; l’autre équipe a une tendance non calculable, donc s’abstient.
+
+Tests : `tests/Unit/TwoSidedRuleTest.php` (Arsenal – Everton, Sénégal – Soudan, Grimsby – Cheltenham, Crewe – Wigan, 2-0 puis 3-0 avec baisse du score extérieur, deux équipes en signal) et `tests/Feature/TwoSidedScanTest.php` (scan complet).
 
 ## Écarts avec le pseudo-code du client (complément 2, section 4) — à confirmer
 
@@ -85,7 +104,7 @@ Toujours appliqués : l’historique des cotes est conservé en entier (rien n�
 - **Vitalité ≤ 40 prioritaire** : un match « mort » reste en abstention, y compris au premier relevé après un but. Le pseudo-code du complément 4 ne regarde pas la vitalité.
 - E2 (mi-temps) et F121-D (match ouvert) restent vérifiés avant la règle après but.
 - Si la cote du score suggéré n’est pas encore disponible au premier relevé (bookmaker fermé), le relevé suivant reste le « premier relevé ».
-- Le point de départ est la cote du score suggéré au premier relevé ; si l’équipe désignée change pendant la fenêtre, la variation suit toujours ce même score.
+- Chaque équipe a son propre point de départ : la cote du score de son prochain but au premier relevé où elle est disponible.
 - Le relevé de la détection du but n’est pas évalué, comme dans le pseudo-code (« attente première cote »).
 
 Tests : `test_post_goal_window_follows_the_complement_4` et `test_after_the_post_goal_window_the_normal_order_resumes_with_post_goal_odds` (scan), `test_first_reading_after_a_goal_alerts_immediately_on_a_favourable_gap` et `test_later_readings_in_the_post_goal_window_only_alert_on_a_strong_drop` (moteur).
@@ -101,6 +120,10 @@ Tests : `test_post_goal_window_follows_the_complement_4` et `test_after_the_post
 | Pas de scan | Écart > 2.00 : match non scanné ; une ligne au Journal à l’entrée dans cet état et une à la sortie (à confirmer). | `scan.no_scan_gap_threshold` |
 | Quota nul | « Quota épuisé. Le live est arrêté. Rechargez le quota. » | — |
 | Suivi automatique | Ligues 39, 140, 135, 78, 61, 2, 3 ; seulement avec cotes de score exact et statistiques. | `scan.auto_mode`, `scan.auto_league_ids` |
+| Fin de match (retour du client, 20 novembre 2026) | Statut API-Football FT, AET, PEN, PST, CANC, ABD, AWD ou WO : match retiré du suivi (statut « Terminé »), alertes actives expirées, plus aucun appel (statistiques, cotes), un seul événement « Match terminé : suivi arrêté ». Jamais d’après la minute : 1H, HT, 2H, ET, BT, P, SUSP, INT, LIVE ne terminent pas le match ; les tirs au but (P) ne sont pas analysés. | — |
+| Filets de sécurité | Absent du flux en direct pendant 4 relevés consécutifs (environ 2 minutes) : terminé. Coup d’envoi il y a plus de 4 h 30 : retiré sans appel. | `scan.missing_readings_before_end` = 4, `scan.max_match_duration_minutes` = 270 |
+| Veille | Aucun match suivi et aucun match des championnats suivis en direct : ni statistiques ni cotes, et le flux en direct n’est relu qu’après une pause. **Durée à confirmer.** | `scan.idle_interval_seconds` = 300 |
+| Journal sans doublons | Un relevé dont la décision et la justification sont identiques au précédent pour le même match met à jour la ligne existante (horodatage, nombre de relevés) au lieu d’en créer une. | — |
 
 À confirmer : écart entre 1.50 et 2.00 traité comme « calme » ; définition d’un match chaud ; seuil de 10 % inclus ; classement chaud / calme sur le dernier instantané (au plus 30 s de retard) ; pronostics pré-match absents en Phase 1.
 

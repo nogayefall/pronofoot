@@ -140,11 +140,12 @@ class ScanServiceTest extends TestCase
         $at(15);
         $this->assertSame(0, app(ScanService::class)->runOnce(1)->alertsCreated, 'Premier relevé : écart 7.10 − 5.20 = 1.90 > 0.50, attente.');
         $this->assertStringContainsString('attente', $lastDecision()->reason);
-        $this->assertSame(7.1, $match->fresh()->post_goal_reference_odds, 'Point de départ = première cote post-but (pas la cote de 9.60 d’avant le but).');
+        $this->assertSame(['score' => '2-0', 'odds' => 7.1], $match->fresh()->post_goal_references['home'], 'Point de départ = première cote post-but (pas la cote de 9.60 d’avant le but).');
+        $this->assertSame('1-1', $match->fresh()->post_goal_references['away']['score'], 'L’équipe à l’extérieur a aussi son point de départ.');
 
         $at(30);
         $this->assertSame(0, app(ScanService::class)->runOnce(1)->alertsCreated, 'Cote stable depuis 7.10 : abstention ; l’écart ne redéclenche rien.');
-        $this->assertStringContainsString('Fenêtre après un but', $lastDecision()->reason);
+        $this->assertStringContainsString('fenêtre après un but', $lastDecision()->reason);
 
         $at(45);
         $this->assertSame(1, app(ScanService::class)->runOnce(2)->alertsCreated, '7.10 → 6.70 = −5.6 % depuis la première cote post-but.');
@@ -154,12 +155,13 @@ class ScanServiceTest extends TestCase
         $at(60);
         $secondGoal = app(ScanService::class)->runOnce(3);
         $this->assertSame(1, $secondGoal->goalsDetected, 'Second but pendant la fenêtre.');
-        $this->assertNull($match->fresh()->post_goal_reference_odds, 'Nouvelle fenêtre : le point de départ repart du nouveau but.');
+        $this->assertNull($match->fresh()->post_goal_references, 'Nouvelle fenêtre : les points de départ repartent du nouveau but.');
         $this->assertSame('invalidated', Alert::query()->sole()->status);
 
         $at(75);
         $this->assertSame(1, app(ScanService::class)->runOnce(3)->alertsCreated, 'Premier relevé après le second but : écart exactement 0, alerte Haute.');
-        $this->assertSame('F121-C.2', $lastDecision()->rule_id, '2-0 : l’équipe qui mène de deux buts est désignée, écart 3.00 − 3.00 = 0.');
+        $this->assertSame('F121-C', $lastDecision()->rule_id, '2-0 : prochain but à domicile, écart 3.00 − 3.00 = 0 (alerte haute au premier relevé).');
+        $this->assertSame('home', $lastDecision()->selection);
         $this->assertStringContainsString('ALERTE HAUTE', Alert::query()->latest('id')->firstOrFail()->message);
 
         $this->assertSame(9.6, (float) $match->snapshots()->where('captured_at', '<', CarbonImmutable::parse('2026-11-08 12:00:00'))->sole()->exact_score_odds['2-0'], 'L’historique d’avant le but est conservé.');
@@ -188,7 +190,7 @@ class ScanServiceTest extends TestCase
 
         $decision = OpportunityLog::query()->where('event_type', 'evaluation')->latest('id')->firstOrFail();
         $this->assertSame(0.0, (float) $decision->matchSnapshot->odds_change_percent, 'Tendance sur 2 minutes avec des cotes postérieures au but (7.10 → 7.10), pas 9.60.');
-        $this->assertSame('Écart positif supérieur au seuil d’abstention (F121-G).', $decision->reason, 'Ordre normal : l’écart 1.90 donne F121-G.');
+        $this->assertStringContainsString('Domicile (2-0) : cote 7.10, écart +1.90, tendance 0 % → abstention (écart supérieur au seuil d’abstention (F121-G))', $decision->reason, 'Ordre normal : l’écart 1.90 donne F121-G.');
     }
 
     public function test_journal_has_one_line_when_a_match_enters_and_one_when_it_leaves_no_scan(): void

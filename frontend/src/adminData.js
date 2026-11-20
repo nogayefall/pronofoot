@@ -164,6 +164,8 @@ const JOURNAL_INCIDENTS = {
   match_processing_error: 'Incident : erreur de traitement',
   scan_paused: 'Pas de scan (écart trop grand)',
   scan_resumed: 'Scan repris',
+  match_finished: 'Match terminé : suivi arrêté',
+  penalty_shootout: 'Tirs au but : pas d’analyse',
 }
 
 const JOURNAL_DECISIONS = {

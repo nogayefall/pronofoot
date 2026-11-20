@@ -27,6 +27,12 @@ Pour vous déconnecter, utilisez le bouton **Se déconnecter** en haut à droite
 | **Statistiques** | Le nombre d’alertes et le taux de réussite, au total et par règle, à partir des résultats notés dans le Journal. |
 | **Paramètres** | Les seuils et fréquences (vitalité, tendance, écarts, quota, ligues suivies…). Une modification s’applique au passage suivant du scan. Les lignes marquées « À confirmer » attendent une décision de votre part. |
 
+**Les deux équipes sont évaluées.** À chaque relevé, PronoFoot regarde le prochain but de l’équipe à domicile et celui de l’équipe à l’extérieur, chacun avec son écart et sa tendance. Si les deux donnent un signal, l’alerte la plus forte l’emporte (critique avant haute ; à niveau égal, l’écart le plus négatif, puis la baisse la plus forte). La justification du Journal détaille les deux côtés.
+
+**Fin d’un match.** Dès que le fournisseur indique la fin (FT, AET, PEN, reporté, annulé…), le match est retiré du suivi, ses alertes actives expirent et une seule ligne « Match terminé : suivi arrêté » est inscrite au Journal ; il ne consomme plus aucune requête. Un match absent du flux en direct pendant 4 relevés (environ 2 minutes), ou commencé depuis plus de 4 h 30, est aussi retiré. Le temps additionnel et les prolongations ne terminent pas un match ; les tirs au but ne sont pas analysés. Quand plus rien n’est à suivre, le scan espace ses appels (paramètre « Pause sans match à suivre »).
+
+**Journal plus court.** Quand un relevé donne exactement la même décision et la même justification que le précédent pour un match, la ligne existante est mise à jour (« N relevés identiques depuis… ») au lieu d’en ajouter une.
+
 Dans le tableau des matchs suivis, la colonne **Décision** affiche le niveau de l’alerte active du match (Alerte Critique, Alerte Haute…). Sans alerte, elle indique **Surveillance**, ou **Match mort · abstention** quand la vitalité est sous le minimum réglé dans Paramètres. Chaque état porte toujours un libellé, pas seulement une couleur.
 
 Un bandeau **« Mode simulation »** en haut de page signifie que les données sont fictives : elles servent aux essais, pas aux vrais matchs.

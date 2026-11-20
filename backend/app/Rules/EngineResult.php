@@ -11,6 +11,7 @@ final readonly class EngineResult
      * @param  string|null  $decisiveRule  Règle qui produit la décision.
      * @param  string|null  $level  Niveau d’alerte (Critique, Haute, Mi-temps, Neutre).
      * @param  string|null  $selection  home, away, ou null pour un pari sur le total de buts.
+     * @param  list<array<string, mixed>>  $sides  Détail de la règle F121 pour chaque équipe (écart, tendance, décision).
      */
     public function __construct(
         public bool $shouldAlert,
@@ -23,5 +24,6 @@ final readonly class EngineResult
         public ?string $level = null,
         public ?string $selection = null,
         public ?string $suggestedAction = null,
+        public array $sides = [],
     ) {}
 }

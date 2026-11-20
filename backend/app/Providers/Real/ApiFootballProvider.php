@@ -4,6 +4,7 @@ namespace App\Providers\Real;
 
 use App\Providers\Contracts\FootballProvider;
 use App\Providers\Data\FootballFeed;
+use App\Services\MatchStatus;
 use App\Services\QuotaGuard;
 use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Http\Client\Response;
@@ -139,10 +140,15 @@ final class ApiFootballProvider implements FootballProvider
             );
         }
 
+        // Aucun appel de statistiques pour un match terminé (FT, AET, PEN…) ni pendant les tirs au but (non analysés).
+        $analysableMatches = array_values(array_filter(
+            $liveFeed->matches,
+            fn ($match): bool => ! MatchStatus::isFinished(MatchStatus::code($match)) && ! MatchStatus::isPenaltyShootout(MatchStatus::code($match)),
+        ));
         $statisticsMatches = $statisticsMatchIds === null
-            ? array_slice($liveFeed->matches, 0, $statisticsMatchLimit)
+            ? array_slice($analysableMatches, 0, $statisticsMatchLimit)
             : array_values(array_filter(
-                $liveFeed->matches,
+                $analysableMatches,
                 fn ($match): bool => in_array($match->providerMatchId, $statisticsMatchIds, true),
             ));
         $statisticsMatchId = null;

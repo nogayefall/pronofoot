@@ -46,7 +46,7 @@ class AnnexSituationsTest extends TestCase
             '5 Arsenal – Everton, 27e' => [
                 ['score' => [1, 0], 'odds' => ['1-0' => 5.32, '2-0' => 3.25, '1-1' => 8.50], 'suggested' => [3.25, 3.20],
                     'stats' => [[7, 3, 3, 1, 60, 40, 4, 2]], 'vitality' => 70.0],
-                ['alert' => false, 'reason' => 'La cote monte : abstention.'],
+                ['alert' => false, 'reason' => 'Domicile (2-0) : cote 3.25, écart −2.07, tendance +1.6 % → abstention (la cote monte)'],
             ],
             '6 Arsenal – Everton, 64e' => [
                 ['score' => [1, 0], 'odds' => ['1-0' => 2.92, '2-0' => 3.10, '1-1' => 8.50], 'suggested' => [3.10, 3.75],
@@ -56,12 +56,12 @@ class AnnexSituationsTest extends TestCase
             '7 Crewe – Wigan, 71e' => [
                 ['score' => [1, 1], 'odds' => ['1-1' => 2.34, '1-2' => 3.20, '2-1' => 9.00], 'suggested' => [3.20, 3.15],
                     'stats' => [[4, 4, 1, 2, 48, 52, 3, 3]], 'vitality' => 60.0],
-                ['alert' => false, 'reason' => 'La cote monte : abstention.'],
+                ['alert' => false, 'reason' => 'Extérieur (1-2) : cote 3.20, écart +0.86, tendance +1.6 % → abstention (la cote monte)'],
             ],
             '8 Rennes – Racing, 51e' => [
                 ['score' => [2, 0], 'odds' => ['2-0' => 4.50, '3-0' => 4.50, '2-1' => 5.50], 'suggested' => [4.50, 4.50],
                     'stats' => [[8, 4, 4, 2, 58, 42, 5, 2]], 'vitality' => 70.0],
-                ['alert' => false, 'reason' => 'Écart nul : aucune règle satisfaite, abstention.'],
+                ['alert' => false, 'reason' => 'Domicile (3-0) : cote 4.50, écart 0.00, tendance 0 % → abstention (écart nul : aucune règle satisfaite)'],
             ],
             '9 Atalanta – Frosinone, 43e' => [
                 ['score' => [2, 2], 'odds' => ['2-2' => 8.00, '3-2' => 6.00, '2-3' => 8.00], 'suggested' => [6.00, 6.50],
@@ -109,10 +109,13 @@ class AnnexSituationsTest extends TestCase
         $result = $engine->evaluate($input, new RuleConfiguration);
 
         $this->assertSame($expected['alert'], $result->shouldAlert, $result->reason);
-        foreach (['rule' => 'decisiveRule', 'level' => 'level', 'selection' => 'selection', 'action' => 'suggestedAction', 'reason' => 'reason'] as $key => $property) {
+        foreach (['rule' => 'decisiveRule', 'level' => 'level', 'selection' => 'selection', 'action' => 'suggestedAction'] as $key => $property) {
             if (array_key_exists($key, $expected)) {
                 $this->assertSame($expected[$key], $result->{$property}, "{$key} : ".$result->reason);
             }
+        }
+        if (array_key_exists('reason', $expected)) {
+            $this->assertStringContainsString($expected['reason'], $result->reason, 'La justification détaille les deux équipes.');
         }
 
         if (isset($data['suggested'])) {

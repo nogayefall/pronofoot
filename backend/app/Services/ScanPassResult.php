@@ -20,5 +20,7 @@ final readonly class ScanPassResult
         public bool $economyMode = false,
         public int $matchesNotScanned = 0,
         public int $autoTracked = 0,
+        public int $matchesEnded = 0,
+        public bool $idle = false,
     ) {}
 }

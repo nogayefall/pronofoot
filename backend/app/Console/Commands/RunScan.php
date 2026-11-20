@@ -73,13 +73,15 @@ class RunScan extends Command
                         now()->addSeconds(max(60, $result->nextPollIntervalSeconds * 2)),
                     );
                     $this->line(sprintf(
-                        '[%s] match(s) %d — alerte(s) %d — but(s) %d — incident(s) %d — mémoire %.1f Mo',
+                        '[%s] match(s) %d — alerte(s) %d — but(s) %d — terminé(s) %d — incident(s) %d — mémoire %.1f Mo%s',
                         now()->toDateTimeString(),
                         $result->matchesScanned,
                         $result->alertsCreated,
                         $result->goalsDetected,
+                        $result->matchesEnded,
                         $result->errors,
                         memory_get_usage(true) / 1048576,
+                        $result->idle ? " — veille, prochain relevé dans {$result->nextPollIntervalSeconds} s" : '',
                     ));
 
                     if ($result->quotaStopped) {

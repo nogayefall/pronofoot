@@ -57,6 +57,12 @@ class ScanOnce extends Command
         if ($result->autoTracked > 0) {
             $this->info("Matchs ajoutés automatiquement : {$result->autoTracked}");
         }
+        if ($result->matchesEnded > 0) {
+            $this->info("Matchs terminés (suivi arrêté) : {$result->matchesEnded}");
+        }
+        if ($result->idle) {
+            $this->info("Aucun match suivi ni match des championnats suivis en direct : prochain relevé dans {$result->nextPollIntervalSeconds} s.");
+        }
         if ($result->quotaStopped) {
             $this->error(QuotaGuard::EXHAUSTED_MESSAGE);
         }

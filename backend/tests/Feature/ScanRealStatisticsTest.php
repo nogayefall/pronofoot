@@ -326,6 +326,7 @@ class ScanRealStatisticsTest extends TestCase
             'away_team' => 'Fini',
             'is_active' => true,
             'tracking_mode' => 'auto',
+            'missing_readings' => 3,
         ]);
         $this->fakeApi(leagues: [101 => 39, 102 => 39], coveredLeagues: [39]);
 
@@ -333,7 +334,9 @@ class ScanRealStatisticsTest extends TestCase
 
         $this->assertFalse(TrackedMatch::query()->where('provider_match_id', '102')->firstOrFail()->is_active);
         $this->assertTrue(TrackedMatch::query()->where('provider_match_id', '101')->firstOrFail()->is_active);
-        $this->assertFalse(TrackedMatch::query()->where('provider_match_id', '999')->firstOrFail()->is_active);
+        $finished = TrackedMatch::query()->where('provider_match_id', '999')->firstOrFail();
+        $this->assertFalse($finished->is_active, 'Absent du flux au 4e relevé consécutif : terminé.');
+        $this->assertSame('Terminé', $finished->status);
     }
 
     public function test_automatic_mode_can_be_disabled_and_skips_the_coverage_call_outside_listed_leagues(): void
@@ -364,10 +367,13 @@ class ScanRealStatisticsTest extends TestCase
         $this->fakeApi(stoppedOdds: [109]);
 
         $this->artisan('scan:once')
-            ->expectsOutputToContain('Incidents : 2')
-            ->expectsOutputToContain('Avenir du Nord – Union du Sud : données du match manquantes — Match introuvable dans le flux en direct.')
+            ->expectsOutputToContain('Incidents : 1')
             ->expectsOutputToContain('France U17 – Armenia U17 : match arrêté — Match arrêté par le fournisseur : aucune alerte, statistiques conservées.')
-            ->assertExitCode(1);
+            ->doesntExpectOutputToContain('Match introuvable')
+            ->assertExitCode(0);
+
+        $this->assertSame(1, TrackedMatch::query()->where('provider_match_id', '999')->firstOrFail()->missing_readings, 'Absent du flux : compté, sans ligne au Journal à chaque relevé.');
+        $this->assertSame(0, OpportunityLog::query()->whereHas('trackedMatch', fn ($query) => $query->where('provider_match_id', '999'))->count());
     }
 
     /**

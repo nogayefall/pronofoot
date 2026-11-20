@@ -53,7 +53,13 @@ final class FakeFootballProvider implements FootballProvider
                 vitalityScore: $statisticsRequested && is_numeric($data['vitality_score'] ?? null) ? (float) $data['vitality_score'] : null,
                 methodScores: is_array($data['method_scores'] ?? null) ? $data['method_scores'] : [],
                 statisticsCoverage: $this->statisticsCoverage($coverageStatistics),
-                inPlay: $data['status'] === 'upcoming' ? false : true,
+                inPlay: ! in_array($data['status'], ['upcoming', 'finished'], true),
+                statusShort: match ($data['status']) {
+                    'halftime' => 'HT',
+                    'upcoming' => 'NS',
+                    'finished' => 'FT',
+                    default => 'LIVE',
+                },
             );
         }
 

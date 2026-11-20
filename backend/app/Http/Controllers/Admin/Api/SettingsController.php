@@ -48,6 +48,9 @@ final class SettingsController extends Controller
         'scan.auto_mode' => '1',
         'scan.auto_league_ids' => '[39,140,135,78,61,2,3]',
         'rules.convergence_enabled' => '0',
+        'scan.missing_readings_before_end' => '4',
+        'scan.max_match_duration_minutes' => '270',
+        'scan.idle_interval_seconds' => '300',
     ];
 
     public function index(): JsonResponse

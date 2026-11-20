@@ -129,6 +129,7 @@ final class ApiFootballMapper
                 inPlay: is_string($status['short'] ?? null)
                     ? in_array($status['short'], self::IN_PLAY_STATUS_CODES, true)
                     : null,
+                statusShort: is_string($status['short'] ?? null) && trim($status['short']) !== '' ? strtoupper(trim($status['short'])) : null,
             );
         }
 

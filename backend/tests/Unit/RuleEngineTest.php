@@ -32,7 +32,7 @@ class RuleEngineTest extends TestCase
         $this->assertSame('Critique', $strongDrop->level);
         $this->assertSame('home', $strongDrop->selection);
         $this->assertFalse($slightDrop->shouldAlert, 'Écart 1.10 > 0.50 sans forte baisse : F121-G.');
-        $this->assertSame('Écart positif supérieur au seuil d’abstention (F121-G).', $slightDrop->reason);
+        $this->assertStringContainsString('Domicile (1-0) : cote 8.60, écart +1.10, tendance −1 % → abstention (écart supérieur au seuil d’abstention (F121-G))', $slightDrop->reason);
     }
 
     public function test_negative_gap_is_a_critical_alert_through_f121_e1(): void
@@ -56,7 +56,7 @@ class RuleEngineTest extends TestCase
 
         $withoutE1 = (new RuleEngine)->evaluate($input, new RuleConfiguration(activeRules: ['F121-C', 'F121-C.2', 'F162-Bis']));
         $this->assertFalse($withoutE1->shouldAlert);
-        $this->assertSame('Écart négatif, mais F121-E1 est inactive.', $withoutE1->reason);
+        $this->assertStringContainsString('écart négatif, mais F121-E1 est inactive', $withoutE1->reason);
 
         $customLevel = (new RuleEngine)->evaluate($input, new RuleConfiguration(negativeGapLevel: 'Urgente'));
         $this->assertSame('Urgente', $customLevel->level);
@@ -75,10 +75,11 @@ class RuleEngineTest extends TestCase
         $result = (new RuleEngine)->evaluate($input, new RuleConfiguration(activeRules: ['F121-C', 'F121-C.2', 'F121-E1']));
 
         $this->assertFalse($result->shouldAlert);
-        $this->assertSame('gap_too_high', last($result->steps)['step']);
+        $homeSteps = array_values(array_filter($result->steps, fn (array $step): bool => ($step['side'] ?? null) === 'home'));
+        $this->assertSame('gap_too_high', last($homeSteps)['step'], 'Sans F162-Bis, la forte baisse ne suffit pas : l’écart +1.10 reste trop grand.');
     }
 
-    public function test_f121_c_two_follows_the_leader_when_the_leader_is_not_the_smallest_gap(): void
+    public function test_both_teams_are_evaluated_and_f121_c_two_no_longer_imposes_the_leader(): void
     {
         $result = (new RuleEngine)->evaluate(
             new RuleInput(
@@ -92,9 +93,11 @@ class RuleEngineTest extends TestCase
         );
 
         $this->assertSame('away', $result->rules['F121-C']->details['selectedTeam']);
-        $this->assertSame('home', $result->rules['F121-C.2']->details['selectedTeam']);
+        $this->assertSame('home', $result->rules['F121-C.2']->details['selectedTeam'], 'F121-C.2 reste calculée, à titre indicatif.');
         $this->assertTrue($result->shouldAlert);
-        $this->assertSame('home', $result->selection);
+        $this->assertSame('away', $result->selection, 'La baisse de −6 % porte sur le score 2-1 (équipe à l’écart le plus faible).');
+        $this->assertSame('F162-Bis', $result->decisiveRule);
+        $this->assertCount(2, $result->sides);
     }
 
     public function test_small_positive_gap_up_to_the_threshold_is_a_high_alert(): void
@@ -261,7 +264,7 @@ class RuleEngineTest extends TestCase
 
         $stable = $inWindow(0.0);
         $this->assertFalse($stable->shouldAlert, 'Écart négatif (−0.20), mais les règles d’écart ne redéclenchent pas dans la fenêtre.');
-        $this->assertStringContainsString('Fenêtre après un but', $stable->reason);
+        $this->assertStringContainsString('fenêtre après un but', $stable->reason);
         $this->assertFalse($inWindow(-5.0)->shouldAlert, 'Exactement −5 % : pas « plus de 5 % ».');
     }
 
@@ -336,7 +339,7 @@ class RuleEngineTest extends TestCase
         $this->assertTrue($custom->filters['trend']->passed);
     }
 
-    public function test_suggested_exact_score_key_follows_the_active_team_selection(): void
+    public function test_suggested_exact_score_key_follows_the_lowest_gap_for_the_scan_classification(): void
     {
         $engine = new RuleEngine;
         $input = new RuleInput(
@@ -345,19 +348,9 @@ class RuleEngineTest extends TestCase
             exactScoreOdds: ['2-0' => 3.0, '3-0' => 4.4, '2-1' => 3.5],
         );
 
-        $this->assertSame(
-            '3-0',
-            $engine->suggestedExactScoreKey(
-                $input,
-                new RuleConfiguration(activeRules: ['F121-C.2', 'F121-C']),
-            ),
-        );
-        $this->assertNull(
-            $engine->suggestedExactScoreKey(
-                $input,
-                new RuleConfiguration(activeRules: ['F121-D']),
-            ),
-        );
+        $this->assertSame('2-1', $engine->suggestedExactScoreKey($input, new RuleConfiguration(activeRules: ['F121-C.2', 'F121-C'])));
+        $this->assertSame('2-1', $engine->suggestedExactScoreKey($input, new RuleConfiguration(activeRules: ['F121-D'])), 'Ne dépend plus de F121-C.');
+        $this->assertNull($engine->suggestedExactScoreKey(new RuleInput(homeScore: 1, awayScore: 1, exactScoreOdds: []), new RuleConfiguration));
     }
 
     public function test_missing_trend_configuration_blocks_both_falling_and_stable_values(): void
@@ -407,7 +400,7 @@ class RuleEngineTest extends TestCase
 
         $this->assertSame(75.0, $result->convergenceScore);
         $this->assertFalse($result->shouldAlert);
-        $this->assertSame('Le score de convergence ne dépasse pas le seuil configuré.', $result->reason);
+        $this->assertStringStartsWith('Le score de convergence ne dépasse pas le seuil configuré.', $result->reason);
     }
 
     public function test_rule_engine_has_no_alert_without_configured_method_scores(): void
@@ -428,7 +421,7 @@ class RuleEngineTest extends TestCase
 
         $this->assertNull($result->convergenceScore);
         $this->assertFalse($result->shouldAlert);
-        $this->assertSame('La convergence ne peut pas être calculée sans les scores et poids définis.', $result->reason);
+        $this->assertStringStartsWith('La convergence ne peut pas être calculée sans les scores et poids définis.', $result->reason);
 
         $withoutConvergenceStep = (new RuleEngine)->evaluate(
             new RuleInput(

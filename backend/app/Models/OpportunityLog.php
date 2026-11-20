@@ -22,6 +22,8 @@ class OpportunityLog extends Model
         'reason',
         'outcome',
         'evaluated_at',
+        'repeat_count',
+        'first_evaluated_at',
     ];
 
     protected function casts(): array
@@ -30,6 +32,8 @@ class OpportunityLog extends Model
             'rule_results' => 'array',
             'filter_results' => 'array',
             'evaluated_at' => 'datetime',
+            'repeat_count' => 'integer',
+            'first_evaluated_at' => 'datetime',
         ];
     }
 

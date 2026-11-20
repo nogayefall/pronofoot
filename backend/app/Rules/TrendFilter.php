@@ -3,15 +3,14 @@
 namespace App\Rules;
 
 /**
- * Tendance de la cote du score suggéré sur 2 minutes (complément 2) : seule une hausse bloque.
+ * Tendance de la cote du prochain but d’une équipe sur 2 minutes (complément 2) : seule une hausse bloque.
  * Une baisse de plus du seuil (5 %) est une « forte baisse » qui déclenche F162-Bis dans l’ordre de décision.
  * Une tendance non calculable (pas d’instantané à −2 min) donne une abstention, à confirmer.
  */
 final class TrendFilter
 {
-    public function evaluate(RuleInput $input, RuleConfiguration $configuration): FilterResult
+    public function evaluate(?float $change, RuleConfiguration $configuration): FilterResult
     {
-        $change = $input->oddsChangePercent;
         $threshold = $configuration->stableOddsChangePercent;
         if ($configuration->trendSource !== 'cote_suggeree'
             || $threshold === null

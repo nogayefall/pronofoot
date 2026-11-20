@@ -36,5 +36,6 @@ final readonly class FootballMatch
         public ?int $homeTeamId = null,
         public ?int $awayTeamId = null,
         public ?bool $inPlay = null,
+        public ?string $statusShort = null,
     ) {}
 }

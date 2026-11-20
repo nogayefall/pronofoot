@@ -24,6 +24,10 @@ final readonly class RuleInput
      * @param  bool|null  $halftime  Match arrêté à la mi-temps.
      * @param  float|null  $under25Odds  Cote Under 2.5 buts (total du match), utilisée par F121-E2.
      * @param  int|null  $minute  Minute de jeu, utilisée par la règle facultative des minutes restantes.
+     * @param  array{home?: float|null, away?: float|null}|null  $sideOddsChangePercent  Tendance de la cote du prochain
+     *                                                                                   but de chaque équipe. Sans elle, $oddsChangePercent vaut pour l’équipe à l’écart le plus faible.
+     * @param  array{home?: array{phase: string|null, change: float|null}, away?: array{phase: string|null, change: float|null}}|null  $sidePostGoal
+     *                                                                                                                                                Phase et variation après un but, par équipe (complément 4).
      */
     public function __construct(
         public int $homeScore,
@@ -37,9 +41,14 @@ final readonly class RuleInput
         public ?int $minute = null,
         public ?string $postGoalPhase = null,
         public ?float $postGoalChangePercent = null,
+        public ?array $sideOddsChangePercent = null,
+        public ?array $sidePostGoal = null,
     ) {
-        if ($postGoalPhase !== null && ! in_array($postGoalPhase, [self::POST_GOAL_FIRST_READING, self::POST_GOAL_WINDOW], true)) {
-            throw new InvalidArgumentException('Phase après un but inconnue.');
+        $phases = [$postGoalPhase, $sidePostGoal['home']['phase'] ?? null, $sidePostGoal['away']['phase'] ?? null];
+        foreach ($phases as $phase) {
+            if ($phase !== null && ! in_array($phase, [self::POST_GOAL_FIRST_READING, self::POST_GOAL_WINDOW], true)) {
+                throw new InvalidArgumentException('Phase après un but inconnue.');
+            }
         }
 
         if ($homeScore < 0 || $awayScore < 0) {

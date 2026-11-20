@@ -32,8 +32,8 @@ function plural(count, word) {
 }
 
 const ruleDescriptions = [
-  { id: 'F121-C', title: 'Écart directionnel', status: 'Disponible', detail: 'Règle configurable selon les seuils validés du CDC.' },
-  { id: 'F121-C.2', title: 'Avantage de deux buts', status: 'Disponible', detail: 'Suit le leader lorsque son avantage atteint au moins deux buts.' },
+  { id: 'F121-C', title: 'Écart des deux équipes', status: 'Disponible', detail: 'Pour chaque équipe : écart = cote du score de son prochain but − cote du score actuel, et tendance de cette cote. Les deux équipes sont évaluées ; la plus forte alerte l’emporte (critique, puis écart le plus négatif, puis baisse la plus forte, à confirmer).' },
+  { id: 'F121-C.2', title: 'Avantage de deux buts', status: 'Disponible', detail: 'Indicatif : ne désigne plus l’équipe, puisque les deux équipes sont évaluées.' },
   { id: 'F121-D', title: 'Match ouvert', status: 'Disponible', detail: 'Au moins 4 buts (à confirmer) et cotes des scores suivants ≤ 8.00 : Over 4.5.' },
   { id: 'F162-Bis', title: 'Baisse obligatoire', status: 'Disponible', detail: 'Cote du prochain but en baisse de plus de 5 % en 2 minutes : alerte critique, prioritaire sur l’écart.' },
   { id: 'F121-E1', title: 'Écart négatif', status: 'Disponible', detail: 'Cote du prochain but inférieure à celle du score actuel : alerte critique.' },
@@ -75,6 +75,9 @@ const settingLabels = {
   'scan.no_scan_gap_threshold': 'Écart au-delà duquel un match n’est pas scanné (à confirmer)',
   'scan.auto_mode': 'Suivi automatique des championnats majeurs',
   'scan.auto_league_ids': 'Ligues suivies automatiquement (identifiants API-Football)',
+  'scan.missing_readings_before_end': 'Relevés absents du flux avant la fin d’un match',
+  'scan.max_match_duration_minutes': 'Durée maximale de suivi d’un match (minutes)',
+  'scan.idle_interval_seconds': 'Pause sans match à suivre (secondes, à confirmer)',
 }
 
 const settingDescriptions = {
@@ -109,6 +112,9 @@ const settingDescriptions = {
   'scan.no_scan_gap_threshold': 'Au-delà de cet écart, le match n’est jamais scanné.',
   'scan.auto_mode': 'Suit tous les matchs des ligues listées ayant les cotes de score exact et les statistiques, en plus du Scan Ciblé.',
   'scan.auto_league_ids': 'Par défaut : Premier League 39, Liga 140, Serie A 135, Bundesliga 78, Ligue 1 61, Ligue des champions 2, Europa League 3.',
+  'scan.missing_readings_before_end': 'Filet de sécurité : un match absent du flux en direct pendant ce nombre de relevés consécutifs est considéré terminé (4 ≈ 2 minutes).',
+  'scan.max_match_duration_minutes': 'Un match dont le coup d’envoi date de plus de ce nombre de minutes est retiré du suivi (270 = 4 h 30).',
+  'scan.idle_interval_seconds': 'Quand aucun match n’est suivi et qu’aucun match des championnats suivis n’est en direct : pas de statistiques ni de cotes, et le flux n’est relu qu’après cette pause.',
 }
 
 const decisionStepLabels = {
@@ -149,7 +155,12 @@ function SimulationResult({ result }) {
       </div>
       {decision.steps?.length > 0 && <div className="simulation-section"><h3>Ordre de décision (à confirmer)</h3>
         {decision.steps.map((step) => (
-          <div className="simulation-line" key={step.step}><span>{decisionStepLabels[step.step] ?? step.step}</span><strong>{decisionOutcomeLabels[step.outcome] ?? step.outcome}</strong></div>
+          <div className="simulation-line" key={`${step.side ?? 'match'}-${step.step}`}><span>{decisionStepLabels[step.step] ?? step.step}{step.side ? ` — ${step.side === 'home' ? 'domicile' : 'extérieur'}` : ''}</span><strong>{decisionOutcomeLabels[step.outcome] ?? step.outcome}</strong></div>
+        ))}
+      </div>}
+      {decision.sides?.length > 0 && <div className="simulation-section"><h3>Deux équipes (règle F121)</h3>
+        {decision.sides.map((side) => (
+          <div className="simulation-line" key={side.side}><span>{side.side === 'home' ? 'Domicile' : 'Extérieur'} ({side.scoreKey ?? '?'}) · cote {side.nextOdds ?? 'n.c.'} · écart {side.gap === null || side.gap === undefined ? 'n.c.' : `${side.gap > 0 ? '+' : ''}${side.gap.toFixed(2)}`} · tendance {side.change === null || side.change === undefined ? 'n.c.' : `${side.change > 0 ? '+' : ''}${Math.round(side.change * 10) / 10} %`}</span><strong>{side.alert ? `Alerte ${side.level}` : 'Abstention'}</strong></div>
         ))}
       </div>}
       <div className="simulation-section"><h3>Règles évaluées</h3>
@@ -806,7 +817,7 @@ function App() {
               <form className="panel filter-toolbar" onSubmit={(event) => { event.preventDefault(); void loadJournal(journalFilters) }}><label className="field">Du<input type="date" value={journalFilters.date_from} onChange={(event) => setJournalFilters((previous) => ({ ...previous, date_from: event.target.value }))} /></label><label className="field">Au<input type="date" value={journalFilters.date_to} onChange={(event) => setJournalFilters((previous) => ({ ...previous, date_to: event.target.value }))} /></label><label className="field">ID du match<input className="num" min="1" type="number" value={journalFilters.match_id} onChange={(event) => setJournalFilters((previous) => ({ ...previous, match_id: event.target.value }))} /></label><label className="field">Règle<input value={journalFilters.rule_id} onChange={(event) => setJournalFilters((previous) => ({ ...previous, rule_id: event.target.value }))} placeholder="F121-C" /></label><label className="field">État<select value={journalFilters.status} onChange={(event) => setJournalFilters((previous) => ({ ...previous, status: event.target.value }))}><option value="">Tous</option><option value="sans_alerte">Sans alerte</option><option value="queued">En attente</option><option value="sent">Envoyée</option><option value="failed">Échec</option><option value="expired">Expirée</option><option value="invalidated">Invalidée</option></select></label><button className="button button-secondary" type="submit"><Icon name="search" size={16} />Filtrer</button></form>
               <Section title="Événements récents" aside={`${journalData?.pagination?.total ?? 0} événement(s)`}>
                 <div className="panel panel-flush">
-                  {journalData?.data?.length ? <div className="table-scroll"><table className="data-table"><thead><tr><th scope="col">Date</th><th scope="col">Rencontre</th><th scope="col">Score / minute</th><th scope="col">Règle</th><th scope="col">Décision</th><th scope="col">Justification</th><th scope="col">Résultat</th></tr></thead><tbody>{journalData.data.map((log) => <tr key={log.id}><td className="num cell-nowrap">{formatDate(log.evaluatedAt)}</td><td><strong>{log.match ?? '—'}</strong></td><td className="num cell-nowrap">{log.score ?? '—'}{log.minute === null ? '' : ` · ${log.minute}'`}</td><td className="num cell-nowrap">{log.ruleId ?? '—'}</td><td><Pill tone={log.decision === 'no_alert' ? (log.eventType === 'evaluation' ? 'watch' : 'dead') : journalTones[log.decision] ?? 'watch'}>{journalDecisionLabel(log)}</Pill></td><td className="cell-reason">{log.reason}</td><td>{log.alert ? <select className="select-compact" aria-label={`Résultat de l’alerte ${log.id}`} value={log.outcome ?? ''} onChange={(event) => void updateOutcome(log.id, event.target.value)}><option value="">À renseigner</option><option value="won">Gagnée</option><option value="lost">Perdue</option><option value="cancelled">Annulée</option></select> : '—'}</td></tr>)}</tbody></table></div> : <EmptyState icon="list" title="Aucun événement" message="Aucune évaluation ne correspond aux critères choisis." />}
+                  {journalData?.data?.length ? <div className="table-scroll"><table className="data-table"><thead><tr><th scope="col">Date</th><th scope="col">Rencontre</th><th scope="col">Score / minute</th><th scope="col">Règle</th><th scope="col">Décision</th><th scope="col">Justification</th><th scope="col">Résultat</th></tr></thead><tbody>{journalData.data.map((log) => <tr key={log.id}><td className="num cell-nowrap">{formatDate(log.evaluatedAt)}{log.repeatCount > 1 && <small>{log.repeatCount} relevés identiques depuis {formatTime(log.firstEvaluatedAt)}</small>}</td><td><strong>{log.match ?? '—'}</strong></td><td className="num cell-nowrap">{log.score ?? '—'}{log.minute === null ? '' : ` · ${log.minute}'`}</td><td className="num cell-nowrap">{log.ruleId ?? '—'}</td><td><Pill tone={log.decision === 'no_alert' ? (log.eventType === 'evaluation' ? 'watch' : 'dead') : journalTones[log.decision] ?? 'watch'}>{journalDecisionLabel(log)}</Pill></td><td className="cell-reason">{log.reason}</td><td>{log.alert ? <select className="select-compact" aria-label={`Résultat de l’alerte ${log.id}`} value={log.outcome ?? ''} onChange={(event) => void updateOutcome(log.id, event.target.value)}><option value="">À renseigner</option><option value="won">Gagnée</option><option value="lost">Perdue</option><option value="cancelled">Annulée</option></select> : '—'}</td></tr>)}</tbody></table></div> : <EmptyState icon="list" title="Aucun événement" message="Aucune évaluation ne correspond aux critères choisis." />}
                 </div>
                 {journalData?.pagination?.lastPage > 1 && <div className="pagination"><button className="button button-ghost" type="button" disabled={journalData.pagination.currentPage <= 1} onClick={() => void loadJournal({ ...journalFilters, page: String(journalData.pagination.currentPage - 1) })}>Précédent</button><span>Page <span className="num">{journalData.pagination.currentPage} / {journalData.pagination.lastPage}</span></span><button className="button button-ghost" type="button" disabled={journalData.pagination.currentPage >= journalData.pagination.lastPage} onClick={() => void loadJournal({ ...journalFilters, page: String(journalData.pagination.currentPage + 1) })}>Suivant</button></div>}
               </Section>

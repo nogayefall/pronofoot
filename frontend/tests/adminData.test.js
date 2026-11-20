@@ -235,3 +235,8 @@ test('effectiveLeagueFilter opens Autres when Tous is empty, unless the administ
   assert.equal(leagueChosenInUrl('?ligue=inconnu', filters), false)
   assert.equal(leagueChosenInUrl('', filters), false)
 })
+
+test('journalDecisionLabel names the match end and the penalty shootout', () => {
+  assert.equal(journalDecisionLabel({ decision: 'no_alert', eventType: 'match_finished' }), 'Match terminé : suivi arrêté')
+  assert.equal(journalDecisionLabel({ decision: 'no_alert', eventType: 'penalty_shootout' }), 'Tirs au but : pas d’analyse')
+})

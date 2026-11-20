@@ -64,6 +64,7 @@ class RuleSimulationController extends Controller
                 'selection' => $result->selection,
                 'suggestedAction' => $result->suggestedAction,
                 'steps' => $result->steps,
+                'sides' => $result->sides,
                 'convergenceScore' => $result->convergenceScore,
                 'validationThreshold' => $configuration->minimumConvergenceScore,
                 'convergenceStep' => in_array('convergence', $configuration->pipeline, true),

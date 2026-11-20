@@ -16,6 +16,7 @@ use App\Rules\RuleConfiguration;
 use App\Services\RuleConfigurationFactory;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Testing\Fluent\AssertableJson;
 use Tests\TestCase;
 
 class AdminApiTest extends TestCase
@@ -405,7 +406,7 @@ class AdminApiTest extends TestCase
             ->assertOk()
             ->assertJsonPath('decision.convergenceStep', true)
             ->assertJsonPath('decision.shouldAlert', false)
-            ->assertJsonPath('decision.reason', 'Le score de convergence ne dépasse pas le seuil configuré.');
+            ->assertJson(fn (AssertableJson $json) => $json->where('decision.reason', fn (string $reason): bool => str_starts_with($reason, 'Le score de convergence ne dépasse pas le seuil configuré.'))->etc());
 
         $this->postJson(route('admin.rule-test'), [...$payload, 'method_scores' => ['F121-C' => 82]])
             ->assertJsonPath('decision.convergencePasses', true)

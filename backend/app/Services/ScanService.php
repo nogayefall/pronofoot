@@ -73,11 +73,25 @@ class ScanService
         $vitalityScale = is_array($settingValues['rules.vitality_normalization_references'] ?? null)
             ? $settingValues['rules.vitality_normalization_references']
             : VitalityCalculator::DEFAULT_SCALE;
+        $missingReadingsLimit = $this->settings->integer($settingValues, 'scan.missing_readings_before_end');
+        $maxMatchMinutes = $this->settings->integer($settingValues, 'scan.max_match_duration_minutes');
+        $idleInterval = $this->settings->integer($settingValues, 'scan.idle_interval_seconds');
         $expiredAlerts = $this->expireAlerts($now);
         $trackedMatches = TrackedMatch::query()->where('is_active', true)->get();
+        // Plafond : un match commencé depuis plus de 4 h 30 est retiré sans aucun appel API.
+        $matchesEnded = $this->endOverdueMatches($trackedMatches, $maxMatchMinutes, $now);
+        $trackedMatches = $trackedMatches->filter(fn (TrackedMatch $trackedMatch): bool => $trackedMatch->is_active)->values();
 
         if ($trackedMatches->isEmpty() && ! $autoMode) {
-            return new ScanPassResult(0, 0, 0, $expiredAlerts, 0, 0, $oddsInterval, incidents: $this->incidents);
+            return new ScanPassResult(0, 0, 0, $expiredAlerts, 0, 0, $oddsInterval, incidents: $this->incidents, matchesEnded: $matchesEnded);
+        }
+
+        // Veille : aucun match suivi et aucun match des championnats suivis en direct au dernier relevé → pas d’appel
+        // avant la fin de la pause (scan:once, qui force le relevé, l’ignore).
+        $idleUntil = Cache::get('pronofoot.scan.idle_until');
+        if ($trackedMatches->isEmpty() && ! $forceRefresh && is_string($idleUntil)
+            && CarbonImmutable::parse($idleUntil)->greaterThan($now)) {
+            return new ScanPassResult(0, 0, 0, $expiredAlerts, 0, 0, max(1, (int) ceil($now->diffInSeconds(CarbonImmutable::parse($idleUntil), true))), incidents: $this->incidents, matchesEnded: $matchesEnded, idle: true);
         }
 
         $previousFootballStatus = Cache::get('pronofoot.provider_status', [])['football'] ?? [];
@@ -127,6 +141,17 @@ class ScanService
         }
 
         $footballMatches = $this->indexMatches($footballFeed->matches);
+        $matchesEnded += $this->closeFinishedMatches($trackedMatches, $footballMatches, $missingReadingsLimit, $now, $footballFeed->driver !== 'fake');
+        $trackedMatches = $trackedMatches->filter(fn (TrackedMatch $trackedMatch): bool => $trackedMatch->is_active)->values();
+        $dueMatchIds = array_values(array_intersect($dueMatchIds, $trackedMatches->pluck('id')->all()));
+
+        if ($trackedMatches->isEmpty() && $autoMode && ! $this->hasLiveMatchInLeagues($footballFeed, $autoLeagueIds)) {
+            Cache::put('pronofoot.scan.idle_until', $now->addSeconds($idleInterval)->toIso8601String(), $now->addSeconds($idleInterval));
+
+            return new ScanPassResult(0, 0, 0, $expiredAlerts, 0, 0, $idleInterval, incidents: $this->incidents, matchesEnded: $matchesEnded, idle: true);
+        }
+        Cache::forget('pronofoot.scan.idle_until');
+
         $goalCount = $this->detectGoals($trackedMatches, $footballMatches, $now);
         $goalWindowActive = $this->hasRecentGoal($trackedMatches, $now, $goalWindow);
         $effectiveOddsInterval = $goalWindowActive ? $goalInterval : $oddsInterval;
@@ -209,9 +234,20 @@ class ScanService
         foreach ($trackedMatches as $trackedMatch) {
             try {
                 $footballMatch = $footballMatches[$trackedMatch->provider_match_id] ?? null;
-                if ($footballMatch === null || ! $this->isInPlay($footballMatch)) {
-                    $this->recordIncident($trackedMatch, 'football_data_missing', $footballMatch === null ? 'Match introuvable dans le flux en direct.' : 'Match non en cours selon le flux (statut : '.$footballMatch->status.').', $now);
+                if ($footballMatch === null) {
+                    // Absent du flux : compté par closeFinishedMatches, terminé après N relevés ; aucune ligne à chaque relevé.
+                    continue;
+                }
+
+                if (! $this->isInPlay($footballMatch)) {
+                    $this->recordIncident($trackedMatch, 'football_data_missing', 'Match non en cours selon le flux (statut : '.$footballMatch->status.').', $now);
                     $errors++;
+
+                    continue;
+                }
+
+                if (MatchStatus::isPenaltyShootout(MatchStatus::code($footballMatch))) {
+                    $this->recordIncident($trackedMatch, 'penalty_shootout', 'Séance de tirs au but : pas d’analyse ; le match n’est pas encore terminé.', $now);
 
                     continue;
                 }
@@ -309,41 +345,25 @@ class ScanService
                     ? $snapshot->vitality_score
                     : null;
                 $configuration = $this->ruleConfigurationFactory->make($profile, $settingValues);
-                $input = new RuleInput(
-                    homeScore: $footballMatch->homeScore,
-                    awayScore: $footballMatch->awayScore,
-                    exactScoreOdds: $oddsMatch->exactScoreOdds,
-                    vitalityScore: $vitality,
-                    methodScores: $footballMatch->methodScores,
-                    halftime: $halftime,
-                    under25Odds: $oddsMatch->under25Odds,
-                );
-                $suggestedScoreKey = $this->ruleEngine->suggestedExactScoreKey($input, $configuration);
-                [$postGoalPhase, $postGoalChange] = $this->postGoalPhase($trackedMatch, $oddsMatch, $suggestedScoreKey, $goalWindow, $now);
-                $trendChange = $postGoalPhase === null
-                    ? $this->calculateTrendChange(
-                        $trackedMatch,
-                        $oddsMatch->exactScoreOdds,
-                        $suggestedScoreKey,
-                        $this->settings->nullableString($settingValues, 'tendance_source'),
-                        $this->settings->nullableFloat($settingValues, 'tendance_seuil_stable'),
-                        $now,
-                    )
-                    : $postGoalChange;
-                $snapshot->forceFill(['odds_change_percent' => $trendChange])->save();
+                // Règle F121 pour les deux équipes : prochain but à domicile (h+1-a) et à l’extérieur (h-a+1).
+                $sideKeys = $this->sideScoreKeys($footballMatch->homeScore, $footballMatch->awayScore);
+                $postGoal = $this->postGoalSides($trackedMatch, $oddsMatch, $sideKeys, $goalWindow, $now);
+                $sideChanges = $postGoal === null
+                    ? $this->sideTrendChanges($trackedMatch, $oddsMatch->exactScoreOdds, $sideKeys, $settingValues, $now)
+                    : array_map(fn (array $side): ?float => $side['change'], $postGoal);
+                $snapshot->forceFill(['odds_change_percent' => $this->strongestChange($sideChanges)])->save();
                 $result = $this->ruleEngine->evaluate(
                     new RuleInput(
                         homeScore: $footballMatch->homeScore,
                         awayScore: $footballMatch->awayScore,
                         exactScoreOdds: $oddsMatch->exactScoreOdds,
                         vitalityScore: $vitality,
-                        oddsChangePercent: $trendChange,
                         methodScores: $footballMatch->methodScores,
                         halftime: $halftime,
                         under25Odds: $oddsMatch->under25Odds,
                         minute: $footballMatch->minute,
-                        postGoalPhase: $postGoalPhase,
-                        postGoalChangePercent: $postGoalChange,
+                        sideOddsChangePercent: $sideChanges,
+                        sidePostGoal: $postGoal,
                     ),
                     $configuration,
                 );
@@ -368,6 +388,7 @@ class ScanService
             economyMode: $economyMode,
             matchesNotScanned: $matchesNotScanned,
             autoTracked: $autoTracked,
+            matchesEnded: $matchesEnded,
         );
     }
 
@@ -425,44 +446,215 @@ class ScanService
     }
 
     /**
-     * Complément 4 : pendant la fenêtre après un but, le premier relevé évalué fixe le point de départ (première cote
-     * du score suggéré après le but) ; les relevés suivants donnent la variation depuis ce point. Si la cote n’est pas
-     * encore disponible (bookmaker fermé), le relevé suivant reste le « premier relevé ». Hors fenêtre : [null, null].
+     * Score du prochain but de chaque équipe : domicile h+1-a, extérieur h-a+1.
      *
-     * @return array{0: string|null, 1: float|null}
+     * @return array{home: string, away: string}
      */
-    private function postGoalPhase(
+    private function sideScoreKeys(int $homeScore, int $awayScore): array
+    {
+        return ['home' => ($homeScore + 1).'-'.$awayScore, 'away' => $homeScore.'-'.($awayScore + 1)];
+    }
+
+    /**
+     * Complément 4, pour chaque équipe : pendant la fenêtre après un but, le premier relevé où la cote du prochain but
+     * de l’équipe est disponible fixe son point de départ ; les relevés suivants donnent la variation depuis ce point.
+     * Si la cote n’est pas encore disponible (bookmaker fermé), le relevé suivant reste le « premier relevé » pour cette
+     * équipe. Hors fenêtre : null. L’historique n’est jamais supprimé.
+     *
+     * @param  array{home: string, away: string}  $sideKeys
+     * @return array{home: array{phase: string, change: float|null}, away: array{phase: string, change: float|null}}|null
+     */
+    private function postGoalSides(
         TrackedMatch $trackedMatch,
         OddsMatch $oddsMatch,
-        ?string $suggestedScoreKey,
+        array $sideKeys,
         int $goalWindow,
         CarbonImmutable $now,
-    ): array {
+    ): ?array {
         if (! $this->inPostGoalWindow($trackedMatch, $goalWindow, $now)) {
-            return [null, null];
+            return null;
         }
 
-        if ($trackedMatch->post_goal_reference_odds === null) {
-            $price = $suggestedScoreKey === null ? null : ($oddsMatch->exactScoreOdds[$suggestedScoreKey] ?? null);
-            if (! is_numeric($price) || (float) $price <= 0) {
-                return [RuleInput::POST_GOAL_FIRST_READING, null];
+        $references = is_array($trackedMatch->post_goal_references) ? $trackedMatch->post_goal_references : [];
+        $sides = [];
+        $changed = false;
+        foreach ($sideKeys as $side => $scoreKey) {
+            $price = $oddsMatch->exactScoreOdds[$scoreKey] ?? null;
+            $price = is_numeric($price) && (float) $price > 0 ? (float) $price : null;
+            $reference = $references[$side] ?? null;
+            if (! is_array($reference) || ($reference['score'] ?? null) !== $scoreKey || ! is_numeric($reference['odds'] ?? null)) {
+                if ($price !== null) {
+                    $references[$side] = ['score' => $scoreKey, 'odds' => $price];
+                    $changed = true;
+                }
+                $sides[$side] = ['phase' => RuleInput::POST_GOAL_FIRST_READING, 'change' => $price === null ? null : 0.0];
+
+                continue;
             }
 
-            $trackedMatch->forceFill([
-                'post_goal_reference_score' => $suggestedScoreKey,
-                'post_goal_reference_odds' => (float) $price,
-            ])->save();
-
-            return [RuleInput::POST_GOAL_FIRST_READING, 0.0];
+            $referenceOdds = (float) $reference['odds'];
+            $sides[$side] = [
+                'phase' => RuleInput::POST_GOAL_WINDOW,
+                'change' => $price === null || $referenceOdds <= 0 ? null : ($price - $referenceOdds) / $referenceOdds * 100,
+            ];
         }
 
-        $reference = (float) $trackedMatch->post_goal_reference_odds;
-        $price = $oddsMatch->exactScoreOdds[(string) $trackedMatch->post_goal_reference_score] ?? null;
-        if (! is_numeric($price) || $reference <= 0) {
-            return [RuleInput::POST_GOAL_WINDOW, null];
+        if ($changed) {
+            $trackedMatch->forceFill(['post_goal_references' => $references])->save();
         }
 
-        return [RuleInput::POST_GOAL_WINDOW, ((float) $price - $reference) / $reference * 100];
+        return $sides;
+    }
+
+    /**
+     * Tendance sur 2 minutes de la cote du prochain but de chaque équipe.
+     *
+     * @param  array<string, int|float>  $odds
+     * @param  array{home: string, away: string}  $sideKeys
+     * @param  array<string, int|float|bool|array|string|null>  $settings
+     * @return array{home: float|null, away: float|null}
+     */
+    private function sideTrendChanges(TrackedMatch $trackedMatch, array $odds, array $sideKeys, array $settings, CarbonImmutable $now): array
+    {
+        $source = $this->settings->nullableString($settings, 'tendance_source');
+        $threshold = $this->settings->nullableFloat($settings, 'tendance_seuil_stable');
+
+        return [
+            'home' => $this->calculateTrendChange($trackedMatch, $odds, $sideKeys['home'], $source, $threshold, $now),
+            'away' => $this->calculateTrendChange($trackedMatch, $odds, $sideKeys['away'], $source, $threshold, $now),
+        ];
+    }
+
+    /**
+     * Baisse la plus forte des deux équipes, conservée sur l’instantané pour le classement chaud / calme.
+     *
+     * @param  array<string, float|null>  $changes
+     */
+    private function strongestChange(array $changes): ?float
+    {
+        $values = array_values(array_filter($changes, fn (?float $change): bool => $change !== null));
+
+        return $values === [] ? null : min($values);
+    }
+
+    /**
+     * Plafond de durée : un match dont le coup d’envoi date de plus de N minutes (4 h 30 par défaut) est terminé,
+     * avant tout appel API.
+     *
+     * @param  Collection<int, TrackedMatch>  $trackedMatches
+     */
+    private function endOverdueMatches(Collection $trackedMatches, int $maxMinutes, CarbonImmutable $now): int
+    {
+        $ended = 0;
+        foreach ($trackedMatches as $trackedMatch) {
+            if ($trackedMatch->kickoff_at !== null
+                && CarbonImmutable::instance($trackedMatch->kickoff_at)->addMinutes($maxMinutes)->lessThanOrEqualTo($now)) {
+                $hours = intdiv($maxMinutes, 60);
+                $minutes = $maxMinutes % 60;
+                $this->endTrackedMatch($trackedMatch, 'coup d’envoi il y a plus de '.$hours.' h'.($minutes > 0 ? ' '.str_pad((string) $minutes, 2, '0', STR_PAD_LEFT) : ''), $now);
+                $ended++;
+            }
+        }
+
+        return $ended;
+    }
+
+    /**
+     * Fin de match d’après le flux en direct : statut de fin (FT, AET, PEN, PST, CANC, ABD, AWD, WO), ou absence du flux
+     * pendant N relevés consécutifs (filet de sécurité). Jamais d’après la minute (temps additionnel, prolongations).
+     *
+     * @param  Collection<int, TrackedMatch>  $trackedMatches
+     * @param  array<string, FootballMatch|OddsMatch>  $footballMatches
+     */
+    private function closeFinishedMatches(Collection $trackedMatches, array $footballMatches, int $missingReadingsLimit, CarbonImmutable $now, bool $recordKickoff = true): int
+    {
+        $ended = 0;
+        foreach ($trackedMatches as $trackedMatch) {
+            $footballMatch = $footballMatches[$trackedMatch->provider_match_id] ?? null;
+            if (! $footballMatch instanceof FootballMatch) {
+                $missing = (int) $trackedMatch->missing_readings + 1;
+                if ($missing >= $missingReadingsLimit) {
+                    $this->endTrackedMatch($trackedMatch, "absent du flux en direct depuis {$missing} relevés consécutifs", $now);
+                    $ended++;
+                } else {
+                    $trackedMatch->forceFill(['missing_readings' => $missing])->save();
+                }
+
+                continue;
+            }
+
+            $updates = [];
+            if ((int) $trackedMatch->missing_readings !== 0) {
+                $updates['missing_readings'] = 0;
+            }
+            // Le pilote fictif a des dates de coup d’envoi figées : elles ne servent pas au plafond de durée.
+            if ($recordKickoff && $trackedMatch->kickoff_at === null && is_string($footballMatch->kickoffAt)) {
+                try {
+                    $updates['kickoff_at'] = CarbonImmutable::parse($footballMatch->kickoffAt);
+                } catch (Throwable) {
+                    // Date illisible : le plafond de durée ne s’applique pas à ce match.
+                }
+            }
+            if ($updates !== []) {
+                $trackedMatch->forceFill($updates)->save();
+            }
+
+            $code = MatchStatus::code($footballMatch);
+            if (MatchStatus::isFinished($code)) {
+                $this->endTrackedMatch($trackedMatch, 'statut '.MatchStatus::endLabel((string) $code), $now);
+                $ended++;
+            }
+        }
+
+        return $ended;
+    }
+
+    /**
+     * Retire le match du suivi (statut « Terminé »), expire ses alertes actives et inscrit un seul événement au Journal.
+     * Un match inactif n’est plus jamais interrogé (ni statistiques, ni cotes).
+     */
+    private function endTrackedMatch(TrackedMatch $trackedMatch, string $reason, CarbonImmutable $now): void
+    {
+        $alerts = Alert::query()
+            ->whereIn('status', ['queued', 'sent'])
+            ->whereHas('opportunityLog', fn ($query) => $query->where('tracked_match_id', $trackedMatch->id))
+            ->get();
+        foreach ($alerts as $alert) {
+            $alert->forceFill(['status' => 'expired'])->save();
+        }
+
+        $trackedMatch->forceFill([
+            'is_active' => false,
+            'status' => 'Terminé',
+            'ended_at' => $now,
+            'ended_reason' => $reason,
+            'missing_readings' => 0,
+        ])->save();
+
+        $expired = $alerts->count();
+        $this->recordOpportunity(
+            $trackedMatch,
+            null,
+            null,
+            'match_finished',
+            'no_alert',
+            "Match terminé : suivi arrêté ({$reason}).".($expired > 0 ? " {$expired} alerte".($expired > 1 ? 's actives expirées.' : ' active expirée.') : ''),
+            $now,
+        );
+    }
+
+    /**
+     * @param  list<int>  $leagueIds
+     */
+    private function hasLiveMatchInLeagues(FootballFeed $footballFeed, array $leagueIds): bool
+    {
+        foreach ($footballFeed->matches as $match) {
+            if ($match->inPlay !== false && in_array($match->leagueId, $leagueIds, true)) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /**
@@ -513,18 +705,13 @@ class ScanService
             return;
         }
 
-        $suggestedScoreKey = $this->ruleEngine->suggestedExactScoreKey(
-            new RuleInput($footballMatch->homeScore, $footballMatch->awayScore, $oddsMatch->exactScoreOdds),
-            new RuleConfiguration,
-        );
-        $snapshot->forceFill(['odds_change_percent' => $this->calculateTrendChange(
+        $snapshot->forceFill(['odds_change_percent' => $this->strongestChange($this->sideTrendChanges(
             $trackedMatch,
             $oddsMatch->exactScoreOdds,
-            $suggestedScoreKey,
-            $this->settings->nullableString($settings, 'tendance_source'),
-            $this->settings->nullableFloat($settings, 'tendance_seuil_stable'),
+            $this->sideScoreKeys($footballMatch->homeScore, $footballMatch->awayScore),
+            $settings,
             $now,
-        )])->save();
+        ))])->save();
     }
 
     /**
@@ -589,17 +776,16 @@ class ScanService
 
     /**
      * Suivi automatique : matchs live des ligues configurées ayant à la fois les cotes de score exact et une couverture
-     * statistique confirmée. Les matchs automatiques absents du flux live sont retirés ; les retraits manuels sont respectés.
+     * statistique confirmée. Les retraits manuels et les matchs terminés sont respectés (jamais réactivés). La fin d’un
+     * match (statut ou absence prolongée du flux) est gérée par closeFinishedMatches pour tous les matchs suivis.
      *
      * @param  array<string, FootballMatch|OddsMatch>  $oddsMatches
      * @param  list<int>  $leagueIds
      */
     private function syncAutomaticMatches(FootballFeed $footballFeed, array $oddsMatches, array $leagueIds): int
     {
-        $liveIds = [];
         $created = 0;
         foreach ($footballFeed->matches as $match) {
-            $liveIds[] = $match->providerMatchId;
             $odds = $oddsMatches[$match->providerMatchId] ?? null;
             if ($match->inPlay !== true
                 || ! in_array($match->leagueId, $leagueIds, true)
@@ -615,6 +801,7 @@ class ScanService
                     'home_team' => $match->homeTeam,
                     'away_team' => $match->awayTeam,
                     'competition' => $match->competition,
+                    'kickoff_at' => is_string($match->kickoffAt) ? CarbonImmutable::parse($match->kickoffAt) : null,
                     'status' => $match->status,
                     'is_active' => true,
                     'tracking_mode' => 'auto',
@@ -624,13 +811,6 @@ class ScanService
                 $created++;
             }
         }
-
-        TrackedMatch::query()
-            ->where('provider', $footballFeed->driver)
-            ->where('tracking_mode', 'auto')
-            ->where('is_active', true)
-            ->whereNotIn('provider_match_id', $liveIds)
-            ->update(['is_active' => false]);
 
         return $created;
     }
@@ -800,6 +980,7 @@ class ScanService
                 'last_goal_detected_at' => $now,
                 'post_goal_reference_score' => null,
                 'post_goal_reference_odds' => null,
+                'post_goal_references' => null,
             ])->save();
             $this->goalMatchIds[] = $trackedMatch->id;
             $this->invalidateActiveAlerts($trackedMatch, $previous, $now, $footballMatch);
@@ -1105,6 +1286,10 @@ class ScanService
             }
         }
         $gap = $result->filters['gap']->details['selectedGap'] ?? null;
+        $winner = collect($result->sides)->firstWhere('side', $result->selection);
+        $trend = is_array($winner) && is_numeric($winner['change'] ?? null)
+            ? (float) $winner['change']
+            : ($snapshot->odds_change_percent === null ? null : (float) $snapshot->odds_change_percent);
 
         return $this->messageFormatter->opportunity(
             homeTeam: $trackedMatch->home_team,
@@ -1119,7 +1304,7 @@ class ScanService
             oddsLines: $oddsLines,
             gap: $target !== null && is_numeric($gap) ? (float) $gap : null,
             vitality: $snapshot->vitality_score === null ? null : (float) $snapshot->vitality_score,
-            trend: $snapshot->odds_change_percent === null ? null : (float) $snapshot->odds_change_percent,
+            trend: $trend,
             expiresAt: $expiresAt,
             confidence: $result->convergenceScore,
         );
@@ -1254,6 +1439,35 @@ class ScanService
         array $filterResults = [],
         ?string $suggestedAction = null,
     ): OpportunityLog {
+        // Relevé identique au précédent pour ce match (même décision, même justification) : la ligne existante est
+        // mise à jour (horodatage, compteur) au lieu d’en créer une nouvelle, pour que le Journal ne grossisse pas à
+        // chaque scan. Les alertes et les événements ponctuels créent toujours leur ligne.
+        if (in_array($decision, ['no_alert', 'duplicate_suppressed'], true)
+            && ! in_array($eventType, ['match_finished', 'scan_paused', 'scan_resumed'], true)) {
+            $previous = OpportunityLog::query()
+                ->where('tracked_match_id', $trackedMatch->id)
+                ->latest('id')
+                ->first();
+            if ($previous !== null
+                && $previous->event_type === $eventType
+                && $previous->decision === $decision
+                && $previous->reason === $reason
+                && $previous->rule_id === $ruleId
+                && $previous->selection === $selection) {
+                $previous->forceFill([
+                    'match_snapshot_id' => $snapshot?->id ?? $previous->match_snapshot_id,
+                    'rule_profile_id' => $profile?->id ?? $previous->rule_profile_id,
+                    'rule_results' => $ruleResults,
+                    'filter_results' => $filterResults,
+                    'evaluated_at' => $now,
+                    'first_evaluated_at' => $previous->first_evaluated_at ?? $previous->evaluated_at,
+                    'repeat_count' => (int) $previous->repeat_count + 1,
+                ])->save();
+
+                return $previous;
+            }
+        }
+
         return OpportunityLog::query()->create([
             'tracked_match_id' => $trackedMatch->id,
             'match_snapshot_id' => $snapshot?->id,
@@ -1267,6 +1481,8 @@ class ScanService
             'suggested_action' => $suggestedAction,
             'reason' => $reason,
             'evaluated_at' => $now,
+            'first_evaluated_at' => $now,
+            'repeat_count' => 1,
         ]);
     }
 

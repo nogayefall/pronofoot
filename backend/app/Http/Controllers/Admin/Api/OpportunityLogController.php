@@ -48,6 +48,8 @@ final class OpportunityLogController extends Controller
                 'suggestedAction' => $log->suggested_action,
                 'outcome' => $log->outcome,
                 'evaluatedAt' => $log->evaluated_at?->toIso8601String(),
+                'firstEvaluatedAt' => $log->first_evaluated_at?->toIso8601String(),
+                'repeatCount' => (int) ($log->repeat_count ?? 1),
                 'match' => $log->trackedMatch?->home_team.' - '.$log->trackedMatch?->away_team,
                 'minute' => $log->matchSnapshot?->minute,
                 'score' => $log->matchSnapshot === null

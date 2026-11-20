@@ -22,6 +22,10 @@ class TrackedMatch extends Model
         'post_goal_reference_odds',
         'last_scanned_at',
         'no_scan_since',
+        'missing_readings',
+        'ended_at',
+        'ended_reason',
+        'post_goal_references',
     ];
 
     protected function casts(): array
@@ -33,6 +37,9 @@ class TrackedMatch extends Model
             'post_goal_reference_odds' => 'float',
             'last_scanned_at' => 'datetime',
             'no_scan_since' => 'datetime',
+            'missing_readings' => 'integer',
+            'ended_at' => 'datetime',
+            'post_goal_references' => 'array',
         ];
     }
 
