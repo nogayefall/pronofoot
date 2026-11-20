@@ -96,6 +96,8 @@ class AdministratorAuthenticationTest extends TestCase
             ->assertSee('data-admin-name="Administrateur de test"', false)
             ->assertSee('admin-assets/app.css', false)
             ->assertSee('admin-assets/app.js', false)
+            ->assertSee('admin-assets/app.js?v=', false)
+            ->assertSee('admin-assets/app.css?v=', false)
             ->assertDontSee('localhost:8000/admin-assets', false)
             ->assertSee('Chargement de l’interface PronoFoot');
     }

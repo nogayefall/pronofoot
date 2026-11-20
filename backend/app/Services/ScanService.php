@@ -210,6 +210,7 @@ class ScanService
                     'driver' => $oddsFeed->driver,
                     'requestsUsed' => $oddsFeed->requestsUsed,
                     'requestsRemaining' => $oddsFeed->requestsRemaining,
+                    'requestsLimit' => $oddsFeed->requestsLimit,
                     'checkedAt' => $now->toIso8601String(),
                     'message' => $oddsFeed->statusMessage,
                 ]);
@@ -252,6 +253,7 @@ class ScanService
                 'driver' => $oddsFeed->driver,
                 'requestsUsed' => $oddsFeed->requestsUsed,
                 'requestsRemaining' => $oddsFeed->requestsRemaining,
+                'requestsLimit' => $oddsFeed->requestsLimit,
                 'checkedAt' => $now->toIso8601String(),
                 'message' => $oddsFeed->statusMessage,
             ]);

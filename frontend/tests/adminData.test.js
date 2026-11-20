@@ -139,7 +139,12 @@ test('trackedMatchDecision shows the strongest active alert, otherwise the vital
 })
 
 test('quotaSummary and elapsedLabel describe the real provider quota and scan freshness', () => {
-  assert.deepEqual(quotaSummary({ odds: { requestsUsed: 1020, requestsRemaining: 6480 } }), { remaining: 6480, limit: 7500, percent: 86 })
+  assert.deepEqual(
+    quotaSummary({ odds: { requestsUsed: 1, requestsRemaining: 5617 }, football: { requestsUsed: 2, requestsRemaining: 5618, requestsLimit: 7500 } }),
+    { remaining: 5617, limit: 7500, percent: 75 },
+    'Limite du jour envoyée par le fournisseur, jamais « restant + dernier appel » (5 617 / 5 618 auparavant).',
+  )
+  assert.deepEqual(quotaSummary({ odds: { requestsUsed: 1, requestsRemaining: 6480, requestsLimit: 7500 } }), { remaining: 6480, limit: 7500, percent: 86 })
   assert.deepEqual(quotaSummary({ football: { requestsRemaining: 90 } }), { remaining: 90, limit: null, percent: null })
   assert.deepEqual(quotaSummary({}), { remaining: null, limit: null, percent: null })
 

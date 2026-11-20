@@ -288,12 +288,15 @@ export function trackedMatchDecision(match, parsedAlerts, minimumVitality = 41) 
  * Quota API restant d'après le dernier relevé des en-têtes du fournisseur (cotes, sinon football).
  */
 export function quotaSummary(providerStatus) {
-  const status = [providerStatus?.odds, providerStatus?.football]
-    .find((provider) => typeof provider?.requestsRemaining === 'number')
-  if (!status) return { remaining: null, limit: null, percent: null }
+  // Football et cotes partagent le même quota de compte API-Football : le restant affiché est le plus bas (relevé le
+  // plus récent), la limite est celle du jour envoyée par le fournisseur (en-tête x-ratelimit-requests-limit).
+  const statuses = [providerStatus?.odds, providerStatus?.football].filter(Boolean)
+  const remainings = statuses.map((status) => status.requestsRemaining).filter((value) => typeof value === 'number')
+  if (!remainings.length) return { remaining: null, limit: null, percent: null }
 
-  const remaining = status.requestsRemaining
-  const limit = typeof status.requestsUsed === 'number' ? status.requestsUsed + remaining : null
+  const remaining = Math.min(...remainings)
+  const limits = statuses.map((status) => status.requestsLimit).filter((value) => typeof value === 'number' && value > 0)
+  const limit = limits.length ? Math.max(...limits) : null
   const percent = limit ? Math.round((remaining / limit) * 100) : null
 
   return { remaining, limit, percent }

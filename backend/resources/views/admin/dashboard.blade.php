@@ -19,8 +19,10 @@
         </script>
         <script type="module" src="{{ $viteDevServer }}/src/main.jsx"></script>
     @else
-        <link rel="stylesheet" href="admin-assets/app.css">
-        <script type="module" src="admin-assets/app.js"></script>
+        {{-- Version dans l’adresse (date du fichier compilé) : après un déploiement, le navigateur charge la nouvelle interface au lieu de sa copie en cache. --}}
+        @php($assetVersion = fn (string $file): int => is_file(public_path("admin-assets/{$file}")) ? (int) filemtime(public_path("admin-assets/{$file}")) : 0)
+        <link rel="stylesheet" href="admin-assets/app.css?v={{ $assetVersion('app.css') }}">
+        <script type="module" src="admin-assets/app.js?v={{ $assetVersion('app.js') }}"></script>
     @endif
 </head>
 <body style="margin:0;background:#08110d;color:#e8f1ea">
