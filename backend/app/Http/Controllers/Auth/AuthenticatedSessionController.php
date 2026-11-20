@@ -35,7 +35,13 @@ class AuthenticatedSessionController extends Controller
             'testAdministratorEmail' => app()->environment('local')
                 ? CreateTestAdministrator::EMAIL
                 : null,
+            'twoFactorEnabled' => self::twoFactorEnabled(),
         ]);
+    }
+
+    private static function twoFactorEnabled(): bool
+    {
+        return (bool) config('auth.two_factor_enabled', true);
     }
 
     public function store(Request $request, TotpService $totpService): RedirectResponse
@@ -75,7 +81,9 @@ class AuthenticatedSessionController extends Controller
         $codeAlreadyUsed = $totpCounter !== null
             && $user->totp_last_counter !== null
             && $totpCounter <= $user->totp_last_counter;
-        $authenticatorIsValid = $isLocalTestAdministrator || ($totpCounter !== null && ! $codeAlreadyUsed);
+        $authenticatorIsValid = ! self::twoFactorEnabled()
+            || $isLocalTestAdministrator
+            || ($totpCounter !== null && ! $codeAlreadyUsed);
 
         if (! $passwordIsValid || ! $authenticatorIsValid) {
             RateLimiter::hit($limiterKey, self::LOGIN_DECAY_SECONDS);
@@ -86,7 +94,7 @@ class AuthenticatedSessionController extends Controller
         }
 
         RateLimiter::clear($limiterKey);
-        if ($totpCounter !== null) {
+        if ($totpCounter !== null && self::twoFactorEnabled()) {
             $user->forceFill(['totp_last_counter' => $totpCounter])->save();
         }
         Auth::login($user);

@@ -134,6 +134,46 @@ class AdministratorAuthenticationTest extends TestCase
         $this->assertGuest();
     }
 
+    public function test_two_factor_can_be_disabled_temporarily_and_the_password_still_protects_access(): void
+    {
+        $this->app['env'] = 'production';
+        $this->withoutMiddleware(PreventRequestForgery::class);
+        config(['auth.two_factor_enabled' => false]);
+        $user = $this->createAdministrator();
+        $this->createAdministrator(['email' => 'admin-test@pronofoot.local']);
+
+        $this->get('/login')
+            ->assertOk()
+            ->assertSee('L’adresse courriel et le mot de passe sont requis.', false)
+            ->assertDontSee('authenticator_code');
+
+        $this->from('/login')->post(route('login.store'), ['email' => $user->email, 'password' => 'Mauvais-mot-de-passe-1'])
+            ->assertSessionHasErrors('credentials');
+        $this->post(route('login.store'), ['email' => 'admin-test@pronofoot.local', 'password' => 'Correct-Horse-Battery-42'])
+            ->assertSessionHasErrors('credentials');
+        $this->assertGuest();
+
+        $this->post(route('login.store'), ['email' => $user->email, 'password' => 'Correct-Horse-Battery-42'])
+            ->assertRedirect(route('admin.dashboard'));
+        $this->assertAuthenticatedAs($user);
+        $this->assertNotNull($user->fresh()->totp_secret, 'Le secret TOTP est conservé pour une réactivation.');
+    }
+
+    public function test_only_an_explicit_false_disables_two_factor(): void
+    {
+        foreach (['false' => false, '' => true, 'non' => true, 'true' => true] as $value => $expected) {
+            putenv("AUTH_TWO_FACTOR_ENABLED={$value}");
+            $_ENV['AUTH_TWO_FACTOR_ENABLED'] = $_SERVER['AUTH_TWO_FACTOR_ENABLED'] = $value;
+
+            $config = require base_path('config/auth.php');
+
+            $this->assertSame($expected, $config['two_factor_enabled'], "Valeur « {$value} »");
+        }
+
+        putenv('AUTH_TWO_FACTOR_ENABLED');
+        unset($_ENV['AUTH_TWO_FACTOR_ENABLED'], $_SERVER['AUTH_TWO_FACTOR_ENABLED']);
+    }
+
     public function test_security_headers_include_a_nonce_based_content_security_policy(): void
     {
         $response = $this->get('/login')->assertOk();

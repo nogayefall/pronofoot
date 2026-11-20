@@ -21,7 +21,9 @@
 <main>
     <h1>PronoFoot</h1>
     <p>Connexion réservée à l’administrateur.
-        @if ($testAdministratorEmail)
+        @if (! $twoFactorEnabled)
+            L’adresse courriel et le mot de passe sont requis.
+        @elseif ($testAdministratorEmail)
             Le compte de test local utilise uniquement son adresse courriel et son mot de passe.
         @else
             Le mot de passe et le code de l’application d’authentification sont requis.
@@ -40,17 +42,19 @@
         <label for="password">Mot de passe</label>
         <input id="password" name="password" type="password" autocomplete="current-password" required>
 
-        @php($isLocalTestAdministrator = $testAdministratorEmail !== null && strtolower((string) old('email')) === $testAdministratorEmail)
-        <div id="authenticator-field" @if ($isLocalTestAdministrator) hidden @endif>
-            <label for="authenticator_code">Code d’authentification</label>
-            <input id="authenticator_code" name="authenticator_code" type="text" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]{6}" maxlength="6" aria-describedby="totp-hint" @if (! $isLocalTestAdministrator) required @endif>
-            <p class="hint" id="totp-hint">Saisis le code à 6 chiffres de ton application TOTP.</p>
-        </div>
+        @if ($twoFactorEnabled)
+            @php($isLocalTestAdministrator = $testAdministratorEmail !== null && strtolower((string) old('email')) === $testAdministratorEmail)
+            <div id="authenticator-field" @if ($isLocalTestAdministrator) hidden @endif>
+                <label for="authenticator_code">Code d’authentification</label>
+                <input id="authenticator_code" name="authenticator_code" type="text" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]{6}" maxlength="6" aria-describedby="totp-hint" @if (! $isLocalTestAdministrator) required @endif>
+                <p class="hint" id="totp-hint">Saisis le code à 6 chiffres de ton application TOTP.</p>
+            </div>
+        @endif
 
         <button type="submit">Se connecter</button>
     </form>
 </main>
-@if ($testAdministratorEmail)
+@if ($testAdministratorEmail && $twoFactorEnabled)
     <script nonce="{{ $cspNonce ?? '' }}">
         const testAdministratorEmail = @json($testAdministratorEmail);
         const emailInput = document.getElementById('email');

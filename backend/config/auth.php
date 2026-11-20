@@ -114,4 +114,12 @@ return [
 
     'password_timeout' => env('AUTH_PASSWORD_TIMEOUT', 10800),
 
+    /*
+    | Code TOTP exigé à la connexion (activé par défaut). AUTH_TWO_FACTOR_ENABLED=false le désactive
+    | temporairement : le mot de passe suffit, les secrets TOTP des comptes sont conservés.
+    | Seule la valeur « false » désactive : une valeur vide ou mal saisie laisse la 2FA active.
+    */
+
+    'two_factor_enabled' => env('AUTH_TWO_FACTOR_ENABLED', true) !== false,
+
 ];

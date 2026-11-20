@@ -74,7 +74,7 @@ Tests : `backend/tests/Feature/ScanRobustnessTest.php`.
 
 | Point | Statut | Détail |
 |---|---|---|
-| 2FA obligatoire hors `APP_ENV=local` | Conforme (tests) | Mot de passe **et** code TOTP exigés. Le compte de test `admin-test@pronofoot.local` est refusé hors `local`, même avec un bon code. |
+| 2FA obligatoire hors `APP_ENV=local` | Conforme (tests) ; **désactivable temporairement** | Mot de passe **et** code TOTP exigés. Le compte de test `admin-test@pronofoot.local` est refusé hors `local`, même avec un bon code. `AUTH_TWO_FACTOR_ENABLED=false` supprime le code (le mot de passe et la limitation des tentatives restent) ; seule la valeur `false` désactive. Désactivée en production le 20 novembre 2026 à la demande de l’administrateur, le temps des tests du client : **à réactiver** ensuite. |
 | Réutilisation d’un code TOTP | **Corrigé** | Un code pouvait servir plusieurs fois pendant sa fenêtre de validité (environ 90 s). Le dernier pas de temps accepté est désormais mémorisé (`users.totp_last_counter`) : un code déjà utilisé est refusé. |
 | Indice d’existence d’un compte par le temps de réponse | **Corrigé** | Le mot de passe n’était vérifié que si l’email existait. Une vérification factice de même coût est faite pour un email inconnu. |
 | Limitation des tentatives | Conforme | 5 essais par minute par couple email + IP, et 10 requêtes par minute par IP sur `POST /login`. Message identique pour un email, un mot de passe ou un code faux. |

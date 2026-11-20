@@ -11,7 +11,9 @@ Ce guide explique comment utiliser l’administration de PronoFoot au quotidien.
 3. Chaque code ne sert qu’une fois et change toutes les 30 secondes. En cas d’erreur, attendez le code suivant.
 4. Après 5 essais ratés, attendez une minute avant de réessayer.
 
-Pour vous déconnecter, utilisez le bouton **Déconnexion** en bas du menu. Ne partagez jamais votre mot de passe ni vos codes.
+Si le code d’authentification est temporairement désactivé (`AUTH_TWO_FACTOR_ENABLED=false` dans `.env`), le champ du code n’apparaît pas : l’adresse et le mot de passe suffisent.
+
+Pour vous déconnecter, utilisez le bouton **Se déconnecter** en haut à droite de chaque page, ou **Déconnexion** en bas du menu. Ne partagez jamais votre mot de passe ni vos codes.
 
 ## 2. Les pages de l’administration
 
