@@ -1,10 +1,10 @@
 # Préparer le déploiement PronoFoot
 
-Ce guide prépare un déploiement Linux ; aucun serveur n’est configuré ni aucune livraison réalisée. Telegram réel est branché (voir [`PASSER_EN_REEL.md`](./PASSER_EN_REEL.md)) ; WhatsApp ne l’est pas.
+Ce guide décrit un déploiement Linux. Il a servi à la mise en production du 20 novembre 2026 (voir `AVANCEMENT_PHASE1.md`). Telegram réel est branché (voir [`PASSER_EN_REEL.md`](./PASSER_EN_REEL.md)) ; WhatsApp ne l’est pas.
 
 ## Prérequis
 
-- Ubuntu LTS maintenu, Nginx, PHP 8.5 avec les extensions exigées par `composer.json` (et `pcntl` pour l’arrêt propre de `scan:run` sur signal), PHP-FPM et Composer 2.9.
+- Ubuntu LTS maintenu, Nginx, PHP 8.5 avec les extensions exigées par `composer.json` (et `pcntl` pour l’arrêt propre de `scan:run` sur signal), PHP-FPM et Composer 2.9. Sur Ubuntu 24.04, le PHP fourni (8.3) est trop ancien : installer PHP 8.5 depuis le dépôt `ppa:ondrej/php`.
 - MySQL compatible avec Laravel 13, utilisateur applicatif dédié et base InnoDB.
 - Node.js 26 et npm 11 pour compiler `frontend/` vers `backend/public/admin-assets/`.
 - Supervisor pour maintenir `scan:run` et le worker de file en fonctionnement.

@@ -1,6 +1,6 @@
 # PronoFoot — Avancement de la Phase 1
 
-Dernière mise à jour : 14 novembre 2026
+Dernière mise à jour : 20 novembre 2026
 
 ## Références et périmètre
 
@@ -242,6 +242,20 @@ Détails et tableaux : [`CONFORMITE_PHASE1.md`](./CONFORMITE_PHASE1.md). Guide d
 - Bouton « Envoyer un message de test » : vrai message, résultat affiché en vert, orange (repli ou simulation) ou rouge (motif de l’échec).
 - Variables et ordre de repli : [`PASSER_EN_REEL.md`](./PASSER_EN_REEL.md#notifications-telegram-pilote-réel).
 
+### Mise en production sur le VPS (20 novembre 2026)
+
+- Serveur OVH, Ubuntu 24.04, adresse `158.69.198.25`, accès SSH par clé. Pare-feu UFW (22, 80, 443) et fail2ban sur SSH.
+- PHP 8.5 (dépôt ondrej : le PHP 8.3 d’Ubuntu 24.04 est trop ancien pour Symfony 8), Nginx, PHP-FPM, MySQL 8.0 avec un utilisateur `pronofoot_app` dédié, Supervisor, Node.js pour `npm run build`.
+- Code livré par `git clone` avec une clé de déploiement GitHub en lecture seule. `.env` de production : `APP_ENV=production`, `APP_DEBUG=false`, pilotes réels (`FOOTBALL_DRIVER=real`, `ODDS_DRIVER=api_football`), notifications `real` / `telegram`. Droits 640, `root:www-data`, hors Git.
+- Secrets copiés depuis le poste de l’administrateur par SSH, sans affichage ni copie temporaire. `APP_KEY` et mot de passe MySQL régénérés après une exposition dans une capture d’écran.
+- 24 migrations appliquées, caches Laravel construits, sauvegarde quotidienne de la base et rotation des journaux installées.
+- Compte administrateur créé par le client lui-même (`admin:create`, 2FA confirmée) ; aucun compte de test.
+- Supervisor : `pronofoot-scan` (passage toutes les 30 secondes, mémoire stable à 30 Mo) et `pronofoot-queue` en fonctionnement. `scan:once` de contrôle sans erreur.
+- Vérifié par le client : connexion avec mot de passe et code 2FA, réception du message de test sur Telegram.
+- API-Football : plan Pro actif (7 500 requêtes par jour) jusqu’au 13 décembre 2026.
+- **Reste à faire** : HTTPS dès qu’un nom de domaine pointe vers le serveur (modèle `deploy/nginx/pronofoot.conf` et certbot), puis `SESSION_SECURE_COOKIE=true` et `php artisan config:cache`. En attendant, le site est en HTTP : le mot de passe circule sans chiffrement.
+- `admin:create` affiche désormais ses erreurs de saisie en français : sans fichier de traduction Laravel, un mot de passe trop court affichait la clé brute `validation.min.string`.
+
 ## Guide de démarrage et de test local
 
 ### 1. Démarrer les deux serveurs et ouvrir la connexion
@@ -361,7 +375,7 @@ Les tests automatisés ne remplacent pas les dix situations complètes avec déc
 5. **Terminé :** pilotes fake et real prudents, commande de faisabilité et capture sans clés.
 6. **Terminé :** scan paramétrable, instantanés, relance après but, anti-doublon et expiration.
 7. **Telegram réel terminé** (envoi, nouvelles tentatives, repli, bouton de test). WhatsApp réel reste bloqué tant que son compte et ses modèles de messages ne sont pas validés.
-8. **Terminé pour la préparation logicielle :** API et interface d’administration, journal, statistiques et guide de déploiement. La mise en production elle-même n’est pas incluse.
+8. **Terminé :** API et interface d’administration, journal, statistiques et guide de déploiement. Mise en production faite le 20 novembre 2026 sur le VPS, en HTTP ; HTTPS à activer avec un nom de domaine.
 
 ### Contrôles de l’étape 8
 
@@ -420,7 +434,7 @@ Ne partage jamais un secret TOTP d’enrôlement, un code à usage unique ou un 
 
 - L’utilisateur MySQL `root` sans mot de passe est réservé au WampServer local de développement. Ne pas reprendre ce réglage sur un serveur ou un environnement exposé.
 - Garder `APP_KEY`, mots de passe, secrets TOTP et futures clés API privés. `.env` ne doit pas être versionné.
-- Avant tout déploiement : compte MySQL dédié avec mot de passe fort, HTTPS, configuration de production sans débogage, sauvegardes et procédure de récupération 2FA à définir.
+- En production : compte MySQL dédié avec mot de passe fort, configuration sans débogage et sauvegardes en place. Restent à faire : HTTPS et une procédure de récupération 2FA si le téléphone est perdu (à définir).
 - Le projet ne passe aucun pari et ne doit pas automatiser cette action.
 ### Tendance
 

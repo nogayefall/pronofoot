@@ -1,6 +1,6 @@
 # Informations à fournir avant la mise en réel
 
-Dernière mise à jour : 14 novembre 2026, d’après `PRONOFOOT_Annexe_Phase1_Corrigee.pdf`.
+Dernière mise à jour : 20 novembre 2026, d’après `PRONOFOOT_Annexe_Phase1_Corrigee.pdf`.
 
 ## Décisions reçues dans l’annexe (appliquées)
 
@@ -39,7 +39,6 @@ Sans confirmation d’un paramètre nécessaire, le comportement reste l’abste
 - **Abstention** : le message existe, mais il n’est pas envoyé automatiquement (un match peut s’abstenir toutes les 30 secondes). Faut-il l’envoyer, et dans quels cas ?
 - WhatsApp reste `NON VÉRIFIÉ` : aucun appel ni format réel n’est branché.
 - Confirmer l’offre API-Football retenue : le plan Pro donne 7 500 requêtes par jour ; le compte de test actuel en donne 100, ce qui ne permet pas de suivre 30 à 50 matchs en continu. Le quota n’est pas à configurer : PronoFoot le lit à chaque appel dans les en-têtes `x-ratelimit-requests-limit` et `x-ratelimit-requests-remaining`.
-- **Déploiement** : serveur, nom de domaine, mécanisme de livraison du code (accès Git ou archive), durée de conservation des sauvegardes de la base et des instantanés. Les fichiers de `deploy/` sont prêts ; aucune mise en production n’a été faite.
-- Fournir un serveur et un nom de domaine lorsque la mise en production sera autorisée. Le guide [`DEPLOIEMENT.md`](./DEPLOIEMENT.md) décrit les prérequis, dont `npm run build` sur le serveur.
+- **Déploiement (fait le 20 novembre 2026)** : PronoFoot tourne sur le VPS fourni, livré par une clé de déploiement GitHub. Restent à fournir : un **nom de domaine** pointant vers le serveur, pour activer HTTPS, et la durée de conservation des sauvegardes de la base et des instantanés.
 
 Les clés API, jetons et identifiants doivent être remis et configurés exclusivement dans `.env`. Ne pas les envoyer dans un dépôt Git, un journal ou un rapport. Les captures sont enregistrées localement dans `backend/storage/feasibility/`, dossier ignoré par Git.
