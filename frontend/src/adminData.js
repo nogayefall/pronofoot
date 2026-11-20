@@ -184,3 +184,125 @@ export function journalDecisionLabel({ decision, eventType }) {
 
   return JOURNAL_DECISIONS[decision] ?? decision
 }
+
+const ALERT_LEVELS = {
+  'ALERTE CRITIQUE': ['critical', 'Alerte Critique'],
+  'ALERTE HAUTE': ['high', 'Alerte Haute'],
+  'SIGNAL MI-TEMPS': ['halftime', 'Signal Mi-temps'],
+  'PARI NEUTRE': ['neutral', 'Pari Neutre'],
+}
+
+const LEVEL_SEVERITY = ['critical', 'high', 'halftime', 'neutral', 'other']
+
+function titleCase(text) {
+  return text.toLowerCase().replace(/(^|[\s-])(\p{L})/gu, (_, separator, letter) => separator + letter.toUpperCase())
+}
+
+function parseDecimal(value) {
+  const number = Number(String(value).replace(',', '.').replace(/[^\d.+-]/g, ''))
+  return Number.isFinite(number) ? number : null
+}
+
+/**
+ * Lit le message d'alerte réel (format fixe d'AlertMessageFormatter) pour l'afficher en carte.
+ * Retourne null si le message ne suit pas ce format : l'interface affiche alors le texte brut.
+ */
+export function parseAlertMessage(message) {
+  const lines = String(message ?? '').split(/\r?\n/).map((line) => line.trim()).filter(Boolean)
+  if (lines.length < 2) return null
+
+  const [titleLine, matchLine, ...rest] = lines
+  const [title, validity = ''] = titleLine.split(' · ')
+  const known = ALERT_LEVELS[title]
+  if (!known && !title.startsWith('ALERTE ')) return null
+
+  const matchParts = matchLine.match(/^(.+?)\s{2,}(\?-\?|\d+-\d+)(?:\s{2,}(\d+)')?$/)
+  const parsed = {
+    level: known ? known[0] : 'other',
+    label: known ? known[1] : titleCase(title),
+    validUntil: validity.match(/\d{1,2}:\d{2}/)?.[0] ?? null,
+    match: matchParts ? matchParts[1] : matchLine,
+    score: matchParts && matchParts[2] !== '?-?' ? matchParts[2] : null,
+    minute: matchParts?.[3] === undefined ? null : Number(matchParts[3]),
+    target: null,
+    bet: null,
+    suggestedScore: null,
+    odds: [],
+    gap: null,
+    vitality: null,
+    trend: null,
+    rule: null,
+    confidence: null,
+  }
+
+  for (const line of rest) {
+    for (const part of line.split(' | ')) {
+      const separator = part.indexOf(' : ')
+      if (separator < 0) continue
+      const key = part.slice(0, separator).trim()
+      const value = part.slice(separator + 3).trim()
+
+      if (key === 'Prochain but') parsed.target = value
+      else if (key === 'Pari') parsed.bet = value
+      else if (key === 'Écart') parsed.gap = value === 'n.c.' ? null : value
+      else if (key === 'Vitalité') parsed.vitality = value === 'n.c.' ? null : parseDecimal(value.split('/')[0])
+      else if (key === 'Tendance') parsed.trend = value === 'n.c.' ? null : value
+      else if (key === 'Règle') parsed.rule = value
+      else if (key === 'Confiance') parsed.confidence = value
+      else if (key.startsWith('Cote')) {
+        const suggested = key.match(/^Cote suggérée \((\d+-\d+)\)$/)
+        if (suggested) parsed.suggestedScore = suggested[1]
+        parsed.odds.push({ label: suggested ? 'Cote' : key, value })
+      }
+    }
+  }
+
+  return parsed
+}
+
+/**
+ * Décision affichée pour un match suivi : niveau de son alerte active la plus forte, sinon l'état connu
+ * (vitalité sous le minimum réglé = abstention, sinon surveillance). Toujours un libellé, jamais la couleur seule.
+ */
+export function trackedMatchDecision(match, parsedAlerts, minimumVitality = 41) {
+  const name = `${match.homeTeam} - ${match.awayTeam}`
+  const alerts = parsedAlerts
+    .filter((alert) => alert.matchName === name && alert.parsed)
+    .sort((left, right) => LEVEL_SEVERITY.indexOf(left.parsed.level) - LEVEL_SEVERITY.indexOf(right.parsed.level))
+
+  if (alerts.length) return { tone: alerts[0].parsed.level, label: alerts[0].parsed.label }
+  if (!match.capturedAt) return { tone: 'watch', label: 'En attente du premier relevé' }
+  if (match.vitality === null || match.vitality === undefined) return { tone: 'dead', label: 'Vitalité non calculable · abstention' }
+  if (Number(match.vitality) < minimumVitality) return { tone: 'dead', label: 'Match mort · abstention' }
+
+  return { tone: 'watch', label: 'Surveillance' }
+}
+
+/**
+ * Quota API restant d'après le dernier relevé des en-têtes du fournisseur (cotes, sinon football).
+ */
+export function quotaSummary(providerStatus) {
+  const status = [providerStatus?.odds, providerStatus?.football]
+    .find((provider) => typeof provider?.requestsRemaining === 'number')
+  if (!status) return { remaining: null, limit: null, percent: null }
+
+  const remaining = status.requestsRemaining
+  const limit = typeof status.requestsUsed === 'number' ? status.requestsUsed + remaining : null
+  const percent = limit ? Math.round((remaining / limit) * 100) : null
+
+  return { remaining, limit, percent }
+}
+
+/**
+ * Durée écoulée lisible (« il y a 12 s »), à partir d'une date ISO et de l'heure courante en millisecondes.
+ */
+export function elapsedLabel(value, now) {
+  if (!value) return 'aucun relevé'
+  if (!now) return '…'
+  const seconds = Math.max(0, Math.floor((now - Date.parse(value)) / 1000))
+  if (seconds < 60) return `il y a ${seconds} s`
+  if (seconds < 3600) return `il y a ${Math.floor(seconds / 60)} min`
+  if (seconds < 86400) return `il y a ${Math.floor(seconds / 3600)} h`
+
+  return `il y a ${Math.floor(seconds / 86400)} j`
+}

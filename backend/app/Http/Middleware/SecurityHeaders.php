@@ -28,10 +28,10 @@ final class SecurityHeaders
             $response->headers->set('Content-Security-Policy', implode('; ', [
                 "default-src 'self'",
                 "script-src 'self' 'nonce-{$nonce}'",
-                "style-src 'self' 'nonce-{$nonce}'",
+                "style-src 'self' 'nonce-{$nonce}' https://fonts.googleapis.com",
                 "style-src-attr 'unsafe-inline'",
                 "img-src 'self' data:",
-                "font-src 'self' data:",
+                "font-src 'self' data: https://fonts.gstatic.com",
                 "connect-src 'self'",
                 "object-src 'none'",
                 "base-uri 'self'",

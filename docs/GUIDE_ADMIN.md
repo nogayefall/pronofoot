@@ -13,19 +13,21 @@ Ce guide explique comment utiliser l’administration de PronoFoot au quotidien.
 
 Si le code d’authentification est temporairement désactivé (`AUTH_TWO_FACTOR_ENABLED=false` dans `.env`), le champ du code n’apparaît pas : l’adresse et le mot de passe suffisent.
 
-Pour vous déconnecter, utilisez le bouton **Se déconnecter** en haut à droite de chaque page, ou **Déconnexion** en bas du menu. Ne partagez jamais votre mot de passe ni vos codes.
+Pour vous déconnecter, utilisez le bouton **Se déconnecter** en haut à droite de chaque page, à côté de vos initiales. Ne partagez jamais votre mot de passe ni vos codes.
 
 ## 2. Les pages de l’administration
 
 | Page | À quoi elle sert |
 |---|---|
-| **Vue d’ensemble** | L’état du scan (actif ou en attente, dernier passage), les alertes en cours avec leur compte à rebours, le quota restant chez les fournisseurs et la liste des matchs suivis. Un bandeau orange apparaît en mode économie ou quand le quota est épuisé. |
+| **Tableau de bord** | Quatre indicateurs (matchs suivis, alertes actives, quota API restant, fréquence de scan), une carte par alerte active (niveau, minute et score, score suggéré, cote, écart, compte à rebours) et le tableau des matchs suivis avec leur vitalité et leur décision. L’état du scan et l’heure du dernier relevé sont en bas du menu. Un bandeau orange apparaît en mode économie, rouge quand le quota est épuisé. |
 | **Matchs suivis** | Choisir les matchs à surveiller, voir leur fiche (tirs, tirs cadrés, corners, possession de chaque équipe, vitalité). |
 | **Moteur de règles** | Les règles disponibles, et vos **profils** : méthodes activées, poids, seuil de validation. Vous pouvez créer un profil, l’enregistrer, l’activer et le tester. |
 | **Testeur manuel** | Essayer une situation (score, cotes, vitalité, tendance, mi-temps) pour voir la décision du moteur. Rien n’est envoyé. |
-| **Journal** | Tout ce que le système a vu et décidé, match par match. C’est ici que vous notez si une alerte a été gagnée ou perdue. |
+| **Journal des décisions** | Tout ce que le système a vu et décidé, match par match. C’est ici que vous notez si une alerte a été gagnée ou perdue. |
 | **Statistiques** | Le nombre d’alertes et le taux de réussite, au total et par règle, à partir des résultats notés dans le Journal. |
 | **Paramètres** | Les seuils et fréquences (vitalité, tendance, écarts, quota, ligues suivies…). Une modification s’applique au passage suivant du scan. Les lignes marquées « À confirmer » attendent une décision de votre part. |
+
+Dans le tableau des matchs suivis, la colonne **Décision** affiche le niveau de l’alerte active du match (Alerte Critique, Alerte Haute…). Sans alerte, elle indique **Surveillance**, ou **Match mort · abstention** quand la vitalité est sous le minimum réglé dans Paramètres. Chaque état porte toujours un libellé, pas seulement une couleur.
 
 Un bandeau **« Mode simulation »** en haut de page signifie que les données sont fictives : elles servent aux essais, pas aux vrais matchs.
 
@@ -91,9 +93,9 @@ L’alerte reçue rappelle le match, la minute, le score, le niveau (Alerte Crit
 
 ## 6. Quand le quota est épuisé
 
-Le fournisseur de données limite le nombre de requêtes par jour : 7 500 avec le plan API-Football Pro. PronoFoot lit le quota du jour et le nombre de requêtes restantes à chaque appel ; ils s’affichent dans la Vue d’ensemble (« Quotas fournisseurs »).
+Le fournisseur de données limite le nombre de requêtes par jour : 7 500 avec le plan API-Football Pro. PronoFoot lit le quota du jour et le nombre de requêtes restantes à chaque appel ; ils s’affichent sur le Tableau de bord (« Quota API restant » et « Fournisseurs »).
 
-- **Quand il reste 10 % du quota** (750 requêtes avec le plan Pro) : vous recevez une alerte et PronoFoot passe en **mode économie** : il ne scanne plus que les matchs « chauds » (écart sous 1,50 ou cote en forte baisse). Un bandeau orange l’indique sur la Vue d’ensemble.
+- **Quand il reste 10 % du quota** (750 requêtes avec le plan Pro) : vous recevez une alerte et PronoFoot passe en **mode économie** : il ne scanne plus que les matchs « chauds » (écart sous 1,50 ou cote en forte baisse). Un bandeau orange l’indique sur le Tableau de bord.
 - **Quand le quota tombe à 0** : le live s’arrête avec le message **« Quota épuisé. Le live est arrêté. Rechargez le quota. »**
 
 Que faire :
@@ -126,7 +128,7 @@ Pour vérifier que tout fonctionne, ouvrez **Paramètres** et cliquez sur **Envo
 
 ## 8. Lancer et arrêter le scan
 
-Sur le serveur, le scan est lancé et surveillé automatiquement : s’il s’arrête, il redémarre seul. La Vue d’ensemble indique **Actif** et l’heure du dernier passage.
+Sur le serveur, le scan est lancé et surveillé automatiquement : s’il s’arrête, il redémarre seul. Le bas du menu indique **Scan en cours** et l’heure du dernier relevé.
 
 Si vous devez intervenir (ou demander à votre prestataire de le faire), sur le serveur :
 
@@ -141,6 +143,6 @@ Le scan s’arrête toujours à la fin du passage en cours : aucune alerte n’e
 
 ## 9. En cas de doute
 
-- Une alerte semble étrange : ouvrez le **Journal**, retrouvez la ligne et lisez la **Justification**.
+- Une alerte semble étrange : ouvrez le **Journal des décisions**, retrouvez la ligne et lisez la **Justification**.
 - Vous voulez comprendre une règle : utilisez le **Testeur manuel** avec les mêmes cotes.
 - Un problème persiste : notez l’heure et le match, puis contactez votre prestataire **sans jamais envoyer votre mot de passe, vos codes ou vos clés**.

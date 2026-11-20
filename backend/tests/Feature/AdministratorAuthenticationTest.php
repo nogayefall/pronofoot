@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Console\Commands\CreateTestAdministrator;
+use App\Models\Setting;
 use App\Models\User;
 use Illuminate\Foundation\Http\Middleware\PreventRequestForgery;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -174,11 +175,35 @@ class AdministratorAuthenticationTest extends TestCase
         unset($_ENV['AUTH_TWO_FACTOR_ENABLED'], $_SERVER['AUTH_TWO_FACTOR_ENABLED']);
     }
 
+    public function test_login_page_highlights_come_from_the_real_settings(): void
+    {
+        Setting::query()->where('key', 'scan.auto_league_ids')->update(['value' => json_encode([39, 140, 135])]);
+        Setting::query()->where('key', 'scan.hot_interval_seconds')->update(['value' => '45']);
+        config(['services.pronofoot.notifications.mode' => 'fake']);
+
+        $this->get('/login')
+            ->assertOk()
+            ->assertSee('3 championnats suivis')
+            ->assertSee('Scan toutes les 45 s')
+            ->assertDontSee('Alertes Telegram')
+            ->assertSee('Aucun gain n’est garanti. Jeu réservé aux 18 ans et plus.', false);
+
+        config(['services.pronofoot.notifications.mode' => 'real', 'services.pronofoot.notifications.channel' => 'telegram']);
+        Setting::query()->where('key', 'scan.auto_mode')->update(['value' => '0']);
+
+        $this->get('/login')
+            ->assertOk()
+            ->assertDontSee('championnats suivis')
+            ->assertSee('Alertes Telegram');
+    }
+
     public function test_security_headers_include_a_nonce_based_content_security_policy(): void
     {
         $response = $this->get('/login')->assertOk();
         $policy = (string) $response->headers->get('Content-Security-Policy');
 
+        $this->assertStringContainsString('https://fonts.googleapis.com', $policy, 'Feuilles de style Google Fonts autorisées.');
+        $this->assertStringContainsString("font-src 'self' data: https://fonts.gstatic.com", $policy);
         $this->assertStringContainsString("default-src 'self'", $policy);
         $this->assertStringContainsString("frame-ancestors 'none'", $policy);
         $this->assertSame(1, preg_match("/script-src 'self' 'nonce-([A-Za-z0-9+\\/=]+)'/", $policy, $nonce));

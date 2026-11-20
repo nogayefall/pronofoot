@@ -1,16 +1,29 @@
 import { useEffect, useState } from 'react'
-import { createRuleTestPayload, requestAdminApi, teamStatisticsRows, journalDecisionLabel } from './adminData'
+import { createRuleTestPayload, requestAdminApi, teamStatisticsRows, journalDecisionLabel, parseAlertMessage, trackedMatchDecision, quotaSummary, elapsedLabel } from './adminData'
+import { AlertCard, Brand, EmptyState, Icon, MetricCard, Pill, Section, VitalityBar } from './ui'
 import './App.css'
 
 const navigation = [
-  { id: 'overview', label: 'Vue d’ensemble', icon: 'grid' },
-  { id: 'matches', label: 'Matchs suivis', icon: 'ball' },
+  { id: 'overview', label: 'Tableau de bord', icon: 'grid' },
+  { id: 'matches', label: 'Matchs suivis', icon: 'target' },
   { id: 'rules', label: 'Moteur de règles', icon: 'sliders' },
   { id: 'tester', label: 'Testeur manuel', icon: 'flask' },
-  { id: 'journal', label: 'Journal', icon: 'list' },
+  { id: 'journal', label: 'Journal des décisions', icon: 'list' },
   { id: 'statistics', label: 'Statistiques', icon: 'chart' },
   { id: 'settings', label: 'Paramètres', icon: 'settings' },
 ]
+
+const providerLabels = { api_football: 'API-Football', real: 'API-Football', the_odds_api: 'The Odds API', fake: 'pilote fictif' }
+
+const journalTones = { alert: 'alert', duplicate_suppressed: 'watch', reevaluate: 'high', invalidated: 'dead', expired: 'dead' }
+
+function initials(name) {
+  return name.split(/\s+/).filter(Boolean).slice(0, 2).map((word) => word[0].toUpperCase()).join('') || 'A'
+}
+
+function plural(count, word) {
+  return `${count} ${word}${count > 1 ? 's' : ''}`
+}
 
 const ruleDescriptions = [
   { id: 'F121-C', title: 'Écart directionnel', status: 'Disponible', detail: 'Règle configurable selon les seuils validés du CDC.' },
@@ -90,49 +103,6 @@ const settingDescriptions = {
   'scan.no_scan_gap_threshold': 'Au-delà de cet écart, le match n’est jamais scanné.',
   'scan.auto_mode': 'Suit tous les matchs des ligues listées ayant les cotes de score exact et les statistiques, en plus du Scan Ciblé.',
   'scan.auto_league_ids': 'Par défaut : Premier League 39, Liga 140, Serie A 135, Bundesliga 78, Ligue 1 61, Ligue des champions 2, Europa League 3.',
-}
-
-function Icon({ name, size = 20 }) {
-  const common = { width: size, height: size, viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', strokeWidth: 1.8, strokeLinecap: 'round', strokeLinejoin: 'round', 'aria-hidden': true }
-  const paths = {
-    grid: <><rect x="3" y="3" width="7" height="7" rx="1.5" /><rect x="14" y="3" width="7" height="7" rx="1.5" /><rect x="3" y="14" width="7" height="7" rx="1.5" /><rect x="14" y="14" width="7" height="7" rx="1.5" /></>,
-    ball: <><circle cx="12" cy="12" r="9" /><path d="m12 8 2.5 1.8-.9 2.9h-3.2l-.9-2.9L12 8Z" /><path d="m12 3 0 5m8 1-5.5.8M18 18l-4.4-5.3M6 18l4.4-5.3M4 9l5.5.8" /></>,
-    sliders: <><path d="M4 6h9m4 0h3M4 12h3m4 0h9M4 18h9m4 0h3" /><circle cx="15" cy="6" r="2" /><circle cx="9" cy="12" r="2" /><circle cx="15" cy="18" r="2" /></>,
-    flask: <><path d="M9 3h6m-5 0v6l-5.3 8.1A2.5 2.5 0 0 0 6.8 21h10.4a2.5 2.5 0 0 0 2.1-3.9L14 9V3M8 15h8" /></>,
-    list: <><path d="M9 6h11M9 12h11M9 18h11M4 6h.01M4 12h.01M4 18h.01" /></>,
-    chart: <><path d="M4 19V5m0 14h17" /><path d="m7 15 4-4 3 2 6-7" /></>,
-    settings: <><circle cx="12" cy="12" r="3" /><path d="m19.4 15 .1.1 1.4 1.1-1.4 2.4-1.7-.7-.2.1-1.5.9-.2 1.9h-2.8l-.3-1.9-1.6-.9-.2-.1-1.7.7-1.4-2.4 1.5-1.1v-2l-1.5-1.1 1.4-2.4 1.7.7 1.8-1V6.4h2.8l.3 1.9 1.6.9.2.1 1.7-.7 1.4 2.4-1.5 1.1v2Z" transform="translate(-1.2 -1)" /></>,
-    arrow: <><path d="M5 12h14m-6-6 6 6-6 6" /></>,
-    clock: <><circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 2" /></>,
-    shield: <><path d="M12 3 20 6v5c0 5.1-3.4 8.3-8 10-4.6-1.7-8-4.9-8-10V6l8-3Z" /><path d="m9 12 2 2 4-4" /></>,
-    search: <><circle cx="10.8" cy="10.8" r="6.8" /><path d="m16 16 5 5" /></>,
-    logout: <><path d="M10 4H6a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h4" /><path d="M15 16l4-4-4-4M19 12H9" /></>,
-  }
-
-  return <svg {...common}>{paths[name] ?? paths.grid}</svg>
-}
-
-function PageHeading({ eyebrow, title, description, action }) {
-  return (
-    <div className="page-heading">
-      <div>
-        <p className="eyebrow">{eyebrow}</p>
-        <h1>{title}</h1>
-        <p className="page-description">{description}</p>
-      </div>
-      {action}
-    </div>
-  )
-}
-
-function EmptyState({ icon, title, message }) {
-  return (
-    <div className="empty-state">
-      <span className="empty-icon"><Icon name={icon} size={23} /></span>
-      <h3>{title}</h3>
-      <p>{message}</p>
-    </div>
-  )
 }
 
 const decisionStepLabels = {
@@ -244,7 +214,6 @@ function App() {
 
   const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content ?? ''
   const adminName = document.querySelector('[data-admin-name]')?.dataset.adminName || 'Administrateur'
-  const activeLabel = navigation.find((item) => item.id === activePage)?.label ?? 'Vue d’ensemble'
 
   useEffect(() => {
     let active = true
@@ -513,171 +482,244 @@ function App() {
   const trackedMatches = dashboard?.trackedMatches ?? []
   const activeAlerts = dashboard?.activeAlerts ?? []
 
+  useEffect(() => {
+    let active = true
+    requestAdminApi('/admin/api/settings', csrfToken)
+      .then((result) => {
+        if (!active) return
+        setSettings(result.settings)
+        setSettingsDraft(Object.fromEntries(result.settings.map((setting) => [
+          setting.key,
+          setting.type === 'json' && setting.value !== null ? JSON.stringify(setting.value, null, 2) : setting.value ?? '',
+        ])))
+      })
+      .catch(() => {})
+
+    return () => { active = false }
+  }, [csrfToken])
+
+  const settingValue = (key) => settings.find((setting) => setting.key === key)?.value ?? null
+  const minimumVitality = typeof settingValue('rules.minimum_vitality') === 'number' ? settingValue('rules.minimum_vitality') : 41
+  const hotInterval = settingValue('scan.hot_interval_seconds')
+  const calmInterval = settingValue('scan.calm_interval_seconds')
+  const expirationMinutes = settingValue('alerts.expiration_minutes')
+  const ruleTitles = Object.fromEntries(ruleDescriptions.map((rule) => [rule.id, rule.title]))
+  const parsedAlerts = activeAlerts.map((alert) => ({ alert, matchName: alert.match, parsed: parseAlertMessage(alert.message) }))
+  const competitionOf = (matchName) => trackedMatches.find((match) => `${match.homeTeam} - ${match.awayTeam}` === matchName)?.competition ?? null
+  const criticalCount = parsedAlerts.filter((item) => item.parsed?.level === 'critical').length
+  const competitionCount = new Set(trackedMatches.map((match) => match.competition).filter(Boolean)).size
+  const quota = quotaSummary(dashboard?.providerStatus)
+  const oddsDriver = dashboard?.providerStatus?.odds?.driver
+  const alertChannels = [...new Set(activeAlerts.map((alert) => alert.channel).filter(Boolean))]
+  const lastPassAt = dashboard?.scan?.lastPassAt
+  const scanActive = dashboard?.scan?.active === true
+
+  const pages = {
+    overview: {
+      title: 'Tableau de bord',
+      description: ['Vue d’ensemble du détecteur', dashboard ? (simulation ? 'Mode simulation' : 'Mode réel') : null, oddsDriver ? (providerLabels[oddsDriver] ?? oddsDriver) : null].filter(Boolean).join(' · '),
+      action: <><button className="button button-ghost" type="button" onClick={() => void loadDashboard()}><Icon name="refresh" size={16} />Actualiser</button><button className="button button-secondary" type="button" onClick={() => selectPage('matches')}>Scan ciblé</button></>,
+    },
+    matches: { title: 'Matchs suivis', description: 'Choisissez les rencontres à surveiller selon le flux disponible.', action: <span className="count-badge"><span className="num">{trackedMatches.length}</span> suivis</span> },
+    rules: { title: 'Moteur de règles', description: 'Activez uniquement les règles documentées et configurez les poids validés.', action: <Pill tone="watch" dot={false}>{ruleProfile?.profile?.name ?? 'Profil à configurer'}</Pill> },
+    tester: { title: 'Testeur manuel', description: 'Évalue un jeu de cotes fourni, sans envoyer de signal ni placer de pari.', action: <Pill tone="watch" dot={false}>Simulation uniquement</Pill> },
+    journal: { title: 'Journal des décisions', description: 'Évaluations, décisions, filtres et résultats associés.' },
+    statistics: { title: 'Statistiques', description: 'Indicateurs calculés à partir des alertes et résultats enregistrés.' },
+    settings: { title: 'Paramètres', description: 'Modifiez les paramètres enregistrés et consultez leur historique.', action: <button className="button button-secondary" type="button" onClick={() => void runNotificationTest()} disabled={isBusy}>Envoyer un message de test</button> },
+  }
+  const page = pages[activePage] ?? pages.overview
+
   return (
     <div className="admin-shell">
-      <aside className={`sidebar ${mobileMenuOpen ? 'sidebar-open' : ''}`}>
-        <a className="brand" href="/admin"><span className="brand-mark">P</span><span><strong>PRONOFOOT</strong><small>ADMINISTRATION</small></span></a>
-        <div className="sidebar-label">ESPACE ADMIN</div>
-        <nav className="navigation" aria-label="Navigation principale">
+      <aside className="sidebar">
+        <div className="sidebar-top">
+          <Brand />
+          <button className="menu-toggle" type="button" aria-expanded={mobileMenuOpen} aria-controls="main-navigation" onClick={() => setMobileMenuOpen((open) => !open)}>
+            <Icon name={mobileMenuOpen ? 'close' : 'menu'} size={18} /><span>{mobileMenuOpen ? 'Fermer' : 'Menu'}</span>
+          </button>
+        </div>
+        <nav id="main-navigation" className={`navigation ${mobileMenuOpen ? 'navigation-open' : ''}`} aria-label="Navigation principale">
           {navigation.map((item) => (
-            <button className={`nav-item ${activePage === item.id ? 'nav-item-active' : ''}`} key={item.id} onClick={() => selectPage(item.id)} type="button">
+            <button className={`nav-item ${activePage === item.id ? 'nav-item-active' : ''}`} aria-current={activePage === item.id ? 'page' : undefined} key={item.id} onClick={() => selectPage(item.id)} type="button">
               <Icon name={item.icon} size={18} /><span>{item.label}</span>
-              {item.id === 'matches' && <span className="nav-count">{trackedMatches.length}</span>}
+              {item.id === 'matches' && trackedMatches.length > 0 && <span className="nav-count num">{trackedMatches.length}</span>}
             </button>
           ))}
         </nav>
         <div className="sidebar-spacer" />
-        <div className="phase-card"><span className="phase-card-icon"><Icon name="shield" size={18} /></span><div><strong>Phase 1</strong><p>Détecteur live · aucun pari automatique</p></div></div>
-        <button className="profile-button" type="button" onClick={logout}>
-          <span className="avatar">{adminName.slice(0, 1).toUpperCase()}</span><span className="profile-copy"><strong>{adminName}</strong><small>Administrateur</small></span><span className="profile-exit"><Icon name="logout" size={16} />Déconnexion</span>
-        </button>
-        {logoutError && <p className="sidebar-error" role="alert">{logoutError}</p>}
+        <div className={`scan-card ${scanActive ? 'scan-card-active' : ''}`} role="status">
+          <p className="scan-card-state"><span className="scan-dot" aria-hidden="true" />{dashboard ? (scanActive ? 'Scan en cours' : 'Scan à l’arrêt') : 'État du scan…'}</p>
+          <p className="num scan-card-time">Dernier relevé {elapsedLabel(lastPassAt, now)}</p>
+        </div>
       </aside>
 
       <main className="main-area">
-        <header className="topbar">
-          <button className="mobile-menu-button" type="button" aria-label="Ouvrir le menu" onClick={() => setMobileMenuOpen((open) => !open)}><span /><span /><span /></button>
-          <div className="breadcrumb"><span>Administration</span><Icon name="arrow" size={14} /><strong>{activeLabel}</strong></div>
-          <div className="topbar-right"><span className="secure-label"><span className="secure-dot" /> Session sécurisée</span><span className="topbar-avatar">{adminName.slice(0, 1).toUpperCase()}</span><button className="logout-button" type="button" onClick={logout}><Icon name="logout" size={16} /><span>Se déconnecter</span></button></div>
-          {logoutError && <p className="topbar-error" role="alert">{logoutError}</p>}
-        </header>
-
         <div className="content">
-          {simulation && <div className="simulation-banner" role="status"><Icon name="shield" size={18} /><strong>Mode simulation :</strong> les données affichées proviennent d’au moins un pilote fictif.</div>}
-          {apiError && <div className="form-error api-error" role="alert">{apiError}</div>}
-          {actionMessage && <div className="success-message" role="status">{actionMessage}</div>}
+          <header className="page-header">
+            <div className="page-title">
+              <h1>{page.title}</h1>
+              <p>{page.description}</p>
+            </div>
+            <div className="page-actions">
+              {page.action}
+              <span className="avatar" title={adminName} aria-label={`Connecté : ${adminName}`} role="img">{initials(adminName)}</span>
+              <button className="button button-ghost logout-button" type="button" onClick={logout}><Icon name="logout" size={16} /><span>Se déconnecter</span></button>
+            </div>
+          </header>
+          {logoutError && <p className="message message-error" role="alert">{logoutError}</p>}
+          {simulation && <div className="message message-warning" role="status"><Icon name="shield" size={18} /><span><strong>Mode simulation :</strong> les données affichées proviennent d’au moins un pilote fictif.</span></div>}
+          {apiError && <div className="message message-error" role="alert">{apiError}</div>}
+          {actionMessage && <div className="message message-success" role="status">{actionMessage}</div>}
 
           {activePage === 'overview' && (
-            <div className="overview-page">
-              <PageHeading eyebrow="TABLEAU DE BORD" title="Vue d’ensemble" description="État du détecteur et rencontres suivies." action={<button className="secondary-button" type="button" onClick={() => void loadDashboard()}>Actualiser</button>} />
-              <section className="overview-highlights" aria-label="État du scan et alertes actives">
-                <article className="scan-status-panel"><div className="scan-status-copy"><p className="overview-section-label">STATUT DU SCAN</p><h2>Détecteur de matchs</h2><p>Dernier passage : {formatDate(dashboard?.scan?.lastPassAt)}</p></div><span className={`scan-status-badge ${dashboard?.scan?.active ? 'scan-active' : ''}`}><span />{dashboard?.scan?.active ? 'Actif' : 'En attente'}</span></article>
-                <article className="active-alerts-panel"><p className="overview-section-label">ALERTES ACTIVES</p><strong>{activeAlerts.length}</strong><p>{activeAlerts.length ? 'Alertes non expirées' : 'Aucune alerte en cours'}</p></article>
-              </section>
-              {dashboard?.quotaMode === 'exhausted' && <div className="notice notice-warning"><span className="notice-icon"><Icon name="shield" size={18} /></span><div><strong>Quota épuisé. Le live est arrêté. Rechargez le quota.</strong></div></div>}
-              {dashboard?.quotaMode === 'economy' && <div className="notice notice-warning"><span className="notice-icon"><Icon name="shield" size={18} /></span><div><strong>Mode économie du quota</strong><p>Seuls les matchs chauds sont scannés ; les matchs calmes attendent le retour du quota.</p></div></div>}
-              <section className="content-panel">
-                <div className="panel-heading"><div><h2>Quotas fournisseurs</h2><p>État connu après la dernière consultation.</p></div></div>
-                <div className="quota-grid">{['football', 'odds'].map((provider) => <div className="quota-card" key={provider}><strong>{provider === 'football' ? 'Football' : 'Cotes'}</strong><span>{dashboard?.quotas?.[provider] ?? 'Inconnu'}</span><small>{dashboard?.providerStatus?.[provider]?.message ?? 'Pas encore interrogé'}</small></div>)}</div>
-              </section>
-              <section className="overview-matches content-panel" aria-labelledby="overview-matches-title">
-                <div className="overview-matches-heading"><div><p className="overview-section-label">SUIVI EN DIRECT</p><h2 id="overview-matches-title">Matchs suivis</h2></div><button className="overview-primary-action" type="button" onClick={() => selectPage('matches')}>Gérer les matchs <Icon name="arrow" size={18} /></button></div>
-                {trackedMatches.length ? <div className="table-scroll"><table className="data-table"><thead><tr><th>Rencontre</th><th>Score</th><th>Minute</th><th>Vitalité</th><th>Actualisé</th></tr></thead><tbody>{trackedMatches.map((match) => <tr key={match.id}><td>{match.homeTeam} – {match.awayTeam}<small>{match.competition}{match.trackingMode === 'auto' ? ' · suivi automatique' : ''}</small></td><td>{match.homeScore ?? '—'} – {match.awayScore ?? '—'}</td><td>{match.minute ?? '—'}</td><td>{match.vitality ?? '—'}</td><td>{formatDate(match.capturedAt)}</td></tr>)}</tbody></table></div> : <EmptyState icon="ball" title="Aucun match suivi" message="Ajoutez une rencontre depuis le pilote configuré." />}
-              </section>
-              <section className="content-panel"><div className="panel-heading"><div><h2>Alertes actives</h2><p>Le compte à rebours reflète l’expiration enregistrée.</p></div></div>{activeAlerts.length ? <div className="alert-list">{activeAlerts.map((alert) => <article className="alert-row" key={alert.id}><div><strong>{alert.match ?? 'Rencontre'}</strong><p>{alert.message}</p><small>{alert.channel} · {alert.status}{alert.fallbackUsed ? ' · repli' : ''}</small></div><span className="countdown">{formatCountdown(alert.expiresAt, now)}</span></article>)}</div> : <EmptyState icon="clock" title="Aucune alerte active" message="Les signaux restent soumis aux règles et aux paramètres confirmés." />}</section>
-            </div>
+            <>
+              {dashboard?.quotaMode === 'exhausted' && <div className="message message-critical" role="alert"><Icon name="shield" size={18} /><strong>Quota épuisé. Le live est arrêté. Rechargez le quota.</strong></div>}
+              {dashboard?.quotaMode === 'economy' && <div className="message message-warning" role="status"><Icon name="shield" size={18} /><span><strong>Mode économie du quota :</strong> seuls les matchs chauds sont scannés ; les matchs calmes attendent le retour du quota.</span></div>}
+
+              <div className="metrics-grid">
+                <MetricCard label="Matchs suivis" value={trackedMatches.length} unit="suivis" caption={competitionCount ? `${plural(competitionCount, 'championnat')} couvert${competitionCount > 1 ? 's' : ''}` : 'Aucun championnat en cours'} />
+                <MetricCard label="Alertes actives" value={activeAlerts.length} tone={activeAlerts.length ? 'accent' : undefined} unit={criticalCount ? `${criticalCount} critique${criticalCount > 1 ? 's' : ''}` : null} caption={alertChannels.length ? `Envoyées sur ${alertChannels.map((channel) => channel === 'telegram' ? 'Telegram' : channel === 'log' ? 'le journal' : channel).join(', ')}` : 'Aucune alerte en cours'} />
+                <MetricCard label="Quota API restant" value={quota.remaining === null ? '—' : quota.remaining.toLocaleString('fr-FR')} unit={quota.limit ? `/ ${quota.limit.toLocaleString('fr-FR')}` : null} caption={quota.percent === null ? (dashboard?.providerStatus?.odds?.message ?? 'Pas encore interrogé') : `${quota.percent} % disponible`} />
+                <MetricCard label="Fréquence de scan" value={hotInterval ?? '—'} unit={hotInterval ? 'secondes' : null} caption={hotInterval ? `Matchs chauds${calmInterval ? ` · calmes : ${calmInterval} s` : ''}` : 'Paramètre non chargé'} />
+              </div>
+
+              <Section title="Alertes actives" aside={expirationMinutes ? `Expirent après ${expirationMinutes} min` : null}>
+                {parsedAlerts.length ? <div className="alerts-grid">{parsedAlerts.map(({ alert, parsed }) => <AlertCard key={alert.id} alert={alert} parsed={parsed} competition={competitionOf(alert.match)} ruleTitle={parsed?.rule ? `${ruleTitles[parsed.rule] ?? 'Règle'} (${parsed.rule})` : null} countdown={formatCountdown(alert.expiresAt, now)} />)}</div> : <div className="panel"><EmptyState icon="bell" title="Aucune alerte active" message="Les signaux restent soumis aux règles et aux paramètres confirmés." /></div>}
+              </Section>
+
+              <Section title="Matchs suivis" action={<button className="button button-ghost" type="button" onClick={() => selectPage('matches')}>Gérer les matchs <Icon name="arrow" size={16} /></button>}>
+                <div className="panel panel-flush">
+                  {trackedMatches.length ? <div className="table-scroll"><table className="data-table"><thead><tr><th scope="col">Ligue</th><th scope="col">Match</th><th scope="col">Min.</th><th scope="col">Score</th><th scope="col">Vitalité</th><th scope="col">Décision</th></tr></thead><tbody>{trackedMatches.map((match) => {
+                    const decision = trackedMatchDecision(match, parsedAlerts, minimumVitality)
+                    return <tr key={match.id}><td className="cell-muted">{match.competition ?? '—'}</td><td><strong>{match.homeTeam} – {match.awayTeam}</strong><small>{match.trackingMode === 'auto' ? 'Suivi automatique · ' : ''}relevé {elapsedLabel(match.capturedAt, now)}</small></td><td className="num">{match.minute === null || match.minute === undefined ? '—' : `${match.minute}'`}</td><td className="num">{match.homeScore ?? '—'}-{match.awayScore ?? '—'}</td><td><VitalityBar value={match.vitality} minimum={minimumVitality} /></td><td><Pill tone={decision.tone}>{decision.label}</Pill></td></tr>
+                  })}</tbody></table></div> : <EmptyState icon="target" title="Aucun match suivi" message="Ajoutez une rencontre avec le Scan ciblé, ou attendez un match des championnats suivis automatiquement." />}
+                </div>
+              </Section>
+
+              <Section title="Fournisseurs">
+                <div className="provider-grid">{[['football', 'Données des matchs'], ['odds', 'Cotes']].map(([provider, label]) => <article className="panel provider-card" key={provider}><h3>{label}</h3><p><span className="num">{dashboard?.quotas?.[provider] === null || dashboard?.quotas?.[provider] === undefined ? '—' : Number(dashboard.quotas[provider]).toLocaleString('fr-FR')}</span> requêtes restantes</p><small>{dashboard?.providerStatus?.[provider]?.message ?? 'Pas encore interrogé'}</small></article>)}</div>
+              </Section>
+            </>
           )}
 
           {activePage === 'matches' && (
             <>
-              <PageHeading eyebrow="SUIVI EN DIRECT" title="Matchs suivis" description="Choisissez les rencontres à surveiller selon le flux disponible." action={<span className="count-badge">{trackedMatches.length} suivis</span>} />
-              <div className="notice notice-neutral"><span className="notice-icon"><Icon name="clock" size={18} /></span><div><strong>{matchesData?.message ?? 'Le flux sera consulté à l’ouverture de cette page.'}</strong><p>Quota restant : {matchesData?.quotaRemaining ?? 'inconnu'}. Aucun match ne peut être suivi si le fournisseur indique un quota nul.</p></div></div>
-              <section className="content-panel matches-panel"><div className="panel-heading"><div><h2>Rencontres disponibles</h2><p>{simulation ? 'Les données fictives sont identifiées en haut de page.' : 'Flux du fournisseur configuré, actualisé à l’ouverture de la page.'}</p></div><button className="secondary-button" type="button" onClick={() => void loadMatches()}>Actualiser</button></div>
-                {matchesData?.matches?.length ? <div className="table-scroll"><table className="data-table"><thead><tr><th>Rencontre</th><th>Compétition</th><th>État</th><th>Score</th><th>Cotes score exact</th><th>Statistiques</th><th>Suivi</th><th>Action</th></tr></thead><tbody>{matchesData.matches.map((match) => {
-                  const eligible = match.exactScoreMarketAvailable && match.statisticsCoverage !== false
-                  const statisticsStatus = match.statisticsCoverage === null ? 'inconnu' : match.statisticsCoverage ? 'oui' : 'non'
-                  const statisticsWarning = match.statisticsCoverage === null
-                    ? 'Statistiques non confirmées'
-                    : match.statisticsCoverageFallback
-                      ? `Saison courante utilisée (${match.statisticsCoverageSeason ?? 'année inconnue'})`
-                      : null
-                  return <tr key={match.providerMatchId}><td>{match.homeTeam} – {match.awayTeam}<small>{match.kickoffAt ? formatDate(match.kickoffAt) : 'Horaire non disponible'}</small></td><td>{match.competition}</td><td>{match.status}{match.minute === null ? '' : ` · ${match.minute}′`}</td><td>{match.homeScore ?? '—'} – {match.awayScore ?? '—'}</td><td>{match.exactScoreMarketAvailable ? 'oui' : 'non'}</td><td>{statisticsStatus}{statisticsWarning && <small>{statisticsWarning}</small>}</td><td>{match.tracked ? 'Suivi' : 'Non suivi'}</td><td><button className="secondary-button compact-button" type="button" disabled={isBusy || (!match.tracked && (!eligible || matchesData.quotaRemaining === 0))} onClick={() => void toggleMatch(match)}>{match.tracked ? 'Retirer' : eligible ? 'Suivre' : 'Indisponible'}</button></td></tr>
-                })}</tbody></table></div> : <EmptyState icon="search" title="Aucune rencontre disponible" message="Le fournisseur n’a retourné aucun match pour le moment." />}
-              </section>
-              <section className="content-panel" aria-labelledby="tracked-statistics-title">
-                <div className="panel-heading"><div><h2 id="tracked-statistics-title">Fiches des matchs suivis</h2><p>Statistiques brutes du dernier relevé, par équipe. Elles ne sont pas converties en vitalité.</p></div></div>
-                {trackedMatches.length ? trackedMatches.map((match) => {
+              <div className="message message-neutral"><Icon name="clock" size={18} /><span><strong>{matchesData?.message ?? 'Le flux sera consulté à l’ouverture de cette page.'}</strong> Quota restant : <span className="num">{matchesData?.quotaRemaining ?? 'inconnu'}</span>. Aucun match ne peut être suivi si le fournisseur indique un quota nul.</span></div>
+              <Section title="Rencontres disponibles" aside={simulation ? 'Données fictives (voir le bandeau).' : 'Flux du fournisseur, actualisé à l’ouverture de la page.'} action={<button className="button button-ghost" type="button" onClick={() => void loadMatches()}><Icon name="refresh" size={16} />Actualiser</button>}>
+                <div className="panel panel-flush">
+                  {matchesData?.matches?.length ? <div className="table-scroll"><table className="data-table"><thead><tr><th scope="col">Rencontre</th><th scope="col">Compétition</th><th scope="col">État</th><th scope="col">Score</th><th scope="col">Cotes score exact</th><th scope="col">Statistiques</th><th scope="col">Suivi</th><th scope="col"><span className="visually-hidden">Action</span></th></tr></thead><tbody>{matchesData.matches.map((match) => {
+                    const eligible = match.exactScoreMarketAvailable && match.statisticsCoverage !== false
+                    const statisticsStatus = match.statisticsCoverage === null ? 'inconnu' : match.statisticsCoverage ? 'oui' : 'non'
+                    const statisticsWarning = match.statisticsCoverage === null
+                      ? 'Statistiques non confirmées'
+                      : match.statisticsCoverageFallback
+                        ? `Saison courante utilisée (${match.statisticsCoverageSeason ?? 'année inconnue'})`
+                        : null
+                    return <tr key={match.providerMatchId}><td><strong>{match.homeTeam} – {match.awayTeam}</strong><small>{match.kickoffAt ? formatDate(match.kickoffAt) : 'Horaire non disponible'}</small></td><td className="cell-muted">{match.competition}</td><td className="cell-nowrap">{match.status}{match.minute === null ? '' : <span className="num"> · {match.minute}'</span>}</td><td className="num">{match.homeScore ?? '—'}-{match.awayScore ?? '—'}</td><td>{match.exactScoreMarketAvailable ? 'oui' : 'non'}</td><td>{statisticsStatus}{statisticsWarning && <small>{statisticsWarning}</small>}</td><td>{match.tracked ? <Pill tone="alert">Suivi</Pill> : <Pill tone="watch">Non suivi</Pill>}</td><td><button className={`button button-compact ${match.tracked ? 'button-ghost' : 'button-primary'}`} type="button" disabled={isBusy || (!match.tracked && (!eligible || matchesData.quotaRemaining === 0))} onClick={() => void toggleMatch(match)}>{match.tracked ? 'Retirer' : eligible ? 'Suivre' : 'Indisponible'}</button></td></tr>
+                  })}</tbody></table></div> : <EmptyState icon="search" title="Aucune rencontre disponible" message="Le fournisseur n’a retourné aucun match pour le moment." />}
+                </div>
+              </Section>
+              <Section title="Fiches des matchs suivis" aside="Statistiques brutes du dernier relevé, par équipe. Elles ne sont pas converties en vitalité.">
+                {trackedMatches.length ? <div className="sheets-grid">{trackedMatches.map((match) => {
                   const rows = teamStatisticsRows(match.teamStatistics)
-                  return <article className="match-sheet" key={match.id}>
-                    <h3>{match.homeTeam} – {match.awayTeam}</h3>
+                  return <article className="panel match-sheet" key={match.id}>
+                    <div className="match-sheet-top"><div><h3>{match.homeTeam} – {match.awayTeam}</h3><p className="cell-muted">{match.competition ?? 'Compétition inconnue'}</p></div><span className="num match-sheet-score">{match.homeScore ?? '—'}-{match.awayScore ?? '—'}{match.minute === null || match.minute === undefined ? '' : ` · ${match.minute}'`}</span></div>
+                    {rows.length ? <div className="table-scroll"><table className="data-table data-table-compact"><thead><tr><th scope="col">Statistique</th><th scope="col">{match.homeTeam}</th><th scope="col">{match.awayTeam}</th></tr></thead><tbody>{rows.map((row) => <tr key={row.key}><td className="cell-muted">{row.label}</td><td className="num">{row.home}</td><td className="num">{row.away}</td></tr>)}</tbody></table></div> : <p className="field-help">Statistiques par équipe non disponibles.</p>}
+                    <div className="match-sheet-vitality"><span>Vitalité</span>{match.vitality === null || match.vitality === undefined ? <strong>Non calculable : une statistique manque</strong> : <VitalityBar value={match.vitality} minimum={minimumVitality} />}</div>
                     <p className="field-help">Statistiques relevées : {match.statisticsCapturedAt ? formatDate(match.statisticsCapturedAt) : 'non disponible'}</p>
-                    {rows.length ? <div className="table-scroll"><table className="data-table"><thead><tr><th>Statistique</th><th>{match.homeTeam}</th><th>{match.awayTeam}</th></tr></thead><tbody>{rows.map((row) => <tr key={row.key}><td>{row.label}</td><td>{row.home}</td><td>{row.away}</td></tr>)}</tbody></table></div> : <p>Statistiques par équipe non disponibles.</p>}
-                    <p className="simulation-line"><span>Vitalité</span><strong>{match.vitality === null || match.vitality === undefined ? 'Non calculable : une statistique manque' : `${match.vitality}/100`}</strong></p>
                   </article>
-                }) : <EmptyState icon="ball" title="Aucun match suivi" message="Suivez une rencontre pour afficher sa fiche." />}
-              </section>
+                })}</div> : <div className="panel"><EmptyState icon="target" title="Aucun match suivi" message="Suivez une rencontre pour afficher sa fiche." /></div>}
+              </Section>
             </>
           )}
 
           {activePage === 'rules' && (
             <>
-              <PageHeading eyebrow="CONFIGURATION" title="Moteur de règles" description="Activez uniquement les règles documentées et configurez les poids validés." action={<span className="phase-badge phase-badge-muted">{ruleProfile?.profile?.name ?? 'Profil à configurer'}</span>} />
-              <div className="notice notice-warning"><span className="notice-icon"><Icon name="shield" size={18} /></span><div><strong>Les règles non définies ne déclenchent jamais de signal</strong><p>Les poids de convergence sont laissés vides jusqu’à validation par le client.</p></div></div>
-              <section className="content-panel rules-panel"><div className="panel-heading"><div><h2>Règles Phase 1</h2><p>Activation limitée aux règles disponibles dans le moteur.</p></div><span className="count-badge">{ruleDescriptions.length} règles documentées</span></div><div className="rule-table">{ruleDescriptions.map((rule) => <article className="rule-row" key={rule.id}><span className="rule-id">{rule.id}</span><div className="rule-info"><strong>{rule.title}</strong><p>{rule.detail}</p></div><span className={`status-pill ${rule.status === 'Disponible' ? 'status-ready' : rule.status === 'Partiel' ? 'status-partial' : 'status-pending'}`}>{rule.status}</span></article>)}</div></section>
-              <form className="content-panel settings-form" onSubmit={saveRuleProfile}><div className="panel-heading"><div><h2>Profils de règles</h2><p>Profil actif : {ruleProfile?.profile?.name ?? 'aucun'}. Les poids laissés vides ne sont pas ajoutés au profil.</p></div></div>
-                <div className="form-row form-row-wide"><label>Profil<select value={profileDraft.id ?? ''} onChange={(event) => setProfileDraft(profileToDraft(ruleProfile?.profiles?.find((profile) => profile.id === Number(event.target.value))))}>{(ruleProfile?.profiles ?? []).map((profile) => <option key={profile.id} value={profile.id}>{profile.name}{profile.isActive ? ' (actif)' : ''}</option>)}</select></label><label>Nouveau profil<input type="text" maxLength="120" value={newProfileName} onChange={(event) => setNewProfileName(event.target.value)} placeholder="Nom du profil" /></label></div>
-                <div className="form-actions"><button className="secondary-button" type="button" disabled={isBusy || newProfileName.trim() === ''} onClick={() => void createRuleProfile()}>+ Créer un nouveau profil</button><button className="secondary-button" type="button" disabled={isBusy || !profileDraft.id || ruleProfile?.profile?.id === profileDraft.id} onClick={() => void activateRuleProfile()}>Activer ce profil</button></div>
-                <fieldset className="rule-selection"><legend>1. Sélection des méthodes à combiner</legend>{(ruleProfile?.availableRules ?? []).map((rule) => <label className="check-row" key={rule}><input type="checkbox" checked={profileDraft.activeRules.includes(rule)} onChange={(event) => setProfileDraft((previous) => ({ ...previous, activeRules: event.target.checked ? [...previous.activeRules, rule] : previous.activeRules.filter((item) => item !== rule) }))} />{rule}</label>)}</fieldset>
-                <fieldset className="rule-selection"><legend>2. Pondération (poids de chaque méthode, à confirmer par le client)</legend><div className="field-grid">{(ruleProfile?.availableRules ?? []).map((rule) => <label key={rule}>Poids — {rule}<input min="0" step="0.01" type="number" value={profileDraft.methodWeights[rule] ?? ''} onChange={(event) => setProfileDraft((previous) => ({ ...previous, methodWeights: { ...previous.methodWeights, [rule]: event.target.value } }))} placeholder="À confirmer" /></label>)}</div></fieldset>
-                <label>3. Seuil de validation : score de confiance supérieur à (%)<input min="0" max="100" step="0.1" type="number" value={profileDraft.validationThreshold ?? ''} onChange={(event) => setProfileDraft((previous) => ({ ...previous, validationThreshold: event.target.value }))} placeholder="75 (valeur du PRD par défaut)" /><span className="field-help">Appliqué seulement si l’étape « convergence » est activée dans Paramètres (désactivée par défaut).</span></label>
-                <fieldset className="rule-selection"><legend>Scores des méthodes pour le test (0–100)</legend><p className="field-help">Aucune formule de score par méthode n’est fournie : saisissez les scores à tester. Le test utilise le profil sauvegardé et la situation du Testeur manuel.</p><div className="field-grid">{profileDraft.activeRules.map((rule) => <label key={rule}>Score — {rule}<input min="0" max="100" step="1" type="number" value={combinationScores[rule] ?? ''} onChange={(event) => setCombinationScores((previous) => ({ ...previous, [rule]: event.target.value }))} /></label>)}</div></fieldset>
-                <div className="form-actions"><button className="secondary-button" type="button" disabled={isBusy || !profileDraft.id} onClick={() => void testCombination()}>Tester la combinaison</button><button className="primary-button" type="submit" disabled={isBusy}>Sauvegarder le profil</button></div>
-                {combinationError && <p className="form-error" role="alert">{combinationError}</p>}
-                {combinationResult && <SimulationResult result={combinationResult} />}
-              </form>
+              <div className="message message-warning"><Icon name="shield" size={18} /><span><strong>Les règles non définies ne déclenchent jamais de signal.</strong> Les poids de convergence sont laissés vides jusqu’à validation par le client.</span></div>
+              <Section title="Règles Phase 1" aside={`${ruleDescriptions.length} règles documentées · activation limitée aux règles disponibles dans le moteur.`}>
+                <div className="panel panel-flush rule-table">{ruleDescriptions.map((rule) => <article className="rule-row" key={rule.id}><span className="rule-id num">{rule.id}</span><div className="rule-info"><strong>{rule.title}</strong><p>{rule.detail}</p></div><Pill tone={rule.status === 'Disponible' ? 'alert' : rule.status === 'Partiel' ? 'high' : 'dead'}>{rule.status}</Pill></article>)}</div>
+              </Section>
+              <Section title="Profils de règles" aside={`Profil actif : ${ruleProfile?.profile?.name ?? 'aucun'}. Les poids laissés vides ne sont pas ajoutés au profil.`}>
+                <form className="panel form-stack" onSubmit={saveRuleProfile}>
+                  <div className="field-grid"><label className="field">Profil<select value={profileDraft.id ?? ''} onChange={(event) => setProfileDraft(profileToDraft(ruleProfile?.profiles?.find((profile) => profile.id === Number(event.target.value))))}>{(ruleProfile?.profiles ?? []).map((profile) => <option key={profile.id} value={profile.id}>{profile.name}{profile.isActive ? ' (actif)' : ''}</option>)}</select></label><label className="field">Nouveau profil<input type="text" maxLength="120" value={newProfileName} onChange={(event) => setNewProfileName(event.target.value)} placeholder="Nom du profil" /></label></div>
+                  <div className="form-actions"><button className="button button-ghost" type="button" disabled={isBusy || newProfileName.trim() === ''} onClick={() => void createRuleProfile()}>+ Créer un nouveau profil</button><button className="button button-ghost" type="button" disabled={isBusy || !profileDraft.id || ruleProfile?.profile?.id === profileDraft.id} onClick={() => void activateRuleProfile()}>Activer ce profil</button></div>
+                  <fieldset className="fieldset"><legend>1. Sélection des méthodes à combiner</legend><div className="check-grid">{(ruleProfile?.availableRules ?? []).map((rule) => <label className="check-row" key={rule}><input type="checkbox" checked={profileDraft.activeRules.includes(rule)} onChange={(event) => setProfileDraft((previous) => ({ ...previous, activeRules: event.target.checked ? [...previous.activeRules, rule] : previous.activeRules.filter((item) => item !== rule) }))} /><span className="num">{rule}</span></label>)}</div></fieldset>
+                  <fieldset className="fieldset"><legend>2. Pondération (poids de chaque méthode, à confirmer par le client)</legend><div className="field-grid">{(ruleProfile?.availableRules ?? []).map((rule) => <label className="field" key={rule}>Poids — {rule}<input className="num" min="0" step="0.01" type="number" value={profileDraft.methodWeights[rule] ?? ''} onChange={(event) => setProfileDraft((previous) => ({ ...previous, methodWeights: { ...previous.methodWeights, [rule]: event.target.value } }))} placeholder="À confirmer" /></label>)}</div></fieldset>
+                  <label className="field">3. Seuil de validation : score de confiance supérieur à (%)<input className="num" min="0" max="100" step="0.1" type="number" value={profileDraft.validationThreshold ?? ''} onChange={(event) => setProfileDraft((previous) => ({ ...previous, validationThreshold: event.target.value }))} placeholder="75 (valeur du PRD par défaut)" /><span className="field-help">Appliqué seulement si l’étape « convergence » est activée dans Paramètres (désactivée par défaut).</span></label>
+                  <fieldset className="fieldset"><legend>Scores des méthodes pour le test (0–100)</legend><p className="field-help">Aucune formule de score par méthode n’est fournie : saisissez les scores à tester. Le test utilise le profil sauvegardé et la situation du Testeur manuel.</p><div className="field-grid">{profileDraft.activeRules.map((rule) => <label className="field" key={rule}>Score — {rule}<input className="num" min="0" max="100" step="1" type="number" value={combinationScores[rule] ?? ''} onChange={(event) => setCombinationScores((previous) => ({ ...previous, [rule]: event.target.value }))} /></label>)}</div></fieldset>
+                  <div className="form-actions"><button className="button button-ghost" type="button" disabled={isBusy || !profileDraft.id} onClick={() => void testCombination()}>Tester la combinaison</button><button className="button button-primary" type="submit" disabled={isBusy}>Sauvegarder le profil</button></div>
+                  {combinationError && <p className="message message-error" role="alert">{combinationError}</p>}
+                  {combinationResult && <SimulationResult result={combinationResult} />}
+                </form>
+              </Section>
             </>
           )}
 
           {activePage === 'tester' && (
             <>
-              <PageHeading eyebrow="VALIDATION" title="Testeur manuel" description="Évalue un jeu de cotes fourni, sans envoyer de signal ni placer de pari." action={<span className="phase-badge phase-badge-muted"><Icon name="flask" size={15} /> Simulation uniquement</span>} />
-              <div className="notice notice-neutral"><span className="notice-icon"><Icon name="shield" size={18} /></span><div><strong>Les résultats affichés sont une simulation locale</strong><p>Aucun message n’est envoyé. Une baisse de plus de 5 % de la cote du score suggéré donne une alerte critique ; une hausse bloque (complément 2 de l’annexe).</p></div></div>
+              <div className="message message-neutral"><Icon name="shield" size={18} /><span><strong>Les résultats affichés sont une simulation locale.</strong> Aucun message n’est envoyé. Une baisse de plus de 5 % de la cote du score suggéré donne une alerte critique ; une hausse bloque (complément 2 de l’annexe).</span></div>
               <div className="tester-layout">
-                <section className="content-panel tester-panel"><div className="panel-heading"><div><h2>Situation du match</h2><p>Saisissez les données du scénario à évaluer.</p></div><span className="manual-tag">F125</span></div>
-                  <form className="tester-form" onSubmit={testRules}>
-                    <div className="form-row"><label>Score à domicile<input min="0" max="20" type="number" value={testFields.homeScore} onChange={updateTestField('homeScore')} required /></label><span className="score-separator">–</span><label>Score à l’extérieur<input min="0" max="20" type="number" value={testFields.awayScore} onChange={updateTestField('awayScore')} required /></label></div>
-                    <label>Cotes des scores exacts <span className="label-note">une ligne par score</span><textarea rows="5" spellCheck="false" value={testFields.oddsText} onChange={updateTestField('oddsText')} placeholder={'0-0 = 7,50\n1-0 = 8,60\n0-1 = 9,80'} required /></label>
-                    <div className="form-row form-row-wide"><label>Vitalité (0–100)<input min="0" max="100" step="0.1" type="number" value={testFields.vitalityScore} onChange={updateTestField('vitalityScore')} /><span className="field-help">Vide = non calculable.</span></label><label>Variation des cotes sur 2 min (%)<input step="0.01" type="number" value={testFields.oddsChangePercent} onChange={updateTestField('oddsChangePercent')} /><span className="field-help">Valeur négative = cotes en baisse. Vide = non calculable.</span></label></div>
-                    <div className="form-row form-row-wide"><label className="check-row"><input type="checkbox" checked={testFields.halftime} onChange={(event) => setTestFields((previous) => ({ ...previous, halftime: event.target.checked }))} />Match à la mi-temps</label><label>Cote Under 2.5 (total du match)<input min="0" step="0.01" type="number" value={testFields.under25Odds} onChange={updateTestField('under25Odds')} /></label></div>
-                    <div className="field-grid"><label>Source de tendance<select value={testFields.tendanceSource} onChange={updateTestField('tendanceSource')}><option value="cote_suggeree">Cote du score suggéré</option></select></label><label>Seuil de baisse (%)<input min="0" step="0.1" type="number" value={testFields.tendanceSeuilStable} onChange={updateTestField('tendanceSeuilStable')} /></label></div>
-                    <p className="format-hint">Format accepté : <code>score = cote</code> ou <code>score : cote</code>. Les paramètres de tendance ne s’appliquent qu’à cette simulation.</p>
-                    {testError && <div className="form-error" role="alert">{testError}</div>}
-                    <button className="primary-button" type="submit" disabled={isTesting}>{isTesting ? 'Évaluation…' : 'Évaluer la situation'} <Icon name="arrow" size={17} /></button>
+                <Section title="Situation du match" aside="Saisissez les données du scénario à évaluer (F125).">
+                  <form className="panel form-stack" onSubmit={testRules}>
+                    <div className="score-row"><label className="field">Score à domicile<input className="num" min="0" max="20" type="number" value={testFields.homeScore} onChange={updateTestField('homeScore')} required /></label><span className="score-separator num" aria-hidden="true">–</span><label className="field">Score à l’extérieur<input className="num" min="0" max="20" type="number" value={testFields.awayScore} onChange={updateTestField('awayScore')} required /></label></div>
+                    <label className="field">Cotes des scores exacts <span className="label-note">une ligne par score</span><textarea className="num" rows="5" spellCheck="false" value={testFields.oddsText} onChange={updateTestField('oddsText')} placeholder={'0-0 = 7,50\n1-0 = 8,60\n0-1 = 9,80'} required /></label>
+                    <div className="field-grid"><label className="field">Vitalité (0–100)<input className="num" min="0" max="100" step="0.1" type="number" value={testFields.vitalityScore} onChange={updateTestField('vitalityScore')} /><span className="field-help">Vide = non calculable.</span></label><label className="field">Variation des cotes sur 2 min (%)<input className="num" step="0.01" type="number" value={testFields.oddsChangePercent} onChange={updateTestField('oddsChangePercent')} /><span className="field-help">Valeur négative = cotes en baisse. Vide = non calculable.</span></label></div>
+                    <div className="field-grid"><label className="check-row check-row-boxed"><input type="checkbox" checked={testFields.halftime} onChange={(event) => setTestFields((previous) => ({ ...previous, halftime: event.target.checked }))} />Match à la mi-temps</label><label className="field">Cote Under 2.5 (total du match)<input className="num" min="0" step="0.01" type="number" value={testFields.under25Odds} onChange={updateTestField('under25Odds')} /></label></div>
+                    <div className="field-grid"><label className="field">Source de tendance<select value={testFields.tendanceSource} onChange={updateTestField('tendanceSource')}><option value="cote_suggeree">Cote du score suggéré</option></select></label><label className="field">Seuil de baisse (%)<input className="num" min="0" step="0.1" type="number" value={testFields.tendanceSeuilStable} onChange={updateTestField('tendanceSeuilStable')} /></label></div>
+                    <p className="field-help">Format accepté : <code>score = cote</code> ou <code>score : cote</code>. Les paramètres de tendance ne s’appliquent qu’à cette simulation.</p>
+                    {testError && <div className="message message-error" role="alert">{testError}</div>}
+                    <button className="button button-primary button-large" type="submit" disabled={isTesting}>{isTesting ? 'Évaluation…' : 'Évaluer la situation'} <Icon name="arrow" size={17} /></button>
                   </form>
-                </section>
-                <section className="content-panel result-panel" aria-live="polite"><div className="panel-heading"><div><h2>Résultat de la simulation</h2><p>Analyse des règles et des filtres</p></div></div>{testResult ? <SimulationResult result={testResult} /> : <EmptyState icon="flask" title="Prêt à tester" message="Les résultats apparaîtront ici après l’évaluation des données saisies." />}</section>
+                </Section>
+                <Section title="Résultat de la simulation" aside="Analyse des règles et des filtres.">
+                  <div className="panel" aria-live="polite">{testResult ? <SimulationResult result={testResult} /> : <EmptyState icon="flask" title="Prêt à tester" message="Les résultats apparaîtront ici après l’évaluation des données saisies." />}</div>
+                </Section>
               </div>
             </>
           )}
 
           {activePage === 'journal' && (
             <>
-              <PageHeading eyebrow="HISTORIQUE" title="Journal des opportunités" description="Consultez les évaluations, décisions, filtres et résultats associés." />
-              <section className="content-panel"><form className="filter-toolbar" onSubmit={(event) => { event.preventDefault(); void loadJournal(journalFilters) }}><label>Du<input type="date" value={journalFilters.date_from} onChange={(event) => setJournalFilters((previous) => ({ ...previous, date_from: event.target.value }))} /></label><label>Au<input type="date" value={journalFilters.date_to} onChange={(event) => setJournalFilters((previous) => ({ ...previous, date_to: event.target.value }))} /></label><label>ID du match<input min="1" type="number" value={journalFilters.match_id} onChange={(event) => setJournalFilters((previous) => ({ ...previous, match_id: event.target.value }))} /></label><label>Règle<input value={journalFilters.rule_id} onChange={(event) => setJournalFilters((previous) => ({ ...previous, rule_id: event.target.value }))} placeholder="F121-C" /></label><label>État<select value={journalFilters.status} onChange={(event) => setJournalFilters((previous) => ({ ...previous, status: event.target.value }))}><option value="">Tous</option><option value="sans_alerte">Sans alerte</option><option value="queued">En attente</option><option value="sent">Envoyée</option><option value="failed">Échec</option><option value="expired">Expirée</option><option value="invalidated">Invalidée</option></select></label><button className="secondary-button" type="submit"><Icon name="search" size={16} /> Filtrer</button></form>
-                <div className="panel-heading"><div><h2>Événements récents</h2><p>{journalData?.pagination?.total ?? 0} événement(s)</p></div></div>
-                {journalData?.data?.length ? <div className="table-scroll"><table className="data-table"><thead><tr><th>Date</th><th>Rencontre</th><th>Score / minute</th><th>Règle</th><th>Décision</th><th>Justification</th><th>Résultat</th></tr></thead><tbody>{journalData.data.map((log) => <tr key={log.id}><td>{formatDate(log.evaluatedAt)}</td><td>{log.match ?? '—'}</td><td>{log.score ?? '—'}{log.minute === null ? '' : ` · ${log.minute}′`}</td><td>{log.ruleId ?? '—'}</td><td>{journalDecisionLabel(log)}</td><td>{log.reason}</td><td>{log.alert ? <select aria-label={`Résultat de l’alerte ${log.id}`} value={log.outcome ?? ''} onChange={(event) => void updateOutcome(log.id, event.target.value)}><option value="">À renseigner</option><option value="won">Gagnée</option><option value="lost">Perdue</option><option value="cancelled">Annulée</option></select> : '—'}</td></tr>)}</tbody></table></div> : <EmptyState icon="list" title="Aucun événement" message="Aucune évaluation ne correspond aux critères choisis." />}
-                {journalData?.pagination?.lastPage > 1 && <div className="pagination"><button className="secondary-button" type="button" disabled={journalData.pagination.currentPage <= 1} onClick={() => void loadJournal({ ...journalFilters, page: String(journalData.pagination.currentPage - 1) })}>Précédent</button><span>Page {journalData.pagination.currentPage} / {journalData.pagination.lastPage}</span><button className="secondary-button" type="button" disabled={journalData.pagination.currentPage >= journalData.pagination.lastPage} onClick={() => void loadJournal({ ...journalFilters, page: String(journalData.pagination.currentPage + 1) })}>Suivant</button></div>}
-              </section>
+              <form className="panel filter-toolbar" onSubmit={(event) => { event.preventDefault(); void loadJournal(journalFilters) }}><label className="field">Du<input type="date" value={journalFilters.date_from} onChange={(event) => setJournalFilters((previous) => ({ ...previous, date_from: event.target.value }))} /></label><label className="field">Au<input type="date" value={journalFilters.date_to} onChange={(event) => setJournalFilters((previous) => ({ ...previous, date_to: event.target.value }))} /></label><label className="field">ID du match<input className="num" min="1" type="number" value={journalFilters.match_id} onChange={(event) => setJournalFilters((previous) => ({ ...previous, match_id: event.target.value }))} /></label><label className="field">Règle<input value={journalFilters.rule_id} onChange={(event) => setJournalFilters((previous) => ({ ...previous, rule_id: event.target.value }))} placeholder="F121-C" /></label><label className="field">État<select value={journalFilters.status} onChange={(event) => setJournalFilters((previous) => ({ ...previous, status: event.target.value }))}><option value="">Tous</option><option value="sans_alerte">Sans alerte</option><option value="queued">En attente</option><option value="sent">Envoyée</option><option value="failed">Échec</option><option value="expired">Expirée</option><option value="invalidated">Invalidée</option></select></label><button className="button button-secondary" type="submit"><Icon name="search" size={16} />Filtrer</button></form>
+              <Section title="Événements récents" aside={`${journalData?.pagination?.total ?? 0} événement(s)`}>
+                <div className="panel panel-flush">
+                  {journalData?.data?.length ? <div className="table-scroll"><table className="data-table"><thead><tr><th scope="col">Date</th><th scope="col">Rencontre</th><th scope="col">Score / minute</th><th scope="col">Règle</th><th scope="col">Décision</th><th scope="col">Justification</th><th scope="col">Résultat</th></tr></thead><tbody>{journalData.data.map((log) => <tr key={log.id}><td className="num cell-nowrap">{formatDate(log.evaluatedAt)}</td><td><strong>{log.match ?? '—'}</strong></td><td className="num cell-nowrap">{log.score ?? '—'}{log.minute === null ? '' : ` · ${log.minute}'`}</td><td className="num cell-nowrap">{log.ruleId ?? '—'}</td><td><Pill tone={log.decision === 'no_alert' ? (log.eventType === 'evaluation' ? 'watch' : 'dead') : journalTones[log.decision] ?? 'watch'}>{journalDecisionLabel(log)}</Pill></td><td className="cell-reason">{log.reason}</td><td>{log.alert ? <select className="select-compact" aria-label={`Résultat de l’alerte ${log.id}`} value={log.outcome ?? ''} onChange={(event) => void updateOutcome(log.id, event.target.value)}><option value="">À renseigner</option><option value="won">Gagnée</option><option value="lost">Perdue</option><option value="cancelled">Annulée</option></select> : '—'}</td></tr>)}</tbody></table></div> : <EmptyState icon="list" title="Aucun événement" message="Aucune évaluation ne correspond aux critères choisis." />}
+                </div>
+                {journalData?.pagination?.lastPage > 1 && <div className="pagination"><button className="button button-ghost" type="button" disabled={journalData.pagination.currentPage <= 1} onClick={() => void loadJournal({ ...journalFilters, page: String(journalData.pagination.currentPage - 1) })}>Précédent</button><span>Page <span className="num">{journalData.pagination.currentPage} / {journalData.pagination.lastPage}</span></span><button className="button button-ghost" type="button" disabled={journalData.pagination.currentPage >= journalData.pagination.lastPage} onClick={() => void loadJournal({ ...journalFilters, page: String(journalData.pagination.currentPage + 1) })}>Suivant</button></div>}
+              </Section>
             </>
           )}
 
           {activePage === 'statistics' && (
             <>
-              <PageHeading eyebrow="ANALYSE" title="Statistiques" description="Indicateurs calculés à partir des alertes et résultats enregistrés." />
-              <section className="content-panel"><form className="filter-toolbar" onSubmit={(event) => { event.preventDefault(); void loadStatistics(statisticsFilters) }}><label>Du<input type="date" value={statisticsFilters.date_from} onChange={(event) => setStatisticsFilters((previous) => ({ ...previous, date_from: event.target.value }))} /></label><label>Au<input type="date" value={statisticsFilters.date_to} onChange={(event) => setStatisticsFilters((previous) => ({ ...previous, date_to: event.target.value }))} /></label><button className="secondary-button" type="submit"><Icon name="search" size={16} /> Appliquer</button></form>
-                <div className="stats-grid">{[['Alertes', statistics?.alerts?.total], ['Actives', statistics?.alerts?.active], ['Gagnées', statistics?.alerts?.won], ['Perdues', statistics?.alerts?.lost], ['Annulées', statistics?.alerts?.cancelled], ['Sans résultat', statistics?.alerts?.unrated], ['Taux de réussite', statistics?.alerts?.successRatePercent === null || statistics?.alerts?.successRatePercent === undefined ? '—' : `${statistics.alerts.successRatePercent} %`]].map(([label, value]) => <article className="stat-card" key={label}><span>{label}</span><strong>{value ?? '—'}</strong></article>)}</div>
-                <div className="panel-heading"><div><h2>Résultats par règle</h2></div></div>
-                {statistics?.byRule && Object.keys(statistics.byRule).length ? <div className="table-scroll"><table className="data-table"><thead><tr><th>Règle</th><th>Alertes</th><th>Gagnées</th><th>Perdues</th><th>Annulées</th><th>Taux</th></tr></thead><tbody>{Object.entries(statistics.byRule).map(([rule, data]) => <tr key={rule}><td>{rule}</td><td>{data.alerts}</td><td>{data.won}</td><td>{data.lost}</td><td>{data.cancelled}</td><td>{data.successRatePercent === null ? '—' : `${data.successRatePercent} %`}</td></tr>)}</tbody></table></div> : <EmptyState icon="chart" title="Pas encore de résultats" message="Les statistiques apparaîtront lorsque des alertes et leurs résultats seront consignés." />}
-                {statistics?.refusalsByFilter && Object.keys(statistics.refusalsByFilter).length > 0 && <div className="panel-heading"><div><h2>Refus par filtre</h2></div></div>}
-                {statistics?.refusalsByFilter && Object.entries(statistics.refusalsByFilter).map(([filter, count]) => <div className="simulation-line" key={filter}><span>{filter}</span><strong>{count}</strong></div>)}
-              </section>
+              <form className="panel filter-toolbar" onSubmit={(event) => { event.preventDefault(); void loadStatistics(statisticsFilters) }}><label className="field">Du<input type="date" value={statisticsFilters.date_from} onChange={(event) => setStatisticsFilters((previous) => ({ ...previous, date_from: event.target.value }))} /></label><label className="field">Au<input type="date" value={statisticsFilters.date_to} onChange={(event) => setStatisticsFilters((previous) => ({ ...previous, date_to: event.target.value }))} /></label><button className="button button-secondary" type="submit"><Icon name="search" size={16} />Appliquer</button></form>
+              <div className="metrics-grid metrics-grid-wide">{[['Alertes', statistics?.alerts?.total], ['Actives', statistics?.alerts?.active], ['Gagnées', statistics?.alerts?.won], ['Perdues', statistics?.alerts?.lost], ['Annulées', statistics?.alerts?.cancelled], ['Sans résultat', statistics?.alerts?.unrated], ['Taux de réussite', statistics?.alerts?.successRatePercent === null || statistics?.alerts?.successRatePercent === undefined ? '—' : `${statistics.alerts.successRatePercent} %`]].map(([label, value]) => <MetricCard key={label} label={label} value={value ?? '—'} />)}</div>
+              <Section title="Résultats par règle">
+                <div className="panel panel-flush">
+                  {statistics?.byRule && Object.keys(statistics.byRule).length ? <div className="table-scroll"><table className="data-table"><thead><tr><th scope="col">Règle</th><th scope="col">Alertes</th><th scope="col">Gagnées</th><th scope="col">Perdues</th><th scope="col">Annulées</th><th scope="col">Taux</th></tr></thead><tbody>{Object.entries(statistics.byRule).map(([rule, data]) => <tr key={rule}><td className="num"><strong>{rule}</strong></td><td className="num">{data.alerts}</td><td className="num">{data.won}</td><td className="num">{data.lost}</td><td className="num">{data.cancelled}</td><td className="num">{data.successRatePercent === null ? '—' : `${data.successRatePercent} %`}</td></tr>)}</tbody></table></div> : <EmptyState icon="chart" title="Pas encore de résultats" message="Les statistiques apparaîtront lorsque des alertes et leurs résultats seront consignés." />}
+                </div>
+              </Section>
+              {statistics?.refusalsByFilter && Object.keys(statistics.refusalsByFilter).length > 0 && <Section title="Refus par filtre"><div className="panel">{Object.entries(statistics.refusalsByFilter).map(([filter, count]) => <div className="simulation-line" key={filter}><span>{filter}</span><strong className="num">{count}</strong></div>)}</div></Section>}
             </>
           )}
 
           {activePage === 'settings' && (
             <>
-              <PageHeading eyebrow="CONFIGURATION" title="Paramètres" description="Modifiez les paramètres enregistrés et consultez leur historique." action={<button className="secondary-button" type="button" onClick={() => void runNotificationTest()} disabled={isBusy}>Envoyer un message de test</button>} />
-              {notificationTest && <div className={notificationTest.status === 'error' ? 'form-error api-error' : notificationTest.status === 'warning' ? 'notice notice-warning' : 'success-message'} role={notificationTest.status === 'error' ? 'alert' : 'status'}><strong>{notificationTest.status === 'error' ? 'Échec de l’envoi : ' : notificationTest.status === 'warning' ? 'Attention : ' : 'Message envoyé : '}</strong>{notificationTest.text}</div>}
-              <div className="notice notice-warning"><span className="notice-icon"><Icon name="shield" size={18} /></span><div><strong>Les paramètres marqués « À confirmer » attendent une décision du client</strong><p>Leur valeur par défaut reste prudente. Aucun pari automatique n’est effectué.</p></div></div>
-              <form className="content-panel settings-form" onSubmit={saveSettings}><div className="panel-heading"><div><h2>Paramètres du détecteur</h2><p>Les champs sans valeur ne déclenchent pas de comportement supposé.</p></div></div>
-                {settings.length ? <div className="settings-list">{settings.map((setting) => <label className="setting-row" key={setting.key}><span><strong>{settingLabels[setting.key] ?? setting.key}</strong><small>{settingDescriptions[setting.key] ?? 'Paramètre utilisé par le détecteur.'}{setting.needsConfirmation ? ' · À confirmer' : ''}</small></span>{setting.type === 'boolean' ? <input type="checkbox" checked={settingsDraft[setting.key] === true} onChange={(event) => setSettingsDraft((previous) => ({ ...previous, [setting.key]: event.target.checked }))} /> : setting.type === 'json' ? <textarea rows="3" value={settingsDraft[setting.key] ?? ''} onChange={(event) => setSettingsDraft((previous) => ({ ...previous, [setting.key]: event.target.value }))} placeholder="À confirmer" /> : setting.key === 'tendance_source' ? <select value={settingsDraft[setting.key] ?? ''} onChange={(event) => setSettingsDraft((previous) => ({ ...previous, [setting.key]: event.target.value }))}><option value="cote_suggeree">Cote du score suggéré</option></select> : <input type={setting.type === 'integer' || setting.type === 'decimal' ? 'number' : 'text'} min={setting.type === 'integer' || setting.type === 'decimal' ? '0' : undefined} step={setting.type === 'decimal' ? '0.01' : undefined} value={settingsDraft[setting.key] ?? ''} onChange={(event) => setSettingsDraft((previous) => ({ ...previous, [setting.key]: event.target.value }))} placeholder={setting.needsConfirmation ? 'À confirmer' : ''} />}</label>)}</div> : <EmptyState icon="settings" title="Paramètres indisponibles" message="Aucun paramètre enregistré n’a été retourné." />}
-                <div className="form-actions"><button className="primary-button" type="submit" disabled={isBusy || !settings.length}>Enregistrer</button><button className="secondary-button" type="button" onClick={() => void resetSettings()} disabled={isBusy}>Réinitialiser</button></div>
-              </form>
-              <section className="content-panel"><div className="panel-heading"><div><h2>Historique des modifications</h2><p>Les dernières modifications de paramètres sont conservées.</p></div></div>{settingsHistory.length ? <div className="table-scroll"><table className="data-table"><thead><tr><th>Date</th><th>Paramètre</th><th>Ancienne valeur</th><th>Nouvelle valeur</th><th>Administrateur</th></tr></thead><tbody>{settingsHistory.map((change) => <tr key={change.id}><td>{formatDate(change.changedAt)}</td><td>{settingLabels[change.settingKey] ?? change.settingKey}</td><td>{change.oldValue ?? '—'}</td><td>{change.newValue ?? '—'}</td><td>{change.user}</td></tr>)}</tbody></table></div> : <EmptyState icon="list" title="Aucun changement" message="L’historique se remplira après la première modification." />}</section>
+              {notificationTest && <div className={`message ${notificationTest.status === 'error' ? 'message-error' : notificationTest.status === 'warning' ? 'message-warning' : 'message-success'}`} role={notificationTest.status === 'error' ? 'alert' : 'status'}><span><strong>{notificationTest.status === 'error' ? 'Échec de l’envoi : ' : notificationTest.status === 'warning' ? 'Attention : ' : 'Message envoyé : '}</strong>{notificationTest.text}</span></div>}
+              <div className="message message-warning"><Icon name="shield" size={18} /><span><strong>Les paramètres marqués « À confirmer » attendent une décision du client.</strong> Leur valeur par défaut reste prudente. Aucun pari automatique n’est effectué.</span></div>
+              <Section title="Paramètres du détecteur" aside="Les champs sans valeur ne déclenchent pas de comportement supposé.">
+                <form className="panel settings-form" onSubmit={saveSettings}>
+                  {settings.length ? <div className="settings-list">{settings.map((setting) => <label className="setting-row" key={setting.key}><span className="setting-copy"><strong>{settingLabels[setting.key] ?? setting.key}</strong><small>{settingDescriptions[setting.key] ?? 'Paramètre utilisé par le détecteur.'}</small>{setting.needsConfirmation && <span className="setting-flag">À confirmer</span>}</span>{setting.type === 'boolean' ? <input type="checkbox" checked={settingsDraft[setting.key] === true} onChange={(event) => setSettingsDraft((previous) => ({ ...previous, [setting.key]: event.target.checked }))} /> : setting.type === 'json' ? <textarea className="num" rows="3" value={settingsDraft[setting.key] ?? ''} onChange={(event) => setSettingsDraft((previous) => ({ ...previous, [setting.key]: event.target.value }))} placeholder="À confirmer" /> : setting.key === 'tendance_source' ? <select value={settingsDraft[setting.key] ?? ''} onChange={(event) => setSettingsDraft((previous) => ({ ...previous, [setting.key]: event.target.value }))}><option value="cote_suggeree">Cote du score suggéré</option></select> : <input className={setting.type === 'integer' || setting.type === 'decimal' ? 'num' : undefined} type={setting.type === 'integer' || setting.type === 'decimal' ? 'number' : 'text'} min={setting.type === 'integer' || setting.type === 'decimal' ? '0' : undefined} step={setting.type === 'decimal' ? '0.01' : undefined} value={settingsDraft[setting.key] ?? ''} onChange={(event) => setSettingsDraft((previous) => ({ ...previous, [setting.key]: event.target.value }))} placeholder={setting.needsConfirmation ? 'À confirmer' : ''} />}</label>)}</div> : <EmptyState icon="settings" title="Paramètres indisponibles" message="Aucun paramètre enregistré n’a été retourné." />}
+                  <div className="form-actions form-actions-sticky"><button className="button button-primary" type="submit" disabled={isBusy || !settings.length}>Enregistrer</button><button className="button button-ghost" type="button" onClick={() => void resetSettings()} disabled={isBusy}>Réinitialiser</button></div>
+                </form>
+              </Section>
+              <Section title="Historique des modifications" aside="Les dernières modifications de paramètres sont conservées.">
+                <div className="panel panel-flush">{settingsHistory.length ? <div className="table-scroll"><table className="data-table"><thead><tr><th scope="col">Date</th><th scope="col">Paramètre</th><th scope="col">Ancienne valeur</th><th scope="col">Nouvelle valeur</th><th scope="col">Administrateur</th></tr></thead><tbody>{settingsHistory.map((change) => <tr key={change.id}><td className="num cell-nowrap">{formatDate(change.changedAt)}</td><td>{settingLabels[change.settingKey] ?? change.settingKey}</td><td className="num cell-value">{change.oldValue ?? '—'}</td><td className="num cell-value">{change.newValue ?? '—'}</td><td>{change.user}</td></tr>)}</tbody></table></div> : <EmptyState icon="list" title="Aucun changement" message="L’historique se remplira après la première modification." />}</div>
+              </Section>
             </>
           )}
         </div>
-        <footer className="footer"><span>PRONOFOOT · Phase 1</span><span>Détecteur live réservé à l’administration · aucun pari automatique</span></footer>
+        <footer className="footer"><span>PronoFoot · Phase 1 · détecteur live, aucun pari automatique</span><span>Aucun gain n’est garanti. Jeu réservé aux 18 ans et plus.</span></footer>
       </main>
     </div>
   )

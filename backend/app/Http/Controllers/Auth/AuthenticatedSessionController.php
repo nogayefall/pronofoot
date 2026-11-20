@@ -6,6 +6,7 @@ use App\Console\Commands\CreateTestAdministrator;
 use App\Http\Controllers\Controller;
 use App\Models\User;
 use App\Security\TotpService;
+use App\Services\ScanSettings;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -13,6 +14,7 @@ use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\Str;
 use Illuminate\View\View;
+use Throwable;
 
 class AuthenticatedSessionController extends Controller
 {
@@ -25,7 +27,7 @@ class AuthenticatedSessionController extends Controller
      */
     private const string DUMMY_PASSWORD_HASH = '$2y$12$vLWouF7brwPZaSLj8pK3s.jKAoLsZx9P0wR3U3tryvvZ9J.yXWahm';
 
-    public function create(): View|RedirectResponse
+    public function create(ScanSettings $scanSettings): View|RedirectResponse
     {
         if (Auth::check()) {
             return redirect()->route('admin.dashboard');
@@ -36,7 +38,41 @@ class AuthenticatedSessionController extends Controller
                 ? CreateTestAdministrator::EMAIL
                 : null,
             'twoFactorEnabled' => self::twoFactorEnabled(),
+            'highlights' => $this->loginHighlights($scanSettings),
         ]);
+    }
+
+    /**
+     * Pastilles de la page de connexion, tirées des réglages réels ; aucune pastille si une valeur manque.
+     *
+     * @return list<string>
+     */
+    private function loginHighlights(ScanSettings $scanSettings): array
+    {
+        try {
+            $settings = $scanSettings->all();
+        } catch (Throwable) {
+            return [];
+        }
+
+        $highlights = [];
+        $leagues = $settings['scan.auto_league_ids'] ?? null;
+        if (($settings['scan.auto_mode'] ?? false) === true && is_array($leagues) && $leagues !== []) {
+            $count = count($leagues);
+            $highlights[] = $count.($count > 1 ? ' championnats suivis' : ' championnat suivi');
+        }
+
+        $interval = $settings['scan.hot_interval_seconds'] ?? null;
+        if (is_int($interval) && $interval > 0) {
+            $highlights[] = "Scan toutes les {$interval} s";
+        }
+
+        if (config('services.pronofoot.notifications.mode') === 'real'
+            && config('services.pronofoot.notifications.channel') === 'telegram') {
+            $highlights[] = 'Alertes Telegram';
+        }
+
+        return $highlights;
     }
 
     private static function twoFactorEnabled(): bool
