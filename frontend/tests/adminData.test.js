@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { createRuleTestPayload, parseCorrectScoreOdds, teamStatisticsRows, journalDecisionLabel, parseAlertMessage, trackedMatchDecision, quotaSummary, elapsedLabel, matchStatusLabel, unavailableReason, availableMatchesView, leagueFilters, leagueFilterCounts, leagueFilterFromUrl, effectiveLeagueFilter, leagueChosenInUrl } from '../src/adminData.js'
+import { createRuleTestPayload, parseCorrectScoreOdds, teamStatisticsRows, journalDecisionLabel, parseAlertMessage, trackedMatchDecision, quotaSummary, elapsedLabel, matchStatusLabel, unavailableReason, availableMatchesView, leagueFilters, leagueFilterCounts, leagueFilterFromUrl, effectiveLeagueFilter, leagueChosenInUrl, scanModeLabel } from '../src/adminData.js'
 
 test('parseCorrectScoreOdds reads decimal comma and dot formats', () => {
   assert.deepEqual(parseCorrectScoreOdds('0-0 = 7,50\n1-0 : 8.60\n0-1 = 9,80'), {
@@ -170,7 +170,9 @@ test('unavailableReason explains why a match cannot be tracked', () => {
   assert.equal(unavailableReason({ tracked: false, exactScoreMarketAvailable: true, statisticsCoverage: true }, 100), null)
   assert.equal(unavailableReason({ tracked: true, exactScoreMarketAvailable: false }, 0), null)
   assert.equal(unavailableReason({ tracked: false, exactScoreMarketAvailable: false, statisticsCoverage: true }, 100), 'Cotes de score exact non disponibles pour ce match.')
-  assert.equal(unavailableReason({ tracked: false, exactScoreMarketAvailable: true, statisticsCoverage: false }, 0), 'Statistiques non couvertes pour cette compétition ; quota API épuisé.')
+  assert.equal(unavailableReason({ tracked: false, exactScoreMarketAvailable: true, statisticsCoverage: false }, 0, false), 'Statistiques non couvertes pour cette compétition ; quota API épuisé.')
+  assert.equal(unavailableReason({ tracked: false, exactScoreMarketAvailable: true, statisticsCoverage: false }, 100), null, 'Suivi sans statistiques autorisé par défaut.')
+  assert.equal(unavailableReason({ tracked: false, exactScoreMarketAvailable: false, statisticsCoverage: false }, 100), 'Cotes de score exact non disponibles pour ce match.')
 })
 
 const LIVE_MATCHES = [
@@ -239,4 +241,30 @@ test('effectiveLeagueFilter opens Autres when Tous is empty, unless the administ
 test('journalDecisionLabel names the match end and the penalty shootout', () => {
   assert.equal(journalDecisionLabel({ decision: 'no_alert', eventType: 'match_finished' }), 'Match terminé : suivi arrêté')
   assert.equal(journalDecisionLabel({ decision: 'no_alert', eventType: 'penalty_shootout' }), 'Tirs au but : pas d’analyse')
+})
+
+test('parseAlertMessage reads the two options and the missing vitality note', () => {
+  const parsed = parseAlertMessage([
+    'ALERTE CRITIQUE · valable jusqu’à 21:15',
+    "Grimsby - Cheltenham  1-1  68'",
+    'Prochain but : Grimsby',
+    'Cote suggérée (2-1) : 3.10 | Écart : -0.09',
+    'Option 1 (ciblée) : prochain but Grimsby — score 2-1, cote 3.10, écart -0.09',
+    'Option 2 (neutre) : un but de plus dans le match — Over 2.5, cote non disponible',
+    'Aucune option n’est jouée automatiquement.',
+    'Vitalité : non disponible (statistiques non couvertes) | Tendance : stable',
+    'Règle : F121-E1',
+  ].join('\n'))
+
+  assert.deepEqual(parsed.options.map((option) => option.label), ['Option 1 (ciblée)', 'Option 2 (neutre)'])
+  assert.equal(parsed.options[1].text, 'un but de plus dans le match — Over 2.5, cote non disponible')
+  assert.equal(parsed.vitality, null)
+  assert.equal(parsed.vitalityNote, 'Vitalité non disponible (statistiques non couvertes)')
+})
+
+test('scanModeLabel shows automatic, manual or paused', () => {
+  assert.equal(scanModeLabel({ mode: 'auto', paused: false }), 'Scan automatique')
+  assert.equal(scanModeLabel({ mode: 'manual', paused: false }), 'Scan manuel')
+  assert.equal(scanModeLabel({ mode: 'manual', paused: true }), 'Scan en pause')
+  assert.equal(scanModeLabel(null), 'État du scan…')
 })

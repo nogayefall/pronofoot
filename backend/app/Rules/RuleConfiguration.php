@@ -29,6 +29,7 @@ final readonly class RuleConfiguration
         'F121-E2',
         'minutes_remaining',
         'F121-D',
+        'F121-X',
         'vitality',
         'trend_drop',
         'trend_rise',
@@ -51,6 +52,8 @@ final readonly class RuleConfiguration
      * @param  list<string>  $pipeline
      * @param  float  $maximumDirectionalGap  F121-A (1.50) : paramètre conservé mais inactif dans l’ordre du complément 2.
      * @param  float  $stableOddsChangePercent  Seuil de forte baisse de la tendance (5 %).
+     * @param  float  $crossGapMaximum  F121-X (à confirmer) : écart croisé |écart domicile − écart extérieur| maximal.
+     * @param  bool  $followLeader  F121-C.2 (à confirmer) : si une équipe mène de 2 buts ou plus, seule elle est évaluée.
      */
     public function __construct(
         public array $activeRules = self::DEFINED_RULES,
@@ -71,6 +74,8 @@ final readonly class RuleConfiguration
         public array $pipeline = self::DEFAULT_PIPELINE,
         public float $abstentionGapThreshold = 0.50,
         public int $minimumMinutesRemaining = 10,
+        public float $crossGapMaximum = 1.0,
+        public bool $followLeader = false,
     ) {
         foreach ([
             'maximumDirectionalGap' => $maximumDirectionalGap,
@@ -82,6 +87,7 @@ final readonly class RuleConfiguration
             'halftimeUnderMinimum' => $halftimeUnderMinimum,
             'halftimeUnderMaximum' => $halftimeUnderMaximum,
             'abstentionGapThreshold' => $abstentionGapThreshold,
+            'crossGapMaximum' => $crossGapMaximum,
         ] as $name => $value) {
             if (! is_finite($value) || $value < 0) {
                 throw new InvalidArgumentException("Le paramètre {$name} doit être un nombre positif ou nul.");

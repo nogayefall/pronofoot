@@ -12,6 +12,7 @@ final readonly class EngineResult
      * @param  string|null  $level  Niveau d’alerte (Critique, Haute, Mi-temps, Neutre).
      * @param  string|null  $selection  home, away, ou null pour un pari sur le total de buts.
      * @param  list<array<string, mixed>>  $sides  Détail de la règle F121 pour chaque équipe (écart, tendance, décision).
+     * @param  list<array<string, mixed>>  $options  Options proposées : ciblée (prochain but d’une équipe) puis neutre (un but de plus).
      */
     public function __construct(
         public bool $shouldAlert,
@@ -25,5 +26,6 @@ final readonly class EngineResult
         public ?string $selection = null,
         public ?string $suggestedAction = null,
         public array $sides = [],
+        public array $options = [],
     ) {}
 }

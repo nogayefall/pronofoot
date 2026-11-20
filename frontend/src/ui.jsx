@@ -142,10 +142,35 @@ export function AlertCard({ alert, parsed, competition, ruleTitle, countdown }) 
       <dl className="alert-figures">
         {figures.map(([label, value, accent]) => <AlertFigure key={label} label={label} value={value} accent={accent} />)}
       </dl>
+      {parsed.options.length > 0 && <ul className="alert-options" aria-label="Options proposées (aucune n’est jouée automatiquement)">{parsed.options.map((option) => <li key={option.label}><strong>{option.label}</strong> {option.text}</li>)}</ul>}
+      {parsed.vitalityNote && <p className="alert-note">{parsed.vitalityNote}</p>}
       <p className="alert-meta">
         Expire dans <span className="num">{countdown}</span>
         {alert.channel && <> · {alert.channel === 'telegram' ? 'Telegram' : alert.channel === 'log' ? 'journal' : alert.channel}{alert.status === 'queued' ? ' (en file)' : ''}{alert.fallbackUsed ? ' · repli' : ''}</>}
       </p>
     </article>
+  )
+}
+
+/**
+ * Commutateur du mode de scan : Automatique / Manuel, et Pause / Reprendre. Pris en compte au tour suivant du scan.
+ */
+export function ScanModeControl({ scanMode, label, busy, onMode, onPause }) {
+  const mode = scanMode?.mode ?? 'auto'
+  const paused = scanMode?.paused === true
+
+  return (
+    <div className="scan-mode panel">
+      <div className="scan-mode-state">
+        <span className="scan-mode-title">Mode de scan</span>
+        <Pill tone={paused ? 'dead' : 'alert'}>{label}</Pill>
+      </div>
+      <div className="segmented" role="group" aria-label="Mode de scan">
+        <button type="button" aria-pressed={mode === 'auto'} disabled={busy || !scanMode} onClick={() => onMode('auto')}>Automatique</button>
+        <button type="button" aria-pressed={mode === 'manual'} disabled={busy || !scanMode} onClick={() => onMode('manual')}>Manuel</button>
+      </div>
+      <button className={`button button-compact ${paused ? 'button-primary' : 'button-ghost'}`} type="button" disabled={busy || !scanMode} onClick={() => onPause(!paused)}>{paused ? 'Reprendre' : 'Pause'}</button>
+      <p className="scan-mode-help">{mode === 'manual' ? 'Seuls les matchs ajoutés à la main sont scannés.' : 'Les 7 championnats suivis et les matchs ajoutés à la main sont scannés.'}{paused ? ' En pause : aucun appel API.' : ''}</p>
+    </div>
   )
 }

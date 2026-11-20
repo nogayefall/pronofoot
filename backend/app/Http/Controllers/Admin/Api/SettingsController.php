@@ -51,6 +51,11 @@ final class SettingsController extends Controller
         'scan.missing_readings_before_end' => '4',
         'scan.max_match_duration_minutes' => '270',
         'scan.idle_interval_seconds' => '300',
+        'scan.allow_tracking_without_statistics' => '1',
+        'scan.paused' => '0',
+        'rules.f121x_enabled' => '0',
+        'rules.f121x_cross_gap_max' => '1.00',
+        'rules.follow_leader_enabled' => '0',
     ];
 
     public function index(): JsonResponse

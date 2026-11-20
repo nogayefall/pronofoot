@@ -10,11 +10,14 @@ namespace App\Rules;
  * (score h+1-a) et à l’extérieur (h-a+1), chacune avec son écart et sa tendance (forte baisse F162-Bis, hausse,
  * écart négatif F121-E1, écart trop grand F121-G, petit écart). Après un but, le complément 4 s’applique à chaque équipe.
  *
- * Départage (à confirmer avec le client) : critique avant haute avant abstention ; à niveau égal, l’écart le plus
- * négatif, puis la baisse la plus forte. L’autre équipe est citée dans la justification.
+ * Options d’une alerte (règle du client) : si une seule équipe donne un signal, deux options — ciblée « prochain but de
+ * l’équipe » puis neutre « un but de plus dans le match » (Over buts actuels + 0,5). Si les deux équipes donnent un signal,
+ * pas d’équipe désignée : option neutre seule. Aucune option n’est jouée automatiquement.
  */
 final class RuleEngine
 {
+    public const VITALITY_UNAVAILABLE = 'Vitalité non disponible (statistiques non couvertes)';
+
     public function __construct(
         private readonly F121C $f121C = new F121C,
         private readonly F121C2 $f121C2 = new F121C2,
@@ -38,10 +41,12 @@ final class RuleEngine
         $f121E2 = $this->f121E2->evaluate($input, $configuration);
         $f121D = $this->f121D->evaluate($input, $configuration);
         $convergenceScore = $this->convergenceCalculator->calculate($input->methodScores, $configuration->methodWeights);
-        $vitalityFilter = $this->vitalityFilter->evaluate($input, $configuration);
+        $vitalityFilter = $input->vitalityUnavailable
+            ? new FilterResult(true, self::VITALITY_UNAVAILABLE.' : filtre non appliqué (à confirmer).', ['applied' => false])
+            : $this->vitalityFilter->evaluate($input, $configuration);
         $steps = [];
 
-        $finish = function (bool $alert, string $reason, array $sideOutcomes = [], ?SideOutcome $winner = null, ?string $rule = null, ?string $level = null, ?string $action = null) use (&$steps, $input, $configuration, $directionalResult, $leaderResult, $f121E2, $f121D, $vitalityFilter, $convergenceScore, $lowestGapSide): EngineResult {
+        $finish = function (bool $alert, string $reason, array $sideOutcomes = [], ?SideOutcome $winner = null, ?string $rule = null, ?string $level = null, ?string $action = null, array $options = []) use (&$steps, $input, $configuration, $directionalResult, $leaderResult, $f121E2, $f121D, $vitalityFilter, $convergenceScore, $lowestGapSide): EngineResult {
             $focus = $winner ?? $this->lowestGapOutcome($sideOutcomes, $lowestGapSide);
             $designation = match (true) {
                 $focus !== null && $focus->gap !== null => new RuleResult('F121-C', RuleVerdict::Candidate, details: ['selectedTeam' => $focus->side, 'selectedGap' => $focus->gap]),
@@ -67,6 +72,10 @@ final class RuleEngine
                 'vitality' => $vitalityFilter,
             ];
 
+            if ($input->vitalityUnavailable) {
+                $reason .= ' '.self::VITALITY_UNAVAILABLE.' : filtre vitalité non appliqué (à confirmer).';
+            }
+
             return new EngineResult(
                 $alert,
                 $convergenceScore,
@@ -79,6 +88,7 @@ final class RuleEngine
                 $winner?->side,
                 $action,
                 array_map(fn (SideOutcome $outcome): array => $outcome->toArray(), $sideOutcomes),
+                $options,
             );
         };
         $abstain = function (string $step, string $reason) use (&$steps, $finish): EngineResult {
@@ -138,7 +148,26 @@ final class RuleEngine
 
                     break;
 
+                case 'F121-X':
+                    $crossGap = $this->crossGap($input);
+                    if ($crossGap !== null && $crossGap < $configuration->crossGapMaximum
+                        && $input->homeScore + $input->awayScore >= $configuration->openMatchMinimumGoals) {
+                        $neutral = $this->neutralOption($input);
+
+                        return $this->commonAlert($step, 'F121-X', 'Neutre', $neutral['action'], sprintf('Écart croisé %s < %s dans un match ouvert : pari neutre, %s (F121-X, à confirmer).', number_format($crossGap, 2, '.', ''), number_format($configuration->crossGapMaximum, 2, '.', ''), $this->optionText($neutral)), $steps, $finish, [[...$neutral, 'origin' => 'cross_gap']]);
+                    }
+
+                    $continue($step, $crossGap === null ? 'Écart croisé non calculable.' : 'Écart croisé '.number_format($crossGap, 2, '.', '').' : pas de pari neutre F121-X.');
+
+                    break;
+
                 case 'vitality':
+                    if ($input->vitalityUnavailable) {
+                        $steps[] = ['step' => $step, 'outcome' => 'non_applicable', 'reason' => self::VITALITY_UNAVAILABLE.'.'];
+
+                        break;
+                    }
+
                     if (! $vitalityFilter->passed) {
                         return $abstain($step, (string) $vitalityFilter->reason);
                     }
@@ -162,11 +191,11 @@ final class RuleEngine
      *
      * @param  list<array<string, mixed>>  $steps
      */
-    private function commonAlert(string $step, string $rule, string $level, ?string $action, string $reason, array &$steps, \Closure $finish): EngineResult
+    private function commonAlert(string $step, string $rule, string $level, ?string $action, string $reason, array &$steps, \Closure $finish, array $options = []): EngineResult
     {
         $steps[] = ['step' => $step, 'outcome' => 'alert', 'reason' => null];
 
-        return $finish(true, $reason, rule: $rule, level: $level, action: $action);
+        return $finish(true, $reason, rule: $rule, level: $level, action: $action, options: $options);
     }
 
     /**
@@ -183,8 +212,21 @@ final class RuleEngine
         array &$steps,
         \Closure $finish,
     ): EngineResult {
+        $sides = [SideOutcome::HOME, SideOutcome::AWAY];
+        $leadMargin = $input->homeScore - $input->awayScore;
+        if ($configuration->followLeader && abs($leadMargin) >= 2) {
+            $leader = $leadMargin > 0 ? SideOutcome::HOME : SideOutcome::AWAY;
+            $sides = [$leader];
+            $steps[] = [
+                'step' => 'F121-C.2',
+                'outcome' => 'non_applicable',
+                'reason' => 'Une équipe mène de 2 buts ou plus : seule elle est évaluée (F121-C.2, à confirmer).',
+                'side' => $leader === SideOutcome::HOME ? SideOutcome::AWAY : SideOutcome::HOME,
+            ];
+        }
+
         $outcomes = [];
-        foreach ([SideOutcome::HOME, SideOutcome::AWAY] as $side) {
+        foreach ($sides as $side) {
             $outcome = $this->sideEvaluator->evaluate(
                 $side,
                 $input,
@@ -200,13 +242,8 @@ final class RuleEngine
         $summary = 'Détail — '.implode(' ; ', array_map(fn (SideOutcome $outcome): string => $outcome->summary(), $outcomes)).'.';
         $alerts = array_values(array_filter($outcomes, fn (SideOutcome $outcome): bool => $outcome->alert));
         if ($alerts === []) {
-            return $finish(false, 'Abstention pour les deux équipes. '.$summary, $outcomes);
+            return $finish(false, (count($outcomes) === 2 ? 'Abstention pour les deux équipes. ' : 'Abstention. ').$summary, $outcomes);
         }
-
-        usort($alerts, fn (SideOutcome $left, SideOutcome $right): int => [$right->severity, $left->gap ?? INF, $left->change ?? INF]
-            <=> [$left->severity, $right->gap ?? INF, $right->change ?? INF]);
-        $winner = $alerts[0];
-        $other = $alerts[1] ?? null;
 
         if (in_array('convergence', $configuration->pipeline, true)) {
             $convergence = $this->convergenceCalculator->calculate($input->methodScores, $configuration->methodWeights);
@@ -220,22 +257,109 @@ final class RuleEngine
             }
         }
 
-        $reason = sprintf(
-            'Alerte %s : prochain but %s, score %s — %s.',
-            $winner->level,
-            $winner->side === SideOutcome::HOME ? 'de l’équipe à domicile' : 'de l’équipe à l’extérieur',
-            $winner->scoreKey,
-            $winner->reason,
-        );
-        if ($other !== null) {
-            $reason .= sprintf(
-                ' L’autre équipe (%s) donne aussi un signal (%s) : départage par le niveau, puis l’écart le plus négatif, puis la baisse la plus forte (à confirmer).',
-                mb_strtolower($other->label()),
-                $other->level,
+        $neutral = $this->neutralOption($input);
+        if (count($alerts) === 1) {
+            $winner = $alerts[0];
+            $targeted = [
+                'type' => 'targeted',
+                'label' => 'Prochain but '.($winner->side === SideOutcome::HOME ? 'de l’équipe à domicile' : 'de l’équipe à l’extérieur'),
+                'side' => $winner->side,
+                'scoreKey' => $winner->scoreKey,
+                'odds' => $winner->nextOdds,
+                'gap' => $winner->gap,
+                'level' => $winner->level,
+                'rule' => $winner->rule,
+            ];
+            $reason = sprintf(
+                'Alerte %s : une seule équipe en signal (%s) — %s. Option 1 (ciblée) : %s. Option 2 (neutre) : %s. Aucune option n’est jouée automatiquement.',
+                $winner->level,
+                mb_strtolower($winner->label()),
+                $winner->reason,
+                $this->optionText($targeted),
+                $this->optionText($neutral),
             );
+
+            return $finish(true, $reason.' '.$summary, $outcomes, $winner, $winner->rule, $winner->level, 'Prochain but', [$targeted, $neutral]);
         }
 
-        return $finish(true, $reason.' '.$summary, $outcomes, $winner, $winner->rule, $winner->level, 'Prochain but');
+        // Les deux équipes en signal : pas d’équipe désignée, option neutre seule. Le niveau et la règle retenus sont
+        // ceux du signal le plus grave (domicile en cas d’égalité).
+        usort($alerts, fn (SideOutcome $left, SideOutcome $right): int => $right->severity <=> $left->severity);
+        $strongest = $alerts[0];
+        $reason = sprintf(
+            'Alerte %s : les deux équipes donnent un signal, pas d’équipe désignée. Option neutre seule : %s. Écarts : domicile %s, extérieur %s. Aucune option n’est jouée automatiquement.',
+            $strongest->level,
+            $this->optionText($neutral),
+            $this->gapText($outcomes, SideOutcome::HOME),
+            $this->gapText($outcomes, SideOutcome::AWAY),
+        );
+
+        return $finish(true, $reason.' '.$summary, $outcomes, null, $strongest->rule, $strongest->level, $neutral['action'], [[...$neutral, 'origin' => 'both_sides']]);
+    }
+
+    /**
+     * Option neutre : « un but de plus dans le match », Over (buts actuels + 0,5) sur le total du match ; la cote n’est
+     * donnée que si le marché Over/Under est disponible.
+     *
+     * @return array{type: string, label: string, line: string, action: string, odds: float|null}
+     */
+    private function neutralOption(RuleInput $input): array
+    {
+        $line = number_format($input->homeScore + $input->awayScore + 0.5, 1, '.', '');
+        $odds = $input->overLineOdds[$line] ?? null;
+
+        return [
+            'type' => 'neutral',
+            'label' => 'Un but de plus dans le match',
+            'line' => "Over {$line}",
+            'action' => "Over {$line} buts",
+            'odds' => is_numeric($odds) && (float) $odds > 0 ? (float) $odds : null,
+        ];
+    }
+
+    /**
+     * @param  array<string, mixed>  $option
+     */
+    private function optionText(array $option): string
+    {
+        $odds = is_numeric($option['odds'] ?? null) ? 'cote '.number_format((float) $option['odds'], 2, '.', '') : 'cote non disponible';
+
+        if (($option['type'] ?? null) === 'neutral') {
+            return "un but de plus dans le match, {$option['line']}, {$odds}";
+        }
+
+        $gap = is_numeric($option['gap'] ?? null) ? ', écart '.SideOutcome::signed((float) $option['gap'], 2) : '';
+
+        return mb_strtolower((string) $option['label']).", score {$option['scoreKey']}, {$odds}{$gap}";
+    }
+
+    /**
+     * @param  list<SideOutcome>  $outcomes
+     */
+    private function gapText(array $outcomes, string $side): string
+    {
+        foreach ($outcomes as $outcome) {
+            if ($outcome->side === $side) {
+                return $outcome->gap === null ? 'n.c.' : SideOutcome::signed($outcome->gap, 2);
+            }
+        }
+
+        return 'n.c.';
+    }
+
+    /**
+     * F121-X : écart croisé = |écart domicile − écart extérieur| = |cote h+1-a − cote h-a+1|.
+     */
+    private function crossGap(RuleInput $input): ?float
+    {
+        $odds = fn (string $key): ?float => is_numeric($input->exactScoreOdds[$key] ?? null) && (float) $input->exactScoreOdds[$key] > 0
+            ? (float) $input->exactScoreOdds[$key]
+            : null;
+        $current = $odds("{$input->homeScore}-{$input->awayScore}");
+        $home = $odds(($input->homeScore + 1).'-'.$input->awayScore);
+        $away = $odds($input->homeScore.'-'.($input->awayScore + 1));
+
+        return $current === null || $home === null || $away === null ? null : abs($home - $away);
     }
 
     /**

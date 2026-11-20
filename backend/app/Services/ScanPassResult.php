@@ -22,5 +22,6 @@ final readonly class ScanPassResult
         public int $autoTracked = 0,
         public int $matchesEnded = 0,
         public bool $idle = false,
+        public bool $paused = false,
     ) {}
 }

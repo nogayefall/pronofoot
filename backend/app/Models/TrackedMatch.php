@@ -26,6 +26,7 @@ class TrackedMatch extends Model
         'ended_at',
         'ended_reason',
         'post_goal_references',
+        'statistics_available',
     ];
 
     protected function casts(): array
@@ -40,6 +41,7 @@ class TrackedMatch extends Model
             'missing_readings' => 'integer',
             'ended_at' => 'datetime',
             'post_goal_references' => 'array',
+            'statistics_available' => 'boolean',
         ];
     }
 

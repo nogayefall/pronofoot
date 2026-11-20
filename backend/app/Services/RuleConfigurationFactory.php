@@ -47,6 +47,8 @@ final class RuleConfigurationFactory
             pipeline: $this->pipeline($settings),
             abstentionGapThreshold: is_numeric($settings['rules.abstention_gap_threshold'] ?? null) ? (float) $settings['rules.abstention_gap_threshold'] : 0.50,
             minimumMinutesRemaining: is_int($settings['rules.minutes_remaining_min'] ?? null) ? $settings['rules.minutes_remaining_min'] : 10,
+            crossGapMaximum: is_numeric($settings['rules.f121x_cross_gap_max'] ?? null) ? (float) $settings['rules.f121x_cross_gap_max'] : 1.0,
+            followLeader: ($settings['rules.follow_leader_enabled'] ?? false) === true,
         );
     }
 
@@ -75,12 +77,18 @@ final class RuleConfigurationFactory
     {
         $pipeline = array_values(array_filter(
             $this->stringList($settings, 'rules.decision_pipeline', RuleConfiguration::DEFAULT_PIPELINE),
-            fn (string $step): bool => ! in_array($step, ['convergence', 'minutes_remaining'], true),
+            fn (string $step): bool => ! in_array($step, ['convergence', 'minutes_remaining', 'F121-X'], true),
         ));
 
         if (($settings['rules.minutes_remaining_enabled'] ?? false) === true) {
             $position = array_search('F121-E2', $pipeline, true);
             array_splice($pipeline, $position === false ? 0 : $position + 1, 0, ['minutes_remaining']);
+        }
+
+        // F121-X (écart croisé, à confirmer) : juste après F121-D quand le paramètre l’active.
+        if (($settings['rules.f121x_enabled'] ?? false) === true) {
+            $position = array_search('F121-D', $pipeline, true);
+            array_splice($pipeline, $position === false ? 0 : $position + 1, 0, ['F121-X']);
         }
 
         if (($settings['rules.convergence_enabled'] ?? false) === true) {

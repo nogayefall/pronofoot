@@ -10,6 +10,7 @@ use App\Providers\Data\FootballFeed;
 use App\Providers\Data\FootballMatch;
 use App\Providers\Data\OddsMatch;
 use App\Providers\Data\ProviderUnavailable;
+use App\Services\ScanSettings;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
@@ -17,6 +18,8 @@ use Illuminate\Validation\ValidationException;
 
 final class TrackedMatchController extends Controller
 {
+    public function __construct(private readonly ScanSettings $scanSettings) {}
+
     public function index(FootballProvider $provider, OddsProvider $oddsProvider): JsonResponse
     {
         try {
@@ -100,7 +103,8 @@ final class TrackedMatchController extends Controller
             return response()->json(['message' => 'Ce match ne figure pas dans la liste actuelle du fournisseur.'], 404);
         }
 
-        if ($match->statisticsCoverage === false) {
+        $allowWithoutStatistics = ($this->scanSettings->all()['scan.allow_tracking_without_statistics'] ?? true) === true;
+        if ($match->statisticsCoverage === false && ! $allowWithoutStatistics) {
             throw ValidationException::withMessages([
                 'provider_match_id' => 'Ce match ne peut pas être suivi : la ligue indique que les statistiques ne sont pas couvertes.',
             ]);
@@ -131,10 +135,18 @@ final class TrackedMatchController extends Controller
                 'status' => $match->status,
                 'is_active' => true,
                 'tracking_mode' => 'manual',
+                // Ligue sans statistiques : suivi sur les cotes seules, sans appel de statistiques ni filtre vitalité.
+                'statistics_available' => $match->statisticsCoverage !== false,
+                'ended_at' => null,
+                'ended_reason' => null,
+                'missing_readings' => 0,
             ],
         );
 
         $warnings = [];
+        if ($match->statisticsCoverage === false) {
+            $warnings[] = 'Suivi sans statistiques : vitalité non disponible, filtre vitalité non appliqué (à confirmer).';
+        }
         if ($match->statisticsCoverage === null) {
             $warnings[] = 'Statistiques non confirmées.';
         }

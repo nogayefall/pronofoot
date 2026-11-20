@@ -21,13 +21,36 @@ if grep -qE '^APP_KEY=$' backend/.env; then
   exit 1
 fi
 
+# Fichiers créés modifiables par le groupe (www-data et le compte de déploiement se partagent le dépôt).
+umask 002
+
+# www-data n'a pas de dossier personnel accessible en écriture (/var/www appartient à root) : caches de composer et
+# de npm dans un dossier temporaire, supprimé à la fin.
+DEPLOY_TMP="$(mktemp -d "${TMPDIR:-/tmp}/pronofoot-deploy.XXXXXX")"
+export HOME="$DEPLOY_TMP" COMPOSER_HOME="$DEPLOY_TMP/composer" npm_config_cache="$DEPLOY_TMP/npm"
+cleanup() {
+  rm -rf "$DEPLOY_TMP"
+}
+trap cleanup EXIT
+
+# composer et npm réécrivent vendor/ et node_modules/ : leurs fichiers doivent être modifiables par le groupe.
+chmod -R g+w backend/vendor frontend/node_modules backend/public/admin-assets backend/bootstrap/cache 2>/dev/null || true
+blocked="$(find backend/vendor frontend/node_modules backend/public/admin-assets backend/bootstrap/cache \
+  ! -perm -g+w ! -user "$(id -un)" 2>/dev/null | head -n 3 || true)"
+if [[ -n "$blocked" ]]; then
+  echo "Fichiers non modifiables par le groupe, par exemple :" >&2
+  echo "$blocked" >&2
+  echo "Les rendre modifiables une fois, avec leur propriétaire : chmod -R g+w backend/vendor frontend/node_modules" >&2
+  exit 1
+fi
+
 bring_up() {
   (cd "$APP_DIR/backend" && "$PHP" artisan up)
 }
 
 echo "1/7 Mode maintenance"
 (cd backend && "$PHP" artisan down --retry=30) || true
-trap bring_up EXIT
+trap 'bring_up; cleanup' EXIT
 
 echo "2/7 Dépendances PHP"
 (cd backend && composer install --no-dev --prefer-dist --no-interaction --optimize-autoloader)
@@ -49,6 +72,6 @@ echo "6/7 Arrêt propre du scan et de la file (Supervisor les relance)"
 
 echo "7/7 Fin de la maintenance"
 bring_up
-trap - EXIT
+trap cleanup EXIT
 
 echo "Déploiement terminé. Vérifier : supervisorctl status, page https://.../login, Journal de l'administration."

@@ -235,6 +235,8 @@ export function parseAlertMessage(message) {
     trend: null,
     rule: null,
     confidence: null,
+    vitalityNote: null,
+    options: [],
   }
 
   for (const line of rest) {
@@ -247,7 +249,9 @@ export function parseAlertMessage(message) {
       if (key === 'Prochain but') parsed.target = value
       else if (key === 'Pari') parsed.bet = value
       else if (key === 'Écart') parsed.gap = value === 'n.c.' ? null : value
+      else if (key === 'Vitalité' && value.startsWith('non disponible')) parsed.vitalityNote = `Vitalité ${value}`
       else if (key === 'Vitalité') parsed.vitality = value === 'n.c.' ? null : parseDecimal(value.split('/')[0])
+      else if (key.startsWith('Option')) parsed.options.push({ label: key, text: value })
       else if (key === 'Tendance') parsed.trend = value === 'n.c.' ? null : value
       else if (key === 'Règle') parsed.rule = value
       else if (key === 'Confiance') parsed.confidence = value
@@ -347,11 +351,11 @@ export function matchStatusLabel(status, minute) {
 /**
  * Raison pour laquelle un match ne peut pas être suivi, ou null s'il peut l'être.
  */
-export function unavailableReason(match, quotaRemaining) {
+export function unavailableReason(match, quotaRemaining, allowWithoutStatistics = true) {
   if (match.tracked) return null
   const reasons = []
   if (!match.exactScoreMarketAvailable) reasons.push('cotes de score exact non disponibles pour ce match')
-  if (match.statisticsCoverage === false) reasons.push('statistiques non couvertes pour cette compétition')
+  if (match.statisticsCoverage === false && !allowWithoutStatistics) reasons.push('statistiques non couvertes pour cette compétition')
   if (quotaRemaining === 0) reasons.push('quota API épuisé')
   if (!reasons.length) return null
 
@@ -448,4 +452,14 @@ export function leagueChosenInUrl(search, filters) {
   const value = new URLSearchParams(search).get('ligue')
 
   return value !== null && value !== 'auto' && filters.some((filter) => filter.key === value)
+}
+
+/**
+ * État du scan affiché : « Scan automatique », « Scan manuel » ou « Scan en pause ».
+ */
+export function scanModeLabel(scanMode) {
+  if (!scanMode) return 'État du scan…'
+  if (scanMode.paused) return 'Scan en pause'
+
+  return scanMode.mode === 'manual' ? 'Scan manuel' : 'Scan automatique'
 }

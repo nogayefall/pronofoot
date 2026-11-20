@@ -28,6 +28,8 @@ final readonly class RuleInput
      *                                                                                   but de chaque équipe. Sans elle, $oddsChangePercent vaut pour l’équipe à l’écart le plus faible.
      * @param  array{home?: array{phase: string|null, change: float|null}, away?: array{phase: string|null, change: float|null}}|null  $sidePostGoal
      *                                                                                                                                                Phase et variation après un but, par équipe (complément 4).
+     * @param  array<string, float>  $overLineOdds  Cotes Over du total de buts par ligne (« 1.5 » => 1.85), si le marché est disponible.
+     * @param  bool  $vitalityUnavailable  Match suivi sans statistiques : la vitalité n’existe pas et son filtre n’est pas appliqué (à confirmer).
      */
     public function __construct(
         public int $homeScore,
@@ -43,6 +45,8 @@ final readonly class RuleInput
         public ?float $postGoalChangePercent = null,
         public ?array $sideOddsChangePercent = null,
         public ?array $sidePostGoal = null,
+        public array $overLineOdds = [],
+        public bool $vitalityUnavailable = false,
     ) {
         $phases = [$postGoalPhase, $sidePostGoal['home']['phase'] ?? null, $sidePostGoal['away']['phase'] ?? null];
         foreach ($phases as $phase) {

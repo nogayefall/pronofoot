@@ -21,6 +21,10 @@ npm --version
 mysql --version
 ```
 
+## Script de déploiement
+
+`sudo -u www-data bash deploy/deploy.sh`, après `git pull` dans `/var/www/pronofoot`. Le script crée ses fichiers modifiables par le groupe (`umask 002`), place les caches de composer et npm dans un dossier temporaire supprimé à la fin (`www-data` n’a pas de dossier personnel accessible en écriture), et vérifie que `backend/vendor` et `frontend/node_modules` sont modifiables par le groupe : sinon il s’arrête en indiquant la commande à lancer une fois avec le propriétaire (`chmod -R g+w backend/vendor frontend/node_modules`).
+
 ## Fichiers prêts à copier (`deploy/`)
 
 | Fichier | Destination sur le serveur | Rôle |

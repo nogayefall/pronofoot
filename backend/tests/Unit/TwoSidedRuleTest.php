@@ -87,20 +87,110 @@ class TwoSidedRuleTest extends TestCase
         $this->assertStringContainsString('Extérieur (3-1) : cote 7.00, écart +4.50, variation après le but −9 % → alerte Critique', $result->reason);
     }
 
-    public function test_both_teams_in_signal_critical_wins_then_most_negative_gap_then_strongest_drop(): void
+    public function test_both_teams_in_signal_give_only_the_neutral_option_without_designated_team(): void
     {
         $bothCritical = $this->decide(1, 1, ['1-1' => 3.00, '2-1' => 2.80, '1-2' => 3.30], ['home' => -1.0, 'away' => -7.0]);
+
         $this->assertTrue($bothCritical->shouldAlert);
-        $this->assertSame('home', $bothCritical->selection, 'Écart −0.20 contre +0.30 : l’écart le plus négatif l’emporte.');
-        $this->assertStringContainsString('L’autre équipe (extérieur) donne aussi un signal (Critique)', $bothCritical->reason);
+        $this->assertNull($bothCritical->selection, 'Pas d’équipe désignée.');
+        $this->assertSame('Over 2.5 buts', $bothCritical->suggestedAction, '1-1 : un but de plus = Over 2.5.');
+        $this->assertSame('Critique', $bothCritical->level);
+        $this->assertCount(1, $bothCritical->options);
+        $this->assertSame('neutral', $bothCritical->options[0]['type']);
+        $this->assertStringContainsString('les deux équipes donnent un signal, pas d’équipe désignée. Option neutre seule : un but de plus dans le match, Over 2.5, cote non disponible. Écarts : domicile −0.20, extérieur +0.30.', $bothCritical->reason);
 
-        $criticalBeatsHigh = $this->decide(1, 1, ['1-1' => 3.00, '2-1' => 3.30, '1-2' => 3.40], ['home' => -1.0, 'away' => -6.0]);
-        $this->assertSame('away', $criticalBeatsHigh->selection, 'Haute (domicile, écart +0.30) contre Critique (extérieur, forte baisse).');
-        $this->assertSame('Critique', $criticalBeatsHigh->level);
-        $this->assertStringContainsString('L’autre équipe (domicile) donne aussi un signal (Haute)', $criticalBeatsHigh->reason);
+        $criticalAndHigh = $this->decide(1, 1, ['1-1' => 3.00, '2-1' => 3.30, '1-2' => 3.40], ['home' => -1.0, 'away' => -6.0]);
+        $this->assertNull($criticalAndHigh->selection, 'Haute (domicile) et Critique (extérieur) : toujours l’option neutre seule.');
+        $this->assertSame('Critique', $criticalAndHigh->level, 'Niveau du signal le plus grave.');
+        $this->assertSame(['neutral'], array_column($criticalAndHigh->options, 'type'));
+    }
 
-        $equalGaps = $this->decide(1, 1, ['1-1' => 3.00, '2-1' => 2.90, '1-2' => 2.90], ['home' => -6.0, 'away' => -9.0]);
-        $this->assertSame('away', $equalGaps->selection, 'Écarts égaux : la baisse la plus forte l’emporte.');
+    public function test_a_single_team_in_signal_gives_two_options_targeted_first(): void
+    {
+        $result = (new RuleEngine)->evaluate(
+            new RuleInput(
+                homeScore: 1,
+                awayScore: 0,
+                exactScoreOdds: ['1-0' => 2.80, '2-0' => 3.50, '1-1' => 6.00],
+                vitalityScore: 70,
+                sideOddsChangePercent: ['home' => -12.5, 'away' => 1.0],
+                overLineOdds: ['1.5' => 1.85, '2.5' => 3.10],
+            ),
+            new RuleConfiguration,
+        );
+
+        $this->assertSame('home', $result->selection);
+        $this->assertSame(['targeted', 'neutral'], array_column($result->options, 'type'));
+        $this->assertSame('2-0', $result->options[0]['scoreKey']);
+        $this->assertSame(3.5, $result->options[0]['odds']);
+        $this->assertSame('Over 1.5', $result->options[1]['line'], '1-0 : un but de plus = Over 1.5.');
+        $this->assertSame(1.85, $result->options[1]['odds']);
+        $this->assertStringContainsString('Option 1 (ciblée) : prochain but de l’équipe à domicile, score 2-0, cote 3.50, écart +0.70. Option 2 (neutre) : un but de plus dans le match, Over 1.5, cote 1.85. Aucune option n’est jouée automatiquement.', $result->reason);
+    }
+
+    public function test_two_all_gives_over_four_point_five_and_abstention_gives_no_option(): void
+    {
+        $twoAll = $this->decide(2, 2, ['2-2' => 5.00, '3-2' => 4.80, '2-3' => 9.50], ['home' => 0.0, 'away' => 0.0]);
+        $this->assertSame('home', $twoAll->selection);
+        $this->assertSame('Over 4.5', $twoAll->options[1]['line'], '2-2 : un but de plus = Over 4.5.');
+        $this->assertNull($twoAll->options[1]['odds'], 'Marché Over/Under indisponible : option sans cote.');
+
+        $abstention = $this->decide(1, 0, ['1-0' => 2.29, '2-0' => 3.60, '1-1' => 8.00], ['home' => 12.5, 'away' => 0.0]);
+        $this->assertFalse($abstention->shouldAlert);
+        $this->assertSame([], $abstention->options);
+    }
+
+    public function test_f121_d_keeps_its_over_four_point_five_without_targeted_option(): void
+    {
+        $result = $this->decide(2, 2, ['2-2' => 8.00, '3-2' => 6.00, '2-3' => 8.00], ['home' => -10.0, 'away' => 0.0]);
+
+        $this->assertSame('F121-D', $result->decisiveRule);
+        $this->assertSame('Over 4.5 buts', $result->suggestedAction);
+        $this->assertSame([], $result->options);
+    }
+
+    public function test_f121_x_cross_gap_is_off_by_default_and_gives_a_neutral_bet_when_enabled(): void
+    {
+        $odds = ['2-2' => 6.00, '3-2' => 8.50, '2-3' => 9.00];
+        $this->assertNotSame('F121-X', $this->decide(2, 2, $odds, ['home' => 0.0, 'away' => 0.0])->decisiveRule, 'Désactivée par défaut.');
+
+        $pipeline = ['F121-E2', 'F121-D', 'F121-X', 'vitality', 'trend_drop', 'trend_rise', 'gap_negative', 'gap_too_high', 'gap_small'];
+        $enabled = $this->decide(2, 2, $odds, ['home' => 0.0, 'away' => 0.0], new RuleConfiguration(pipeline: $pipeline));
+        $this->assertSame('F121-X', $enabled->decisiveRule, 'Écart croisé |8.50 − 9.00| = 0.50 < 1.00, match ouvert (4 buts).');
+        $this->assertSame('Over 4.5 buts', $enabled->suggestedAction);
+        $this->assertSame(['neutral'], array_column($enabled->options, 'type'));
+
+        $notOpen = $this->decide(1, 1, ['1-1' => 6.00, '2-1' => 8.50, '1-2' => 9.00], ['home' => 0.0, 'away' => 0.0], new RuleConfiguration(pipeline: $pipeline));
+        $this->assertNotSame('F121-X', $notOpen->decisiveRule, 'Match non ouvert (2 buts) : pas de F121-X.');
+    }
+
+    public function test_follow_the_leader_is_off_by_default_and_only_evaluates_the_leader_when_enabled(): void
+    {
+        $odds = ['2-0' => 3.00, '3-0' => 4.00, '2-1' => 4.50];
+        $this->assertSame('away', $this->decide(2, 0, $odds, ['home' => 2.0, 'away' => -8.0])->selection, 'Désactivé : les deux équipes sont évaluées.');
+
+        $leaderOnly = $this->decide(2, 0, $odds, ['home' => 2.0, 'away' => -8.0], new RuleConfiguration(followLeader: true));
+        $this->assertFalse($leaderOnly->shouldAlert, 'Seul le leader (domicile, cote en hausse) est évalué.');
+        $this->assertCount(1, $leaderOnly->sides);
+        $this->assertContains('F121-C.2', array_column($leaderOnly->steps, 'step'));
+    }
+
+    public function test_a_match_without_statistics_skips_the_vitality_filter_and_says_so(): void
+    {
+        $result = (new RuleEngine)->evaluate(
+            new RuleInput(
+                homeScore: 1,
+                awayScore: 1,
+                exactScoreOdds: ['1-1' => 3.19, '2-1' => 3.10, '1-2' => 10.00],
+                sideOddsChangePercent: ['home' => 0.0, 'away' => 0.0],
+                vitalityUnavailable: true,
+            ),
+            new RuleConfiguration,
+        );
+
+        $this->assertTrue($result->shouldAlert, 'Sans statistiques : le filtre vitalité n’est pas appliqué (à confirmer).');
+        $this->assertTrue($result->filters['vitality']->passed);
+        $this->assertStringContainsString('Vitalité non disponible (statistiques non couvertes)', $result->reason);
     }
 
     public function test_the_rule_no_longer_needs_f121_c_to_be_active(): void

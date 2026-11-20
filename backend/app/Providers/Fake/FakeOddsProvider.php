@@ -37,6 +37,7 @@ final class FakeOddsProvider implements OddsProvider
                 awayScore: isset($football['away_score']) ? (int) $football['away_score'] : null,
                 stopped: ($football['status'] ?? null) === 'halftime',
                 under25Odds: $includeUnder25 && is_numeric($odds['under_2_5_odds'] ?? null) ? (float) $odds['under_2_5_odds'] : null,
+                overLineOdds: is_array($odds['over_line_odds'] ?? null) ? array_map('floatval', $odds['over_line_odds']) : [],
             );
         }
 

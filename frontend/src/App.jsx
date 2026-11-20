@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
-import { createRuleTestPayload, requestAdminApi, teamStatisticsRows, journalDecisionLabel, parseAlertMessage, trackedMatchDecision, quotaSummary, elapsedLabel, matchStatusLabel, unavailableReason, availableMatchesView, leagueFilters, leagueFilterCounts, leagueFilterFromUrl, effectiveLeagueFilter, leagueChosenInUrl, DEFAULT_TRACKED_LEAGUE_IDS } from './adminData'
-import { AlertCard, Brand, EmptyState, Icon, MetricCard, Pill, Section, VitalityBar } from './ui'
+import { createRuleTestPayload, requestAdminApi, teamStatisticsRows, journalDecisionLabel, parseAlertMessage, trackedMatchDecision, quotaSummary, elapsedLabel, scanModeLabel, matchStatusLabel, unavailableReason, availableMatchesView, leagueFilters, leagueFilterCounts, leagueFilterFromUrl, effectiveLeagueFilter, leagueChosenInUrl, DEFAULT_TRACKED_LEAGUE_IDS } from './adminData'
+import { AlertCard, Brand, EmptyState, Icon, MetricCard, Pill, ScanModeControl, Section, VitalityBar } from './ui'
 import './App.css'
 
 const navigation = [
@@ -73,11 +73,16 @@ const settingLabels = {
   'scan.calm_interval_seconds': 'Fréquence des matchs calmes (secondes)',
   'scan.hot_gap_threshold': 'Écart d’un match chaud (à confirmer)',
   'scan.no_scan_gap_threshold': 'Écart au-delà duquel un match n’est pas scanné (à confirmer)',
-  'scan.auto_mode': 'Suivi automatique des championnats majeurs',
+  'scan.auto_mode': 'Mode de scan automatique (sinon manuel)',
   'scan.auto_league_ids': 'Ligues suivies automatiquement (identifiants API-Football)',
   'scan.missing_readings_before_end': 'Relevés absents du flux avant la fin d’un match',
   'scan.max_match_duration_minutes': 'Durée maximale de suivi d’un match (minutes)',
   'scan.idle_interval_seconds': 'Pause sans match à suivre (secondes, à confirmer)',
+  'scan.allow_tracking_without_statistics': 'Autoriser le suivi sans statistiques',
+  'scan.paused': 'Scan en pause',
+  'rules.f121x_enabled': 'F121-X : pari neutre sur écart croisé (à confirmer)',
+  'rules.f121x_cross_gap_max': 'F121-X : écart croisé maximal (à confirmer)',
+  'rules.follow_leader_enabled': 'F121-C.2 : suivre l’équipe qui mène de 2 buts (à confirmer)',
 }
 
 const settingDescriptions = {
@@ -114,6 +119,11 @@ const settingDescriptions = {
   'scan.auto_league_ids': 'Par défaut : Premier League 39, Liga 140, Serie A 135, Bundesliga 78, Ligue 1 61, Ligue des champions 2, Europa League 3.',
   'scan.missing_readings_before_end': 'Filet de sécurité : un match absent du flux en direct pendant ce nombre de relevés consécutifs est considéré terminé (4 ≈ 2 minutes).',
   'scan.max_match_duration_minutes': 'Un match dont le coup d’envoi date de plus de ce nombre de minutes est retiré du suivi (270 = 4 h 30).',
+  'scan.allow_tracking_without_statistics': 'Permet de suivre un match dont la ligue ne couvre pas les statistiques, si ses cotes de score exact sont disponibles : aucun appel de statistiques, vitalité non disponible et filtre vitalité non appliqué (à confirmer).',
+  'scan.paused': 'Aucun appel API tant que le scan est en pause. Se règle aussi avec le bouton Pause / Reprendre.',
+  'rules.f121x_enabled': '|écart domicile − écart extérieur| sous le seuil dans un match ouvert : pari neutre « un but de plus ». Désactivée par défaut.',
+  'rules.f121x_cross_gap_max': 'Seuil de l’écart croisé pour F121-X.',
+  'rules.follow_leader_enabled': 'Si une équipe mène de 2 buts ou plus, seule cette équipe est évaluée. Désactivée par défaut.',
   'scan.idle_interval_seconds': 'Quand aucun match n’est suivi et qu’aucun match des championnats suivis n’est en direct : pas de statistiques ni de cotes, et le flux n’est relu qu’après cette pause.',
 }
 
@@ -156,6 +166,11 @@ function SimulationResult({ result }) {
       {decision.steps?.length > 0 && <div className="simulation-section"><h3>Ordre de décision (à confirmer)</h3>
         {decision.steps.map((step) => (
           <div className="simulation-line" key={`${step.side ?? 'match'}-${step.step}`}><span>{decisionStepLabels[step.step] ?? step.step}{step.side ? ` — ${step.side === 'home' ? 'domicile' : 'extérieur'}` : ''}</span><strong>{decisionOutcomeLabels[step.outcome] ?? step.outcome}</strong></div>
+        ))}
+      </div>}
+      {decision.options?.length > 0 && <div className="simulation-section"><h3>Options proposées (aucune n’est jouée automatiquement)</h3>
+        {decision.options.map((option, index) => (
+          <div className="simulation-line" key={`${option.type}-${index}`}><span>{option.type === 'neutral' ? `Neutre : un but de plus dans le match (${option.line})` : `Ciblée : ${option.label.toLowerCase()} (score ${option.scoreKey})`}</span><strong>{option.odds ? `cote ${option.odds.toFixed(2)}` : 'cote non disponible'}</strong></div>
         ))}
       </div>}
       {decision.sides?.length > 0 && <div className="simulation-section"><h3>Deux équipes (règle F121)</h3>
@@ -289,7 +304,10 @@ function App() {
 
   useEffect(() => {
     if (activePage !== 'matches') return
-    document.querySelector('.league-chip[aria-pressed="true"]')?.scrollIntoView({ block: 'nearest', inline: 'center' })
+    // Ramène la pastille active dans la rangée (défilement horizontal seulement, la page ne bouge pas).
+    const chip = document.querySelector('.league-chip[aria-pressed="true"]')
+    const row = chip?.parentElement
+    if (chip && row && row.scrollWidth > row.clientWidth) row.scrollLeft = chip.offsetLeft - row.offsetLeft - (row.clientWidth - chip.offsetWidth) / 2
   }, [activePage, leagueFilter, leagueChosen, matchesData])
 
   useEffect(() => {
@@ -536,6 +554,17 @@ function App() {
     }
   }
 
+  async function changeScanMode(changes, message) {
+    setIsBusy(true)
+    const result = await adminRequest('/admin/api/settings', 'PATCH', { settings: changes })
+    if (result) {
+      await loadSettings()
+      await loadDashboard()
+      setActionMessage(message)
+    }
+    setIsBusy(false)
+  }
+
   async function runNotificationTest() {
     setIsBusy(true)
     setNotificationTest(null)
@@ -592,6 +621,10 @@ function App() {
   const alertChannels = [...new Set(activeAlerts.map((alert) => alert.channel).filter(Boolean))]
   const lastPassAt = dashboard?.scan?.lastPassAt
   const scanActive = dashboard?.scan?.active === true
+  const scanMode = dashboard?.scanMode ?? null
+  const scanStateLabel = scanModeLabel(scanMode)
+  const allowWithoutStatistics = settingValue('scan.allow_tracking_without_statistics') !== false
+  const scanModeControl = <ScanModeControl scanMode={scanMode} label={scanStateLabel} busy={isBusy} onMode={(mode) => void changeScanMode({ 'scan.auto_mode': mode === 'auto' }, mode === 'auto' ? 'Mode de scan : automatique. Pris en compte au prochain tour.' : 'Mode de scan : manuel. Pris en compte au prochain tour.')} onPause={(paused) => void changeScanMode({ 'scan.paused': paused }, paused ? 'Scan en pause : aucun appel API à partir du prochain tour.' : 'Scan repris au prochain tour.')} />
   const autoLeagueIds = Array.isArray(settingValue('scan.auto_league_ids')) ? settingValue('scan.auto_league_ids') : null
   const alertMatchNames = activeAlerts.map((alert) => alert.match).filter(Boolean)
   const trackedLeagueIds = autoLeagueIds ?? DEFAULT_TRACKED_LEAGUE_IDS
@@ -603,7 +636,7 @@ function App() {
   const matchesView = availableMatchesView(matchesData?.matches ?? [], { leagueIds: trackedLeagueIds, league: activeLeague.key, query: matchSearch, alertMatchNames })
   const visibleMatchRows = matchesView.slice(0, visibleMatchCount).map((match) => ({
     match,
-    reason: unavailableReason(match, matchesData?.quotaRemaining),
+    reason: unavailableReason(match, matchesData?.quotaRemaining, allowWithoutStatistics),
     alerted: alertMatchNames.includes(`${match.homeTeam} - ${match.awayTeam}`),
     statisticsNote: match.statisticsCoverage === null
       ? 'Couverture des statistiques non confirmée par le fournisseur.'
@@ -655,7 +688,7 @@ function App() {
         </nav>
         <div className="sidebar-spacer" />
         <div className={`scan-card ${scanActive ? 'scan-card-active' : ''}`} role="status">
-          <p className="scan-card-state"><span className="scan-dot" aria-hidden="true" />{dashboard ? (scanActive ? 'Scan en cours' : 'Scan à l’arrêt') : 'État du scan…'}</p>
+          <p className="scan-card-state"><span className="scan-dot" aria-hidden="true" />{dashboard ? (scanMode?.paused ? scanStateLabel : `${scanStateLabel} · ${scanActive ? 'en cours' : 'à l’arrêt'}`) : 'État du scan…'}</p>
           <p className="num scan-card-time">Dernier relevé {elapsedLabel(lastPassAt, now)}</p>
         </div>
         <div className="drawer-account">
@@ -702,7 +735,7 @@ function App() {
                 <div className="panel panel-flush">
                   {trackedMatches.length ? <><div className="table-scroll hide-on-phone"><table className="data-table"><thead><tr><th scope="col">Ligue</th><th scope="col">Match</th><th scope="col">Min.</th><th scope="col">Score</th><th scope="col">Vitalité</th><th scope="col">Décision</th></tr></thead><tbody>{trackedMatches.map((match) => {
                     const decision = trackedMatchDecision(match, parsedAlerts, minimumVitality)
-                    return <tr key={match.id}><td className="cell-muted">{match.competition ?? '—'}</td><td><strong>{match.homeTeam} – {match.awayTeam}</strong><small>{match.trackingMode === 'auto' ? 'Suivi automatique · ' : ''}relevé {elapsedLabel(match.capturedAt, now)}</small></td><td className="num">{match.minute === null || match.minute === undefined ? '—' : `${match.minute}'`}</td><td className="num">{match.homeScore ?? '—'}-{match.awayScore ?? '—'}</td><td><VitalityBar value={match.vitality} minimum={minimumVitality} /></td><td><Pill tone={decision.tone}>{decision.label}</Pill></td></tr>
+                    return <tr key={match.id}><td className="cell-muted">{match.competition ?? '—'}</td><td><strong>{match.homeTeam} – {match.awayTeam}</strong><small>{match.statisticsAvailable === false ? 'Sans stats · ' : ''}{match.trackingMode === 'auto' ? 'Suivi automatique · ' : ''}relevé {elapsedLabel(match.capturedAt, now)}</small></td><td className="num">{match.minute === null || match.minute === undefined ? '—' : `${match.minute}'`}</td><td className="num">{match.homeScore ?? '—'}-{match.awayScore ?? '—'}</td><td><VitalityBar value={match.vitality} minimum={minimumVitality} /></td><td><Pill tone={decision.tone}>{decision.label}</Pill></td></tr>
                   })}</tbody></table></div>
                   <ul className="match-cards show-on-phone">{trackedMatches.map((match) => {
                     const decision = trackedMatchDecision(match, parsedAlerts, minimumVitality)
@@ -711,7 +744,7 @@ function App() {
                       <div className="match-card-meta"><span>{match.competition ?? 'Compétition inconnue'}</span><span className="num">{match.minute === null || match.minute === undefined ? '—' : `${match.minute}'`}</span></div>
                       <div className="match-card-pills"><Pill tone={decision.tone}>{decision.label}</Pill></div>
                       <div className="match-card-vitality"><span>Vitalité</span><VitalityBar value={match.vitality} minimum={minimumVitality} /></div>
-                      <p className="match-card-reason">{match.trackingMode === 'auto' ? 'Suivi automatique · ' : ''}relevé {elapsedLabel(match.capturedAt, now)}</p>
+                      <p className="match-card-reason">{match.statisticsAvailable === false ? 'Sans stats · ' : ''}{match.trackingMode === 'auto' ? 'Suivi automatique · ' : ''}relevé {elapsedLabel(match.capturedAt, now)}</p>
                     </li>
                   })}</ul></> : <EmptyState icon="target" title="Aucun match suivi" message="Ajoutez une rencontre avec le Scan ciblé, ou attendez un match des championnats suivis automatiquement." />}
                 </div>
@@ -725,6 +758,7 @@ function App() {
 
           {activePage === 'matches' && (
             <>
+              {scanModeControl}
               <div className="message message-neutral"><Icon name="clock" size={18} /><span><strong>{matchesData?.message ?? 'Le flux sera consulté à l’ouverture de cette page.'}</strong> Quota restant : <span className="num">{matchesData?.quotaRemaining ?? 'inconnu'}</span>. Aucun match ne peut être suivi si le fournisseur indique un quota nul.</span></div>
               <Section title="Rencontres disponibles" aside={simulation ? 'Données fictives (voir le bandeau).' : 'Flux du fournisseur, actualisé à l’ouverture de la page.'} action={<button className="button button-ghost" type="button" onClick={() => void loadMatches()}><Icon name="refresh" size={16} />Actualiser</button>}>
                 <div className="panel panel-flush">
@@ -737,14 +771,14 @@ function App() {
                   </div>
                   {matchesView.length ? <><div className="table-scroll table-scroll-sticky hide-on-phone"><table className="data-table data-table-matches"><thead><tr><th scope="col">Rencontre</th><th scope="col">Compétition</th><th scope="col">État</th><th scope="col">Score</th><th scope="col">Cotes score exact</th><th scope="col">Statistiques</th><th scope="col" className="col-tracking">Suivi</th><th scope="col">Action</th></tr></thead><tbody>{visibleMatchRows.map((row) => {
                     const { match, alerted, statisticsNote } = row
-                    return <tr key={match.providerMatchId} className={match.tracked || alerted ? 'row-highlight' : undefined}><td><strong>{match.homeTeam} – {match.awayTeam}</strong><small>{match.tracked ? <span className="tracked-note">Suivi · </span> : null}{alerted ? 'Alerte active · ' : ''}{match.kickoffAt ? `Début ${formatTime(match.kickoffAt)}` : 'Horaire non disponible'}</small></td><td className="cell-muted cell-ellipsis" title={match.competition ?? undefined}>{match.competition ?? '—'}</td><td className="num cell-nowrap">{matchStatusLabel(match.status, match.minute)}</td><td className="num cell-nowrap">{match.homeScore ?? '—'}-{match.awayScore ?? '—'}</td><td>{match.exactScoreMarketAvailable ? <Pill tone="alert">Disponible</Pill> : <Pill tone="dead">Non disponible</Pill>}</td><td><span title={statisticsNote}>{match.statisticsCoverage === null ? <Pill tone="watch">Non confirmées</Pill> : match.statisticsCoverage ? <Pill tone="alert">{match.statisticsCoverageFallback ? 'Disponible*' : 'Disponible'}</Pill> : <Pill tone="dead">Non disponible</Pill>}</span></td><td className="col-tracking">{match.tracked ? <Pill tone="alert">Suivi</Pill> : <Pill tone="watch">Non suivi</Pill>}</td><td className="cell-action">{matchAction(row, true)}</td></tr>
+                    return <tr key={match.providerMatchId} className={match.tracked || alerted ? 'row-highlight' : undefined}><td><strong>{match.homeTeam} – {match.awayTeam}</strong><small>{match.tracked ? <span className="tracked-note">Suivi · </span> : null}{alerted ? 'Alerte active · ' : ''}{match.kickoffAt ? `Début ${formatTime(match.kickoffAt)}` : 'Horaire non disponible'}</small></td><td className="cell-muted cell-ellipsis" title={match.competition ?? undefined}>{match.competition ?? '—'}</td><td className="num cell-nowrap">{matchStatusLabel(match.status, match.minute)}</td><td className="num cell-nowrap">{match.homeScore ?? '—'}-{match.awayScore ?? '—'}</td><td>{match.exactScoreMarketAvailable ? <Pill tone="alert">Disponible</Pill> : <Pill tone="dead">Non disponible</Pill>}</td><td><span title={statisticsNote}>{match.statisticsCoverage === null ? <Pill tone="watch">Non confirmées</Pill> : match.statisticsCoverage ? <Pill tone="alert">{match.statisticsCoverageFallback ? 'Disponible*' : 'Disponible'}</Pill> : allowWithoutStatistics && match.exactScoreMarketAvailable ? <Pill tone="high">Sans stats</Pill> : <Pill tone="dead">Non disponible</Pill>}</span></td><td className="col-tracking">{match.tracked ? <Pill tone="alert">Suivi</Pill> : <Pill tone="watch">Non suivi</Pill>}</td><td className="cell-action">{matchAction(row, true)}</td></tr>
                   })}</tbody></table></div>
                   <ul className="match-cards show-on-phone">{visibleMatchRows.map((row) => {
                     const { match, alerted, reason } = row
                     return <li key={match.providerMatchId} className={`match-card ${match.tracked || alerted ? 'match-card-highlight' : ''}`}>
                       <div className="match-card-top"><strong>{match.homeTeam} – {match.awayTeam}</strong><span className="num match-card-score">{match.homeScore ?? '—'}-{match.awayScore ?? '—'}</span></div>
                       <div className="match-card-meta"><span>{match.competition ?? 'Compétition inconnue'}</span><span className="num">{matchStatusLabel(match.status, match.minute)}</span></div>
-                      <div className="match-card-pills">{match.tracked && <Pill tone="alert">Suivi</Pill>}{alerted && <Pill tone="high">Alerte active</Pill>}{match.exactScoreMarketAvailable ? <Pill tone="alert">Cotes disponibles</Pill> : <Pill tone="dead">Cotes non disponibles</Pill>}{match.statisticsCoverage === null ? <Pill tone="watch">Stats non confirmées</Pill> : match.statisticsCoverage ? <Pill tone="alert">{match.statisticsCoverageFallback ? 'Stats disponibles*' : 'Stats disponibles'}</Pill> : <Pill tone="dead">Stats non disponibles</Pill>}</div>
+                      <div className="match-card-pills">{match.tracked && <Pill tone="alert">Suivi</Pill>}{alerted && <Pill tone="high">Alerte active</Pill>}{match.exactScoreMarketAvailable ? <Pill tone="alert">Cotes disponibles</Pill> : <Pill tone="dead">Cotes non disponibles</Pill>}{match.statisticsCoverage === null ? <Pill tone="watch">Stats non confirmées</Pill> : match.statisticsCoverage ? <Pill tone="alert">{match.statisticsCoverageFallback ? 'Stats disponibles*' : 'Stats disponibles'}</Pill> : allowWithoutStatistics && match.exactScoreMarketAvailable ? <Pill tone="high">Sans stats</Pill> : <Pill tone="dead">Stats non disponibles</Pill>}</div>
                       {reason && <p className="match-card-reason">{reason}</p>}
                       <div className="match-card-foot"><small>{match.kickoffAt ? `Début ${formatTime(match.kickoffAt)}` : 'Horaire non disponible'}</small>{matchAction(row, false)}</div>
                     </li>
@@ -839,6 +873,7 @@ function App() {
 
           {activePage === 'settings' && (
             <>
+              {scanModeControl}
               {notificationTest && <div className={`message ${notificationTest.status === 'error' ? 'message-error' : notificationTest.status === 'warning' ? 'message-warning' : 'message-success'}`} role={notificationTest.status === 'error' ? 'alert' : 'status'}><span><strong>{notificationTest.status === 'error' ? 'Échec de l’envoi : ' : notificationTest.status === 'warning' ? 'Attention : ' : 'Message envoyé : '}</strong>{notificationTest.text}</span></div>}
               <div className="message message-warning"><Icon name="shield" size={18} /><span><strong>Les paramètres marqués « À confirmer » attendent une décision du client.</strong> Leur valeur par défaut reste prudente. Aucun pari automatique n’est effectué.</span></div>
               <Section title="Paramètres du détecteur" aside="Les champs sans valeur ne déclenchent pas de comportement supposé.">

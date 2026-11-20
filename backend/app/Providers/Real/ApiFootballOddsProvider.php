@@ -84,6 +84,7 @@ final class ApiFootballOddsProvider implements OddsProvider
         $requestsRemaining = $feed->requestsRemaining;
         $requestsLimit = $feed->requestsLimit;
         $under25Odds = [];
+        $overLineOdds = [];
         $message = null;
 
         try {
@@ -100,6 +101,7 @@ final class ApiFootballOddsProvider implements OddsProvider
                     : "Cote Under 2.5 indisponible : API-Football a répondu HTTP {$response->status()} pour odds/live?bet=36.";
             } else {
                 $under25Odds = $mapped;
+                $overLineOdds = $this->mapper->mapOverLineOdds($response->body()) ?? [];
             }
         } catch (ConnectionException) {
             $message = 'Cote Under 2.5 indisponible : échec de connexion au point odds/live?bet=36.';
@@ -114,6 +116,7 @@ final class ApiFootballOddsProvider implements OddsProvider
             awayScore: $match->awayScore,
             stopped: $match->stopped,
             under25Odds: $under25Odds[$match->providerMatchId] ?? null,
+            overLineOdds: $overLineOdds[$match->providerMatchId] ?? [],
         ), $feed->matches);
 
         return new OddsFeed(

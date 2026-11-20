@@ -77,7 +77,17 @@ class ScanService
         $maxMatchMinutes = $this->settings->integer($settingValues, 'scan.max_match_duration_minutes');
         $idleInterval = $this->settings->integer($settingValues, 'scan.idle_interval_seconds');
         $expiredAlerts = $this->expireAlerts($now);
-        $trackedMatches = TrackedMatch::query()->where('is_active', true)->get();
+
+        // Mode de scan (Paramètres / Matchs suivis), relu à chaque tour : en pause, aucun appel API.
+        if (($settingValues['scan.paused'] ?? false) === true) {
+            return new ScanPassResult(0, 0, 0, $expiredAlerts, 0, 0, $oddsInterval, incidents: $this->incidents, paused: true);
+        }
+
+        // Mode manuel : seuls les matchs ajoutés à la main sont scannés (pas de suivi automatique).
+        $trackedMatches = TrackedMatch::query()
+            ->where('is_active', true)
+            ->when(! $autoMode, fn ($query) => $query->where(fn ($manual) => $manual->whereNull('tracking_mode')->orWhere('tracking_mode', '!=', 'auto')))
+            ->get();
         // Plafond : un match commencé depuis plus de 4 h 30 est retiré sans aucun appel API.
         $matchesEnded = $this->endOverdueMatches($trackedMatches, $maxMatchMinutes, $now);
         $trackedMatches = $trackedMatches->filter(fn (TrackedMatch $trackedMatch): bool => $trackedMatch->is_active)->values();
@@ -103,7 +113,9 @@ class ScanService
         $dueMatches = $this->dueMatches($trackedMatches, $settingValues, $economyMode, $forceRefresh, $now);
         $dueMatchIds = $dueMatches->pluck('id')->all();
         $matchesNotScanned = count($trackedMatches) - count($dueMatches);
-        $includeStatistics = $dueMatches->isNotEmpty();
+        // Matchs suivis sans statistiques (ligue non couverte) : jamais d’appel de statistiques.
+        $statisticsMatches = $dueMatches->filter(fn (TrackedMatch $trackedMatch): bool => $trackedMatch->statistics_available !== false)->values();
+        $includeStatistics = $statisticsMatches->isNotEmpty();
         $footballFeed = $this->fetchFootball(
             $scanNumber,
             $includeStatistics,
@@ -111,7 +123,7 @@ class ScanService
             $quotaAlertThreshold,
             $now,
             $autoMode ? $autoLeagueIds : null,
-            $dueMatches,
+            $statisticsMatches,
         );
         if ($footballFeed === null) {
             return new ScanPassResult(
@@ -261,11 +273,12 @@ class ScanService
 
                 $oddsMatch = $oddsMatches[$trackedMatch->provider_match_id] ?? null;
                 $isDue = in_array($trackedMatch->id, $dueMatchIds, true);
+                $withoutStatistics = $trackedMatch->statistics_available === false;
                 $snapshot = $this->storeSnapshot(
                     $trackedMatch,
                     $footballMatch,
                     $oddsMatch,
-                    $isDue,
+                    $isDue && ! $withoutStatistics,
                     $statisticsInterval,
                     $vitalityScale,
                     $now,
@@ -340,7 +353,7 @@ class ScanService
                 $snapshotAge = $snapshot->statistics_captured_at === null
                     ? null
                     : CarbonImmutable::instance($snapshot->statistics_captured_at);
-                $vitality = $snapshotAge !== null
+                $vitality = ! $withoutStatistics && $snapshotAge !== null
                     && $snapshotAge->addSeconds($statisticsInterval)->greaterThanOrEqualTo($now)
                     ? $snapshot->vitality_score
                     : null;
@@ -364,6 +377,8 @@ class ScanService
                         minute: $footballMatch->minute,
                         sideOddsChangePercent: $sideChanges,
                         sidePostGoal: $postGoal,
+                        overLineOdds: $oddsMatch->overLineOdds,
+                        vitalityUnavailable: $withoutStatistics,
                     ),
                     $configuration,
                 );
@@ -1307,6 +1322,8 @@ class ScanService
             trend: $trend,
             expiresAt: $expiresAt,
             confidence: $result->convergenceScore,
+            options: $result->options,
+            vitalityUnavailable: $trackedMatch->statistics_available === false,
         );
     }
 

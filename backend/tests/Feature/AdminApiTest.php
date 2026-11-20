@@ -12,6 +12,7 @@ use App\Providers\Contracts\OddsProvider;
 use App\Providers\Data\FootballFeed;
 use App\Providers\Data\FootballMatch;
 use App\Providers\Data\OddsFeed;
+use App\Providers\Data\OddsMatch;
 use App\Rules\RuleConfiguration;
 use App\Services\RuleConfigurationFactory;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -74,7 +75,47 @@ class AdminApiTest extends TestCase
         $this->assertDatabaseCount('tracked_matches', 1);
     }
 
-    public function test_match_with_false_statistics_coverage_cannot_be_tracked(): void
+    public function test_match_with_false_statistics_coverage_cannot_be_tracked_when_the_setting_forbids_it(): void
+    {
+        Setting::query()->where('key', 'scan.allow_tracking_without_statistics')->update(['value' => '0']);
+        $this->fakeTrackingProviders(statisticsCoverage: false, exactScoreOdds: ['0-0' => 7.5], expectOddsCall: false);
+
+        $this->postJson(route('admin.api.matches.store'), [
+            'provider_match_id' => 'live-uncovered',
+        ])->assertUnprocessable()
+            ->assertJsonValidationErrors('provider_match_id');
+
+        $this->assertDatabaseCount('tracked_matches', 0);
+    }
+
+    public function test_match_without_statistics_but_with_exact_score_odds_is_tracked_without_statistics(): void
+    {
+        $this->fakeTrackingProviders(statisticsCoverage: false, exactScoreOdds: ['0-0' => 7.5, '1-0' => 8.6, '0-1' => 9.8]);
+
+        $this->postJson(route('admin.api.matches.store'), [
+            'provider_match_id' => 'live-uncovered',
+        ])->assertCreated()
+            ->assertJsonPath('warnings.0', 'Suivi sans statistiques : vitalité non disponible, filtre vitalité non appliqué (à confirmer).');
+
+        $this->assertFalse(TrackedMatch::query()->where('provider_match_id', 'live-uncovered')->sole()->statistics_available);
+    }
+
+    public function test_match_without_exact_score_odds_cannot_be_tracked_and_the_reason_is_given(): void
+    {
+        $this->fakeTrackingProviders(statisticsCoverage: false, exactScoreOdds: []);
+
+        $this->postJson(route('admin.api.matches.store'), [
+            'provider_match_id' => 'live-uncovered',
+        ])->assertUnprocessable()
+            ->assertJsonPath('errors.provider_match_id.0', 'Ce match ne peut pas être suivi : aucune cote de score exact non suspendue n’est disponible.');
+
+        $this->assertDatabaseCount('tracked_matches', 0);
+    }
+
+    /**
+     * @param  array<string, float>  $exactScoreOdds
+     */
+    private function fakeTrackingProviders(?bool $statisticsCoverage, array $exactScoreOdds, bool $expectOddsCall = true): void
     {
         $footballProvider = \Mockery::mock(FootballProvider::class);
         $footballProvider->shouldReceive('getLiveMatches')->once()->andReturn(new FootballFeed(
@@ -88,21 +129,25 @@ class AdminApiTest extends TestCase
                     homeTeam: 'Home',
                     awayTeam: 'Away',
                     status: 'First Half',
-                    statisticsCoverage: false,
+                    statisticsCoverage: $statisticsCoverage,
                 ),
             ],
         ));
         $oddsProvider = \Mockery::mock(OddsProvider::class);
-        $oddsProvider->shouldNotReceive('getLiveOdds');
+        if ($expectOddsCall) {
+            $oddsProvider->shouldReceive('getLiveOdds')->once()->andReturn(new OddsFeed(
+                driver: 'api_football',
+                reachable: true,
+                exactScoreMarketAvailable: $exactScoreOdds !== [],
+                overUnderMarketAvailable: false,
+                statusMessage: 'Test',
+                matches: [new OddsMatch(providerMatchId: 'live-uncovered', exactScoreOdds: $exactScoreOdds)],
+            ));
+        } else {
+            $oddsProvider->shouldNotReceive('getLiveOdds');
+        }
         $this->app->instance(FootballProvider::class, $footballProvider);
         $this->app->instance(OddsProvider::class, $oddsProvider);
-
-        $this->postJson(route('admin.api.matches.store'), [
-            'provider_match_id' => 'live-uncovered',
-        ])->assertUnprocessable()
-            ->assertJsonValidationErrors('provider_match_id');
-
-        $this->assertDatabaseCount('tracked_matches', 0);
     }
 
     public function test_match_cannot_be_tracked_without_a_non_suspended_exact_score_market(): void

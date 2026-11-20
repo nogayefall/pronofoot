@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Admin\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\Alert;
+use App\Models\Setting;
 use App\Models\TrackedMatch;
 use Carbon\CarbonImmutable;
 use Illuminate\Http\JsonResponse;
@@ -28,6 +29,7 @@ final class AdminDashboardController extends Controller
                     'competition' => $match->competition,
                     'status' => $match->status,
                     'trackingMode' => $match->tracking_mode,
+                    'statisticsAvailable' => $match->statistics_available !== false,
                     'minute' => $snapshot?->minute,
                     'homeScore' => $snapshot?->home_score,
                     'awayScore' => $snapshot?->away_score,
@@ -72,6 +74,10 @@ final class AdminDashboardController extends Controller
             'trackedMatches' => $matches,
             'activeAlerts' => $alerts,
             'quotaMode' => Cache::get('pronofoot.quota.mode', 'normal'),
+            'scanMode' => [
+                'mode' => Setting::query()->where('key', 'scan.auto_mode')->value('value') === '0' ? 'manual' : 'auto',
+                'paused' => Setting::query()->where('key', 'scan.paused')->value('value') === '1',
+            ],
             'quotas' => [
                 'football' => $providerStatus['football']['requestsRemaining'] ?? null,
                 'odds' => $providerStatus['odds']['requestsRemaining'] ?? null,

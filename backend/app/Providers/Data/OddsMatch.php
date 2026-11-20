@@ -7,6 +7,7 @@ final readonly class OddsMatch
     /**
      * @param  array<string, int|float>  $exactScoreOdds
      * @param  array<string, int|float>  $overUnderOdds
+     * @param  array<string, float>  $overLineOdds  Cotes Over du total de buts par ligne (« 1.5 » => 1.85), pari 36.
      * @param  float|null  $under25Odds  Cote Under 2.5 buts (total du match). Pilote réel : non branché tant que le format de bet 36 n’est pas capturé.
      */
     public function __construct(
@@ -18,5 +19,6 @@ final readonly class OddsMatch
         public ?int $awayScore = null,
         public ?bool $stopped = null,
         public ?float $under25Odds = null,
+        public array $overLineOdds = [],
     ) {}
 }

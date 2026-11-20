@@ -1893,3 +1893,169 @@ body.drawer-open {
     transition: none !important;
   }
 }
+
+/* ---------- Mode de scan ---------- */
+
+.scan-mode {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px 18px;
+  padding: 16px 20px;
+}
+
+.scan-mode-state {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.scan-mode-title {
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 500;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+}
+
+.segmented {
+  display: inline-flex;
+  padding: 3px;
+  border: 1px solid var(--line-input);
+  border-radius: var(--radius-field);
+  background: var(--input-bg);
+}
+
+.segmented button {
+  min-height: 36px;
+  padding: 0 14px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--text-2);
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.segmented button[aria-pressed="true"] {
+  background: var(--accent);
+  color: var(--on-accent);
+  font-weight: 600;
+}
+
+.segmented button:disabled {
+  opacity: .6;
+}
+
+.scan-mode-help {
+  flex: 1 1 260px;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+/* ---------- Options d’une alerte ---------- */
+
+.alert-options {
+  display: grid;
+  gap: 6px;
+  margin: 4px 0 0;
+  padding: 12px 14px;
+  border-radius: var(--radius-field);
+  background: var(--surface-2);
+  color: var(--text-2);
+  font-size: 13px;
+  list-style: none;
+}
+
+.alert-options strong {
+  color: var(--text);
+  font-weight: 600;
+}
+
+.alert-note {
+  color: var(--high);
+  font-size: 13px;
+}
+
+/* ---------- Mode de scan ---------- */
+
+.scan-mode {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px 18px;
+  padding: 16px 20px;
+}
+
+.scan-mode-state {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.scan-mode-title {
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 500;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+}
+
+.segmented {
+  display: inline-flex;
+  padding: 3px;
+  border: 1px solid var(--line-input);
+  border-radius: var(--radius-field);
+  background: var(--input-bg);
+}
+
+.segmented button {
+  min-height: 36px;
+  padding: 0 14px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--text-2);
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.segmented button[aria-pressed="true"] {
+  background: var(--accent);
+  color: var(--on-accent);
+  font-weight: 600;
+}
+
+.segmented button:disabled {
+  opacity: .6;
+}
+
+.scan-mode-help {
+  flex: 1 1 260px;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+/* ---------- Options d’une alerte ---------- */
+
+.alert-options {
+  display: grid;
+  gap: 6px;
+  margin: 4px 0 0;
+  padding: 12px 14px;
+  border-radius: var(--radius-field);
+  background: var(--surface-2);
+  color: var(--text-2);
+  font-size: 13px;
+  list-style: none;
+}
+
+.alert-options strong {
+  color: var(--text);
+  font-weight: 600;
+}
+
+.alert-note {
+  color: var(--high);
+  font-size: 13px;
+}
