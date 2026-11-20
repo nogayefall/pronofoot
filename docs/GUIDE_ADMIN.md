@@ -13,7 +13,7 @@ Ce guide explique comment utiliser l’administration de PronoFoot au quotidien.
 
 Si le code d’authentification est temporairement désactivé (`AUTH_TWO_FACTOR_ENABLED=false` dans `.env`), le champ du code n’apparaît pas : l’adresse et le mot de passe suffisent.
 
-Pour vous déconnecter, utilisez le bouton **Se déconnecter** en haut à droite de chaque page, à côté de vos initiales. Ne partagez jamais votre mot de passe ni vos codes.
+Pour vous déconnecter, utilisez le bouton **Se déconnecter** en haut à droite de chaque page, à côté de vos initiales. Sur téléphone, touchez le menu ☰ en haut à gauche : le panneau qui s’ouvre contient la navigation, l’état du scan et le bouton **Se déconnecter**. Les listes de matchs s’y affichent en cartes. Ne partagez jamais votre mot de passe ni vos codes.
 
 ## 2. Les pages de l’administration
 

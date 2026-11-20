@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { createRuleTestPayload, requestAdminApi, teamStatisticsRows, journalDecisionLabel, parseAlertMessage, trackedMatchDecision, quotaSummary, elapsedLabel, matchStatusLabel, unavailableReason, availableMatchesView, leagueFilters, leagueFilterCounts, leagueFilterFromUrl, effectiveLeagueFilter, leagueChosenInUrl, DEFAULT_TRACKED_LEAGUE_IDS } from './adminData'
 import { AlertCard, Brand, EmptyState, Icon, MetricCard, Pill, Section, VitalityBar } from './ui'
 import './App.css'
@@ -182,6 +182,9 @@ function formatCountdown(value, now) {
 function App() {
   const [activePage, setActivePage] = useState(() => (new URLSearchParams(window.location.search).has('ligue') ? 'matches' : 'overview'))
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
+  const burgerRef = useRef(null)
+  const drawerCloseRef = useRef(null)
+  const drawerWasOpen = useRef(false)
   const [dashboard, setDashboard] = useState(null)
   const [matchesData, setMatchesData] = useState(null)
   const [settings, setSettings] = useState([])
@@ -251,6 +254,27 @@ function App() {
 
     return () => { active = false }
   }, [csrfToken])
+
+  useEffect(() => {
+    if (!mobileMenuOpen) {
+      if (drawerWasOpen.current) burgerRef.current?.focus()
+      drawerWasOpen.current = false
+      return undefined
+    }
+
+    drawerWasOpen.current = true
+    drawerCloseRef.current?.focus()
+    document.body.classList.add('drawer-open')
+    const closeOnEscape = (event) => {
+      if (event.key === 'Escape') setMobileMenuOpen(false)
+    }
+    document.addEventListener('keydown', closeOnEscape)
+
+    return () => {
+      document.body.classList.remove('drawer-open')
+      document.removeEventListener('keydown', closeOnEscape)
+    }
+  }, [mobileMenuOpen])
 
   useEffect(() => {
     if (activePage !== 'matches') return
@@ -566,6 +590,21 @@ function App() {
   const autoOpenedOthers = shownLeague !== leagueFilter
   const activeLeague = leagueChips.find((chip) => chip.key === shownLeague) ?? leagueChips[0]
   const matchesView = availableMatchesView(matchesData?.matches ?? [], { leagueIds: trackedLeagueIds, league: activeLeague.key, query: matchSearch, alertMatchNames })
+  const visibleMatchRows = matchesView.slice(0, visibleMatchCount).map((match) => ({
+    match,
+    reason: unavailableReason(match, matchesData?.quotaRemaining),
+    alerted: alertMatchNames.includes(`${match.homeTeam} - ${match.awayTeam}`),
+    statisticsNote: match.statisticsCoverage === null
+      ? 'Couverture des statistiques non confirmée par le fournisseur.'
+      : match.statisticsCoverageFallback
+        ? `Couverture lue sur la saison courante (${match.statisticsCoverageSeason ?? 'année inconnue'}).`
+        : undefined,
+  }))
+  const matchAction = ({ match, reason }, withTooltip) => (match.tracked
+    ? <button className="button button-compact button-ghost" type="button" disabled={isBusy} onClick={() => void toggleMatch(match)}>Retirer</button>
+    : reason
+      ? <button className="button button-compact button-unavailable" type="button" aria-disabled="true" data-tooltip={withTooltip ? reason : undefined} onClick={(event) => event.preventDefault()}>Indisponible<span className="visually-hidden"> : {reason}</span></button>
+      : <button className="button button-compact button-primary" type="button" disabled={isBusy} onClick={() => void toggleMatch(match)}>Suivre</button>)
 
   const pages = {
     overview: {
@@ -584,14 +623,18 @@ function App() {
 
   return (
     <div className="admin-shell">
-      <aside className="sidebar">
+      <header className="mobile-bar">
+        <button ref={burgerRef} className="burger" type="button" aria-label="Ouvrir le menu" aria-expanded={mobileMenuOpen} aria-controls="admin-sidebar" onClick={() => setMobileMenuOpen(true)}><Icon name="menu" size={22} /></button>
+        <Brand />
+        <span className="avatar avatar-small" title={adminName} aria-label={`Connecté : ${adminName}`} role="img">{initials(adminName)}</span>
+      </header>
+      {mobileMenuOpen && <div className="drawer-backdrop" aria-hidden="true" onClick={() => setMobileMenuOpen(false)} />}
+      <aside id="admin-sidebar" className={`sidebar ${mobileMenuOpen ? 'sidebar-open' : ''}`} aria-label="Menu principal">
         <div className="sidebar-top">
           <Brand />
-          <button className="menu-toggle" type="button" aria-expanded={mobileMenuOpen} aria-controls="main-navigation" onClick={() => setMobileMenuOpen((open) => !open)}>
-            <Icon name={mobileMenuOpen ? 'close' : 'menu'} size={18} /><span>{mobileMenuOpen ? 'Fermer' : 'Menu'}</span>
-          </button>
+          <button ref={drawerCloseRef} className="drawer-close" type="button" aria-label="Fermer le menu" onClick={() => setMobileMenuOpen(false)}><Icon name="close" size={20} /></button>
         </div>
-        <nav id="main-navigation" className={`navigation ${mobileMenuOpen ? 'navigation-open' : ''}`} aria-label="Navigation principale">
+        <nav id="main-navigation" className="navigation" aria-label="Navigation principale">
           {navigation.map((item) => (
             <button className={`nav-item ${activePage === item.id ? 'nav-item-active' : ''}`} aria-current={activePage === item.id ? 'page' : undefined} key={item.id} onClick={() => selectPage(item.id)} type="button">
               <Icon name={item.icon} size={18} /><span>{item.label}</span>
@@ -603,6 +646,10 @@ function App() {
         <div className={`scan-card ${scanActive ? 'scan-card-active' : ''}`} role="status">
           <p className="scan-card-state"><span className="scan-dot" aria-hidden="true" />{dashboard ? (scanActive ? 'Scan en cours' : 'Scan à l’arrêt') : 'État du scan…'}</p>
           <p className="num scan-card-time">Dernier relevé {elapsedLabel(lastPassAt, now)}</p>
+        </div>
+        <div className="drawer-account">
+          <div className="drawer-account-name"><span className="avatar" aria-hidden="true">{initials(adminName)}</span><span><strong>{adminName}</strong><small>Administrateur</small></span></div>
+          <button className="button button-ghost drawer-logout" type="button" onClick={logout}><Icon name="logout" size={16} />Se déconnecter</button>
         </div>
       </aside>
 
@@ -642,10 +689,20 @@ function App() {
 
               <Section title="Matchs suivis" action={<button className="button button-ghost" type="button" onClick={() => selectPage('matches')}>Gérer les matchs <Icon name="arrow" size={16} /></button>}>
                 <div className="panel panel-flush">
-                  {trackedMatches.length ? <div className="table-scroll"><table className="data-table"><thead><tr><th scope="col">Ligue</th><th scope="col">Match</th><th scope="col">Min.</th><th scope="col">Score</th><th scope="col">Vitalité</th><th scope="col">Décision</th></tr></thead><tbody>{trackedMatches.map((match) => {
+                  {trackedMatches.length ? <><div className="table-scroll hide-on-phone"><table className="data-table"><thead><tr><th scope="col">Ligue</th><th scope="col">Match</th><th scope="col">Min.</th><th scope="col">Score</th><th scope="col">Vitalité</th><th scope="col">Décision</th></tr></thead><tbody>{trackedMatches.map((match) => {
                     const decision = trackedMatchDecision(match, parsedAlerts, minimumVitality)
                     return <tr key={match.id}><td className="cell-muted">{match.competition ?? '—'}</td><td><strong>{match.homeTeam} – {match.awayTeam}</strong><small>{match.trackingMode === 'auto' ? 'Suivi automatique · ' : ''}relevé {elapsedLabel(match.capturedAt, now)}</small></td><td className="num">{match.minute === null || match.minute === undefined ? '—' : `${match.minute}'`}</td><td className="num">{match.homeScore ?? '—'}-{match.awayScore ?? '—'}</td><td><VitalityBar value={match.vitality} minimum={minimumVitality} /></td><td><Pill tone={decision.tone}>{decision.label}</Pill></td></tr>
-                  })}</tbody></table></div> : <EmptyState icon="target" title="Aucun match suivi" message="Ajoutez une rencontre avec le Scan ciblé, ou attendez un match des championnats suivis automatiquement." />}
+                  })}</tbody></table></div>
+                  <ul className="match-cards show-on-phone">{trackedMatches.map((match) => {
+                    const decision = trackedMatchDecision(match, parsedAlerts, minimumVitality)
+                    return <li key={match.id} className="match-card">
+                      <div className="match-card-top"><strong>{match.homeTeam} – {match.awayTeam}</strong><span className="num match-card-score">{match.homeScore ?? '—'}-{match.awayScore ?? '—'}</span></div>
+                      <div className="match-card-meta"><span>{match.competition ?? 'Compétition inconnue'}</span><span className="num">{match.minute === null || match.minute === undefined ? '—' : `${match.minute}'`}</span></div>
+                      <div className="match-card-pills"><Pill tone={decision.tone}>{decision.label}</Pill></div>
+                      <div className="match-card-vitality"><span>Vitalité</span><VitalityBar value={match.vitality} minimum={minimumVitality} /></div>
+                      <p className="match-card-reason">{match.trackingMode === 'auto' ? 'Suivi automatique · ' : ''}relevé {elapsedLabel(match.capturedAt, now)}</p>
+                    </li>
+                  })}</ul></> : <EmptyState icon="target" title="Aucun match suivi" message="Ajoutez une rencontre avec le Scan ciblé, ou attendez un match des championnats suivis automatiquement." />}
                 </div>
               </Section>
 
@@ -667,20 +724,20 @@ function App() {
                       {leagueChips.map((chip) => <button key={chip.key} type="button" className={`league-chip ${leagueCounts[chip.key] === 0 ? 'league-chip-empty' : ''}`} aria-pressed={activeLeague.key === chip.key} onClick={() => chooseLeague(chip.key)}>{chip.label}<span className="num league-chip-count" aria-label={`${leagueCounts[chip.key]} match${leagueCounts[chip.key] > 1 ? 's' : ''} en direct`}>{leagueCounts[chip.key]}</span></button>)}
                     </div>
                   </div>
-                  {matchesView.length ? <div className="table-scroll table-scroll-sticky"><table className="data-table data-table-matches"><thead><tr><th scope="col">Rencontre</th><th scope="col">Compétition</th><th scope="col">État</th><th scope="col">Score</th><th scope="col">Cotes score exact</th><th scope="col">Statistiques</th><th scope="col" className="col-tracking">Suivi</th><th scope="col">Action</th></tr></thead><tbody>{matchesView.slice(0, visibleMatchCount).map((match) => {
-                    const reason = unavailableReason(match, matchesData.quotaRemaining)
-                    const statisticsNote = match.statisticsCoverage === null
-                      ? 'Couverture des statistiques non confirmée par le fournisseur.'
-                      : match.statisticsCoverageFallback
-                        ? `Couverture lue sur la saison courante (${match.statisticsCoverageSeason ?? 'année inconnue'}).`
-                        : undefined
-                    const alerted = alertMatchNames.includes(`${match.homeTeam} - ${match.awayTeam}`)
-                    return <tr key={match.providerMatchId} className={match.tracked || alerted ? 'row-highlight' : undefined}><td><strong>{match.homeTeam} – {match.awayTeam}</strong><small>{match.tracked ? <span className="tracked-note">Suivi · </span> : null}{alerted ? 'Alerte active · ' : ''}{match.kickoffAt ? `Début ${formatTime(match.kickoffAt)}` : 'Horaire non disponible'}</small></td><td className="cell-muted cell-ellipsis" title={match.competition ?? undefined}>{match.competition ?? '—'}</td><td className="num cell-nowrap">{matchStatusLabel(match.status, match.minute)}</td><td className="num cell-nowrap">{match.homeScore ?? '—'}-{match.awayScore ?? '—'}</td><td>{match.exactScoreMarketAvailable ? <Pill tone="alert">Disponible</Pill> : <Pill tone="dead">Non disponible</Pill>}</td><td><span title={statisticsNote}>{match.statisticsCoverage === null ? <Pill tone="watch">Non confirmées</Pill> : match.statisticsCoverage ? <Pill tone="alert">{match.statisticsCoverageFallback ? 'Disponible*' : 'Disponible'}</Pill> : <Pill tone="dead">Non disponible</Pill>}</span></td><td className="col-tracking">{match.tracked ? <Pill tone="alert">Suivi</Pill> : <Pill tone="watch">Non suivi</Pill>}</td><td className="cell-action">{match.tracked
-                      ? <button className="button button-compact button-ghost" type="button" disabled={isBusy} onClick={() => void toggleMatch(match)}>Retirer</button>
-                      : reason
-                        ? <button className="button button-compact button-unavailable" type="button" aria-disabled="true" data-tooltip={reason} onClick={(event) => event.preventDefault()}>Indisponible<span className="visually-hidden"> : {reason}</span></button>
-                        : <button className="button button-compact button-primary" type="button" disabled={isBusy} onClick={() => void toggleMatch(match)}>Suivre</button>}</td></tr>
-                  })}</tbody></table></div> : <EmptyState icon="search" title={matchesData?.matches?.length ? 'Aucune rencontre pour ce filtre' : 'Aucune rencontre disponible'} message={matchesData?.matches?.length ? 'Modifiez la recherche ou choisissez un autre championnat (« Autres » regroupe les compétitions non suivies).' : 'Le fournisseur n’a retourné aucun match pour le moment.'} />}
+                  {matchesView.length ? <><div className="table-scroll table-scroll-sticky hide-on-phone"><table className="data-table data-table-matches"><thead><tr><th scope="col">Rencontre</th><th scope="col">Compétition</th><th scope="col">État</th><th scope="col">Score</th><th scope="col">Cotes score exact</th><th scope="col">Statistiques</th><th scope="col" className="col-tracking">Suivi</th><th scope="col">Action</th></tr></thead><tbody>{visibleMatchRows.map((row) => {
+                    const { match, alerted, statisticsNote } = row
+                    return <tr key={match.providerMatchId} className={match.tracked || alerted ? 'row-highlight' : undefined}><td><strong>{match.homeTeam} – {match.awayTeam}</strong><small>{match.tracked ? <span className="tracked-note">Suivi · </span> : null}{alerted ? 'Alerte active · ' : ''}{match.kickoffAt ? `Début ${formatTime(match.kickoffAt)}` : 'Horaire non disponible'}</small></td><td className="cell-muted cell-ellipsis" title={match.competition ?? undefined}>{match.competition ?? '—'}</td><td className="num cell-nowrap">{matchStatusLabel(match.status, match.minute)}</td><td className="num cell-nowrap">{match.homeScore ?? '—'}-{match.awayScore ?? '—'}</td><td>{match.exactScoreMarketAvailable ? <Pill tone="alert">Disponible</Pill> : <Pill tone="dead">Non disponible</Pill>}</td><td><span title={statisticsNote}>{match.statisticsCoverage === null ? <Pill tone="watch">Non confirmées</Pill> : match.statisticsCoverage ? <Pill tone="alert">{match.statisticsCoverageFallback ? 'Disponible*' : 'Disponible'}</Pill> : <Pill tone="dead">Non disponible</Pill>}</span></td><td className="col-tracking">{match.tracked ? <Pill tone="alert">Suivi</Pill> : <Pill tone="watch">Non suivi</Pill>}</td><td className="cell-action">{matchAction(row, true)}</td></tr>
+                  })}</tbody></table></div>
+                  <ul className="match-cards show-on-phone">{visibleMatchRows.map((row) => {
+                    const { match, alerted, reason } = row
+                    return <li key={match.providerMatchId} className={`match-card ${match.tracked || alerted ? 'match-card-highlight' : ''}`}>
+                      <div className="match-card-top"><strong>{match.homeTeam} – {match.awayTeam}</strong><span className="num match-card-score">{match.homeScore ?? '—'}-{match.awayScore ?? '—'}</span></div>
+                      <div className="match-card-meta"><span>{match.competition ?? 'Compétition inconnue'}</span><span className="num">{matchStatusLabel(match.status, match.minute)}</span></div>
+                      <div className="match-card-pills">{match.tracked && <Pill tone="alert">Suivi</Pill>}{alerted && <Pill tone="high">Alerte active</Pill>}{match.exactScoreMarketAvailable ? <Pill tone="alert">Cotes disponibles</Pill> : <Pill tone="dead">Cotes non disponibles</Pill>}{match.statisticsCoverage === null ? <Pill tone="watch">Stats non confirmées</Pill> : match.statisticsCoverage ? <Pill tone="alert">{match.statisticsCoverageFallback ? 'Stats disponibles*' : 'Stats disponibles'}</Pill> : <Pill tone="dead">Stats non disponibles</Pill>}</div>
+                      {reason && <p className="match-card-reason">{reason}</p>}
+                      <div className="match-card-foot"><small>{match.kickoffAt ? `Début ${formatTime(match.kickoffAt)}` : 'Horaire non disponible'}</small>{matchAction(row, false)}</div>
+                    </li>
+                  })}</ul></> : <EmptyState icon="search" title={matchesData?.matches?.length ? 'Aucune rencontre pour ce filtre' : 'Aucune rencontre disponible'} message={matchesData?.matches?.length ? 'Modifiez la recherche ou choisissez un autre championnat (« Autres » regroupe les compétitions non suivies).' : 'Le fournisseur n’a retourné aucun match pour le moment.'} />}
                   {matchesView.length > visibleMatchCount && <div className="table-more"><button className="button button-ghost" type="button" onClick={() => setVisibleMatchCount((count) => count + MATCHES_PAGE_SIZE)}>Afficher plus <span className="num">({matchesView.length - visibleMatchCount} restante{matchesView.length - visibleMatchCount > 1 ? 's' : ''})</span></button></div>}
                   {matchesView.some((match) => match.statisticsCoverageFallback) && <p className="table-footnote">* Couverture des statistiques lue sur la saison courante.</p>}
                 </div>

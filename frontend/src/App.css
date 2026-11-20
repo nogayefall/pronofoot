@@ -158,18 +158,12 @@ code {
   color: var(--accent);
 }
 
-.menu-toggle {
+.mobile-bar,
+.drawer-close,
+.drawer-account,
+.drawer-backdrop,
+.show-on-phone {
   display: none;
-  min-height: 40px;
-  align-items: center;
-  gap: 6px;
-  padding: 0 12px;
-  border: 1px solid var(--line-input);
-  border-radius: var(--radius-field);
-  background: var(--surface);
-  color: var(--text);
-  font-size: 14px;
-  font-weight: 600;
 }
 
 .navigation {
@@ -1591,39 +1585,106 @@ input[type='date'] {
     --gutter: 16px;
   }
 
-  .sidebar {
+  .mobile-bar {
     position: sticky;
+    z-index: 20;
     top: 0;
-    bottom: auto;
-    width: auto;
-    max-height: 100vh;
-    padding: 12px var(--gutter);
-    border-right: 0;
+    display: flex;
+    height: 60px;
+    align-items: center;
+    gap: 12px;
+    padding: 0 var(--gutter) 0 8px;
     border-bottom: 1px solid var(--line);
+    background: var(--sidebar);
+  }
+
+  .mobile-bar .brand {
+    flex: 1;
+  }
+
+  .burger,
+  .drawer-close {
+    display: inline-grid;
+    width: 44px;
+    height: 44px;
+    flex: none;
+    place-items: center;
+    border: 0;
+    border-radius: var(--radius-field);
+    background: transparent;
+    color: var(--text);
+  }
+
+  .burger:hover,
+  .drawer-close:hover {
+    background: var(--surface-2);
+  }
+
+  .avatar-small {
+    width: 36px;
+    height: 36px;
+    font-size: 13px;
+  }
+
+  .sidebar {
+    z-index: 40;
+    width: min(300px, 86vw);
+    padding: 14px 16px 18px;
+    box-shadow: 18px 0 40px rgba(0, 0, 0, .45);
+    transform: translateX(-100%);
+    visibility: hidden;
+    transition: transform 200ms ease, visibility 0s linear 200ms;
+  }
+
+  .sidebar.sidebar-open {
+    transform: none;
+    visibility: visible;
+    transition: transform 200ms ease;
   }
 
   .sidebar-top {
-    margin-bottom: 0;
+    margin-bottom: 18px;
   }
 
-  .menu-toggle {
-    display: inline-flex;
-  }
-
-  .navigation,
-  .sidebar-spacer,
-  .scan-card {
-    display: none;
-  }
-
-  .navigation.navigation-open {
-    display: grid;
-    margin-top: 12px;
-  }
-
-  .navigation-open ~ .scan-card {
+  .drawer-backdrop {
+    position: fixed;
+    z-index: 30;
+    inset: 0;
     display: block;
-    margin-top: 12px;
+    background: rgba(4, 9, 7, .6);
+  }
+
+  .drawer-account {
+    display: grid;
+    gap: 12px;
+    margin-top: 14px;
+    padding-top: 14px;
+    border-top: 1px solid var(--line);
+  }
+
+  .drawer-account-name {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .drawer-account-name strong,
+  .drawer-account-name small {
+    display: block;
+  }
+
+  .drawer-account-name small {
+    color: var(--muted);
+    font-size: 13px;
+  }
+
+  .drawer-logout {
+    width: 100%;
+  }
+
+  .page-actions .avatar,
+  .page-actions .logout-button {
+    display: none;
   }
 
   .main-area {
@@ -1718,6 +1779,113 @@ input[type='date'] {
   .section-aside {
     margin-left: 0;
   }
+}
+
+.match-cards {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.match-card {
+  display: grid;
+  gap: 8px;
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--line);
+}
+
+.match-card:last-child {
+  border-bottom: 0;
+}
+
+.match-card-highlight {
+  box-shadow: inset 3px 0 0 var(--accent);
+}
+
+.match-card-top,
+.match-card-meta,
+.match-card-foot,
+.match-card-vitality {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.match-card-top strong {
+  min-width: 0;
+  font-size: 15px;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.match-card-score {
+  flex: none;
+  padding: 2px 9px;
+  border-radius: var(--radius-pill);
+  background: var(--surface-2);
+  font-size: 14px;
+}
+
+.match-card-meta {
+  color: var(--text-2);
+  font-size: 13px;
+}
+
+.match-card-meta span:first-child {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.match-card-meta .num {
+  flex: none;
+  color: var(--text);
+}
+
+.match-card-pills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.match-card-pills .pill {
+  padding: 2px 9px;
+  font-size: 12px;
+}
+
+.match-card-reason {
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.match-card-foot small {
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.match-card-vitality {
+  color: var(--text-2);
+  font-size: 13px;
+}
+
+.match-card .vitality {
+  min-width: 0;
+}
+
+@media (max-width: 640px) {
+  .hide-on-phone {
+    display: none;
+  }
+
+  .show-on-phone {
+    display: block;
+  }
+}
+
+body.drawer-open {
+  overflow: hidden;
 }
 
 @media (prefers-reduced-motion: reduce) {
