@@ -2059,3 +2059,89 @@ body.drawer-open {
   color: var(--high);
   font-size: 13px;
 }
+
+/* Journal : options d’une alerte (décision, résultat, origine) */
+.cell-options {
+  min-width: 300px;
+}
+
+.option-list {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.option-item {
+  display: grid;
+  gap: 6px;
+  padding: 8px 10px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-field);
+  background: var(--surface-2);
+}
+
+.option-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 4px 10px;
+}
+
+.option-head strong {
+  font-size: 13px;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.option-head .num {
+  color: var(--text-2);
+  font-size: 12px;
+}
+
+.option-controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 8px;
+}
+
+.option-field {
+  display: grid;
+  flex: 1 1 120px;
+  gap: 3px;
+  min-width: 0;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.option-field select {
+  width: 100%;
+  min-height: 36px;
+}
+
+.option-controls .pill {
+  margin-bottom: 6px;
+}
+
+.journal-reason summary {
+  color: var(--text-2);
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.journal-reason p {
+  margin: 6px 0 0;
+  color: var(--muted);
+  font-size: 13px;
+  overflow-wrap: anywhere;
+}
+
+@media (max-width: 640px) {
+  .option-field select {
+    min-height: 44px;
+    font-size: 16px;
+  }
+}

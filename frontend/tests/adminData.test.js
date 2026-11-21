@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { createRuleTestPayload, parseCorrectScoreOdds, teamStatisticsRows, journalDecisionLabel, parseAlertMessage, trackedMatchDecision, quotaSummary, elapsedLabel, matchStatusLabel, unavailableReason, availableMatchesView, leagueFilters, leagueFilterCounts, leagueFilterFromUrl, effectiveLeagueFilter, leagueChosenInUrl, scanModeLabel, upcomingMatchesView } from '../src/adminData.js'
+import { createRuleTestPayload, parseCorrectScoreOdds, teamStatisticsRows, journalDecisionLabel, parseAlertMessage, trackedMatchDecision, quotaSummary, elapsedLabel, matchStatusLabel, unavailableReason, availableMatchesView, leagueFilters, leagueFilterCounts, leagueFilterFromUrl, effectiveLeagueFilter, leagueChosenInUrl, scanModeLabel, upcomingMatchesView, statisticsOptionRows } from '../src/adminData.js'
 
 test('parseCorrectScoreOdds reads decimal comma and dot formats', () => {
   assert.deepEqual(parseCorrectScoreOdds('0-0 = 7,50\n1-0 : 8.60\n0-1 = 9,80'), {
@@ -285,4 +285,18 @@ test("upcomingMatchesView applies the league chip and the search and keeps the k
   assert.deepEqual(ids(upcomingMatchesView(upcoming)), ["901", "903"])
   assert.deepEqual(ids(upcomingMatchesView(upcoming, { league: "autres" })), ["902"])
   assert.deepEqual(ids(upcomingMatchesView(upcoming, { league: "tous", query: "nantes" })), ["903"])
+})
+
+test('statisticsOptionRows lists one row per rule and option type with both rates', () => {
+  const block = (won, lost, playedRate) => ({ options: won + lost, won, lost, cancelled: 0, pending: 0, successRatePercent: won + lost ? Math.round(won / (won + lost) * 100) : null, played: { options: 1, won: 1, lost: 0, successRatePercent: playedRate } })
+  const rows = statisticsOptionRows({
+    'F121-C': { alerts: 2, byType: { targeted: block(1, 1, 100), neutral: block(2, 0, null) } },
+    'F121-D': { alerts: 1, byType: { over45: block(0, 1, null) } },
+  })
+  assert.deepEqual(rows.map((row) => [row.key, row.label, row.successRatePercent, row.played.successRatePercent]), [
+    ['F121-C-targeted', 'Ciblée', 50, 100],
+    ['F121-C-neutral', 'Neutre', 100, null],
+    ['F121-D-over45', 'Over 4.5 (F121-D)', 0, null],
+  ])
+  assert.deepEqual(statisticsOptionRows(undefined), [])
 })

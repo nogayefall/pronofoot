@@ -134,6 +134,31 @@ Tests : `test_post_goal_window_follows_the_complement_4` et `test_after_the_post
 
 À confirmer : écart entre 1.50 et 2.00 traité comme « calme » ; définition d’un match chaud ; seuil de 10 % inclus ; classement chaud / calme sur le dernier instantané (au plus 30 s de retard) ; pronostics pré-match absents en Phase 1.
 
+## Résultat automatique des alertes, par option (21 novembre 2026)
+
+Chaque alerte enregistre ses options (table `alert_options`) : **ciblée** « Prochain but [équipe] » (avec la cote du score suggéré), **neutre** « Un but de plus dans le match » (Over N), **Over 4.5** (F121-D) et **Over 0.5 en 2e mi-temps** (F121-E2). Pour chacune : décision de l’administrateur (jouée / ignorée / non renseignée), résultat (gagnée / perdue / annulée / en attente) et origine du résultat (automatique ou manuel).
+
+| Option | Gagnée si… | Perdue si… |
+|---|---|---|
+| Ciblée | l’équipe désignée marque le **prochain but** après l’alerte | l’autre équipe marque d’abord, ou aucun but avant la fin de validité |
+| Neutre | au moins un but est marqué après l’alerte | aucun but avant la fin de validité |
+| Over 4.5 (F121-D) | le total final est de 5 buts ou plus | moins de 5 buts |
+| Over 0.5 2e MT (F121-E2) | au moins un but après l’alerte (donnée à la mi-temps), jusqu’à la fin du temps réglementaire (temps additionnel compris, prolongation exclue) | aucun but en 2e mi-temps |
+
+- **Calcul** : à la fin du match (FT, AET, PEN, ou fin par absence du flux), à partir des scores déjà enregistrés à chaque relevé, **sans requête API en plus**. Un but contre son camp compte pour l’équipe qui en profite (le score l’indique déjà). Une baisse du score (but annulé par la VAR) remplace la référence sans compter de but.
+- **Match arrêté, abandonné, reporté ou annulé** (ABD, CANC, PST, AWD, WO) : toutes les options sont **annulées** et exclues des statistiques.
+- **Deux buts des deux équipes entre deux relevés** (ordre incertain, seulement pour une option ciblée en attente) : **une seule** requête `/fixtures/events` du match terminé, uniquement pour un match ayant une alerte. Les penalties manqués sont ignorés. Pour un but contre son camp, l’équipe indiquée par l’événement est inversée (convention API-Football **à confirmer**). Si la requête échoue, l’option reste « en attente », à noter à la main.
+- **Consommation de quota** : 0 requête dans le cas normal ; au plus 1 requête par match terminé ayant une alerte, et seulement dans le cas rare ci-dessus.
+- **Correction manuelle** : l’administrateur peut corriger un résultat dans le Journal ; l’origine passe à « manuel » et le calcul automatique ne le remplace plus. Remettre « En attente » efface l’origine.
+- **Alertes existantes** (migration) : une option est créée d’après la règle et la sélection de l’alerte (et l’option neutre si le message la mentionne). Le résultat déjà noté devient celui de l’option principale, origine « manuel ».
+- **Statistiques** : taux = gagnées ÷ (gagnées + perdues), annulées et en attente exclues ; par règle et par type d’option, sur toutes les options (résultat automatique) et sur les seules options marquées « jouées ». Filtre par dates conservé (date de l’alerte).
+- **Limite** : un match terminé par absence du flux est évalué sur son dernier relevé ; un but dans les toutes dernières secondes peut manquer (corrigeable à la main).
+
+| Point à confirmer par le client | Défaut | Paramètre |
+|---|---|---|
+| Validité du pari (options ciblée et neutre) | Jusqu’à la fin du match ; autre choix : pendant la durée de l’alerte (15 min) | `results.bet_validity` = `match` |
+| Prolongation | Comptée (sauf pour Over 0.5 en 2e mi-temps) | `results.count_extra_time` = activé |
+
 ## Les 10 situations (annexe section 7 et complément 2)
 
 Tests : `backend/tests/Unit/AnnexSituationsTest.php`. Vitalité recalculée depuis les statistiques, tendance recalculée depuis la cote à T−2 min. **Les 10 passent.**

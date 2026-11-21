@@ -480,3 +480,27 @@ export function upcomingMatchesView(matches, { leagueIds = DEFAULT_TRACKED_LEAGU
     .filter((match) => matchesLeagueFilter(match, filter))
     .filter((match) => search === '' || normalizeSearch(`${match.homeTeam} ${match.awayTeam} ${match.competition}`).includes(search))
 }
+
+export const OPTION_TYPE_LABELS = {
+  targeted: 'Ciblée',
+  neutral: 'Neutre',
+  over45: 'Over 4.5 (F121-D)',
+  halftime_over05: 'Over 0.5 2e MT (F121-E2)',
+}
+
+export const OPTION_DECISIONS = [['unset', 'Non renseignée'], ['played', 'Jouée'], ['ignored', 'Ignorée']]
+
+export const OPTION_OUTCOMES = [['pending', 'En attente'], ['won', 'Gagnée'], ['lost', 'Perdue'], ['cancelled', 'Annulée']]
+
+/**
+ * Lignes « règle × type d’option » des statistiques, avec le taux sur toutes les options et sur les seules jouées.
+ */
+export function statisticsOptionRows(byRule) {
+  return Object.entries(byRule ?? {}).flatMap(([rule, data]) => Object.entries(data.byType ?? {}).map(([type, block]) => ({
+    key: `${rule}-${type}`,
+    rule,
+    type,
+    label: OPTION_TYPE_LABELS[type] ?? type,
+    ...block,
+  })))
+}

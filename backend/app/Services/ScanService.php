@@ -639,7 +639,16 @@ class ScanService
 
             $code = MatchStatus::code($footballMatch);
             if (MatchStatus::isFinished($code)) {
-                $this->endTrackedMatch($trackedMatch, 'statut '.MatchStatus::endLabel((string) $code), $now);
+                $finalScore = $footballMatch->homeScore === null || $footballMatch->awayScore === null
+                    ? null
+                    : ['home' => $footballMatch->homeScore, 'away' => $footballMatch->awayScore, 'minute' => $footballMatch->minute];
+                $this->endTrackedMatch(
+                    $trackedMatch,
+                    'statut '.MatchStatus::endLabel((string) $code),
+                    $now,
+                    in_array($code, AlertSettlementService::CANCELLING_STATUSES, true),
+                    $finalScore,
+                );
                 $ended++;
             }
         }
@@ -651,7 +660,11 @@ class ScanService
      * Retire le match du suivi (statut « Terminé »), expire ses alertes actives et inscrit un seul événement au Journal.
      * Un match inactif n’est plus jamais interrogé (ni statistiques, ni cotes).
      */
-    private function endTrackedMatch(TrackedMatch $trackedMatch, string $reason, CarbonImmutable $now): void
+    /**
+     * @param  bool  $cancelled  Match arrêté, abandonné ou annulé : les options de ses alertes sont annulées.
+     * @param  array{home: int, away: int, minute: int|null}|null  $finalScore  Score final lu dans le flux.
+     */
+    private function endTrackedMatch(TrackedMatch $trackedMatch, string $reason, CarbonImmutable $now, bool $cancelled = false, ?array $finalScore = null): void
     {
         $alerts = Alert::query()
             ->whereIn('status', ['queued', 'sent'])
@@ -669,6 +682,17 @@ class ScanService
             'missing_readings' => 0,
         ])->save();
 
+        // Résultat automatique des options des alertes du match (scores déjà relevés ; une requête d’événements au plus).
+        $settlement = ['settled' => 0, 'eventRequests' => 0];
+        try {
+            $settlement = app(AlertSettlementService::class)->settleMatch($trackedMatch, $cancelled, $finalScore, $now);
+        } catch (Throwable $exception) {
+            Log::error('Résultat automatique des alertes impossible ; le scan continue.', [
+                'tracked_match_id' => $trackedMatch->id,
+                'error' => SecretRedactor::fromEnvironment()->redact($exception->getMessage()),
+            ]);
+        }
+
         $expired = $alerts->count();
         $this->recordOpportunity(
             $trackedMatch,
@@ -676,7 +700,8 @@ class ScanService
             null,
             'match_finished',
             'no_alert',
-            "Match terminé : suivi arrêté ({$reason}).".($expired > 0 ? " {$expired} alerte".($expired > 1 ? 's actives expirées.' : ' active expirée.') : ''),
+            "Match terminé : suivi arrêté ({$reason}).".($expired > 0 ? " {$expired} alerte".($expired > 1 ? 's actives expirées.' : ' active expirée.') : '')
+                .($settlement['settled'] > 0 ? " Résultat automatique de {$settlement['settled']} option".($settlement['settled'] > 1 ? 's' : '').'.' : ''),
             $now,
         );
     }
@@ -1364,10 +1389,43 @@ class ScanService
                 'message' => $message,
                 'expires_at' => $expiresAt,
             ]);
+            $this->createAlertOptions($alert, $result, $trackedMatch);
             DB::afterCommit(fn () => SendAlertNotification::dispatch($alert->id));
 
             return 1;
         });
+    }
+
+    /**
+     * Options de l’alerte, chacune avec sa décision et son résultat (en attente jusqu’à la fin du match) :
+     * ciblée et neutre (règle F121), sinon le pari du match (Over 4.5 de F121-D, Over 0.5 2e mi-temps de F121-E2).
+     */
+    private function createAlertOptions(Alert $alert, EngineResult $result, TrackedMatch $trackedMatch): void
+    {
+        $rows = [];
+        foreach ($result->options as $option) {
+            if (($option['type'] ?? null) === 'targeted') {
+                $rows[] = [
+                    'type' => 'targeted',
+                    'label' => 'Prochain but '.($option['side'] === 'home' ? $trackedMatch->home_team : $trackedMatch->away_team),
+                    'side' => $option['side'],
+                    'score_key' => $option['scoreKey'] ?? null,
+                    'odds' => $option['odds'] ?? null,
+                ];
+            } elseif (($option['type'] ?? null) === 'neutral') {
+                $rows[] = ['type' => 'neutral', 'label' => 'Un but de plus dans le match', 'line' => $option['line'] ?? null, 'odds' => $option['odds'] ?? null];
+            }
+        }
+
+        if ($rows === [] && $result->decisiveRule === 'F121-D') {
+            $rows[] = ['type' => 'over45', 'label' => 'Over 4.5 buts (F121-D)', 'line' => 'Over 4.5'];
+        } elseif ($rows === [] && $result->decisiveRule === 'F121-E2') {
+            $rows[] = ['type' => 'halftime_over05', 'label' => 'Over 0.5 but en 2e mi-temps (F121-E2)', 'line' => 'Over 0.5 2e MT'];
+        }
+
+        foreach ($rows as $index => $row) {
+            $alert->options()->create([...$row, 'position' => $index + 1, 'decision' => 'unset', 'outcome' => 'pending']);
+        }
     }
 
     private function buildAlertMessage(

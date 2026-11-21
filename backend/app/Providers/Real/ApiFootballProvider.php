@@ -281,6 +281,43 @@ final class ApiFootballProvider implements FootballProvider
         );
     }
 
+    public function getGoalEvents(string $providerMatchId): ?array
+    {
+        $credentials = $this->credentials();
+        if ($credentials === null || parse_url($credentials[0], PHP_URL_SCHEME) !== 'https') {
+            return null;
+        }
+
+        [$baseUrl, $apiKey] = $credentials;
+        try {
+            $response = $this->request($baseUrl.'/fixtures/events', ['fixture' => $providerMatchId], $apiKey);
+        } catch (ConnectionException) {
+            return null;
+        }
+
+        $events = $response->successful() ? $response->json('response') : null;
+        if (! is_array($events)) {
+            return null;
+        }
+
+        $goals = [];
+        foreach ($events as $event) {
+            $detail = is_array($event) ? (string) ($event['detail'] ?? '') : '';
+            if (($event['type'] ?? null) !== 'Goal' || $detail === 'Missed Penalty') {
+                continue;
+            }
+
+            $goals[] = [
+                'minute' => is_numeric($event['time']['elapsed'] ?? null) ? (int) $event['time']['elapsed'] : null,
+                'extra' => is_numeric($event['time']['extra'] ?? null) ? (int) $event['time']['extra'] : null,
+                'team' => (string) ($event['team']['name'] ?? ''),
+                'detail' => $detail,
+            ];
+        }
+
+        return $goals;
+    }
+
     private function credentials(): ?array
     {
         $baseUrl = rtrim(trim((string) config('services.football_api.base_url')), '/');

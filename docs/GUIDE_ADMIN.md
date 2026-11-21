@@ -24,7 +24,7 @@ Pour vous déconnecter, utilisez le bouton **Se déconnecter** en haut à droite
 | **Moteur de règles** | Les règles disponibles, et vos **profils** : méthodes activées, poids, seuil de validation. Vous pouvez créer un profil, l’enregistrer, l’activer et le tester. Un nouveau profil démarre avec les règles par défaut cochées ; un avertissement rouge s’affiche si le profil actif n’a aucune règle cochée (aucune alerte de règle possible). Une règle décochée ne donne jamais d’alerte. |
 | **Testeur manuel** | Essayer une situation (score, cotes, vitalité, tendance, mi-temps) pour voir la décision du moteur. Rien n’est envoyé. |
 | **Journal des décisions** | Tout ce que le système a vu et décidé, match par match. C’est ici que vous notez si une alerte a été gagnée ou perdue. |
-| **Statistiques** | Le nombre d’alertes et le taux de réussite, au total et par règle, à partir des résultats notés dans le Journal. |
+| **Statistiques** | Le nombre d’alertes et le taux de réussite (gagnées ÷ (gagnées + perdues), annulées et en attente exclues), au total, par règle et par type d’option (ciblée, neutre…). Deux taux : sur toutes les options (résultat automatique) et sur les seules options que vous avez marquées « jouées ». Filtre par dates. |
 | **Paramètres** | Les seuils et fréquences (vitalité, tendance, écarts, quota, ligues suivies…). Une modification s’applique au passage suivant du scan. Les lignes marquées « À confirmer » attendent une décision de votre part. |
 
 **Les deux équipes sont évaluées.** À chaque relevé, PronoFoot regarde le prochain but de l’équipe à domicile et celui de l’équipe à l’extérieur, chacun avec son écart et sa tendance. Chaque alerte propose des options, et aucune n’est jouée automatiquement. Si une seule équipe donne un signal : option 1 ciblée « prochain but de l’équipe » (score, cote, écart), puis option 2 neutre « un but de plus dans le match » (Over 1.5 à 1-0, Over 4.5 à 2-2…), avec sa cote quand le marché Over/Under est disponible. Si les deux équipes donnent un signal : pas d’équipe désignée, option neutre seule. La justification du Journal détaille les deux côtés.
@@ -66,9 +66,21 @@ Chaque ligne correspond à un moment où PronoFoot a regardé un match.
 | Règle | La règle qui a produit la décision (par exemple F121-E1, F121-D). |
 | Décision | Alerte, abstention, alerte invalidée, alerte expirée, but détecté, incident… |
 | Justification | La raison en clair, par exemple « La cote est stable : abstention » ou « Match “mort” : vitalité inférieure au minimum ». |
-| Résultat | À remplir par vous pour chaque alerte : **Gagnée**, **Perdue** ou **Annulée**. Ce résultat alimente les Statistiques. |
+| Options : décision et résultat | Pour chaque option de l’alerte (ciblée, neutre, Over 4.5, Over 0.5 en 2e mi-temps) : votre **décision** (Jouée, Ignorée, Non renseignée) et le **résultat** (Gagnée, Perdue, Annulée, En attente). |
 
 Le filtre en haut de page permet d’afficher seulement les alertes envoyées, en attente, expirées, etc.
+
+**Résultat automatique.** À la fin du match, PronoFoot calcule seul le résultat de chaque option à partir des scores relevés (pastille **Auto**) :
+
+- **Ciblée** « Prochain but [équipe] » : gagnée si cette équipe marque le prochain but, perdue si l’autre équipe marque d’abord ou si plus aucun but n’est marqué. Un but contre son camp compte pour l’équipe qui en profite.
+- **Neutre** « Un but de plus » : gagnée si au moins un but est marqué après l’alerte.
+- **Over 4.5** (F121-D) : gagnée si le match finit avec 5 buts ou plus.
+- **Over 0.5 en 2e mi-temps** (F121-E2) : gagnée si au moins un but est marqué en 2e mi-temps.
+- Match arrêté, abandonné ou annulé : **Annulée**, sans effet sur les statistiques.
+
+Vous pouvez corriger un résultat dans la liste : il passe en **Manuel** et n’est plus recalculé. Indiquez aussi si vous avez **joué** l’option : les Statistiques donnent un second taux sur vos seules options jouées. Deux réglages, à confirmer, sont dans Paramètres : la validité du pari (fin du match ou durée de l’alerte) et la prise en compte de la prolongation.
+
+Sur téléphone, le Journal s’affiche en cartes : match, score, règle, décision, justification repliable, puis les listes Décision et Résultat de chaque option, sans défilement horizontal.
 
 Quelques événements fréquents :
 

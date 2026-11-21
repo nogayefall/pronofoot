@@ -174,3 +174,46 @@ export function ScanModeControl({ scanMode, label, busy, onMode, onPause }) {
     </div>
   )
 }
+
+/**
+ * Options d’une alerte dans le Journal : décision (jouée / ignorée) et résultat (automatique, corrigeable à la main).
+ */
+export function AlertOptionsEditor({ log, busy, decisions, outcomes, onOption, onLegacyOutcome }) {
+  if (!log.alert) return <span>—</span>
+  const options = log.alert.options ?? []
+  if (!options.length) {
+    return (
+      <label className="option-field">Résultat
+        <select className="select-compact" value={log.outcome ?? ''} disabled={busy} onChange={(event) => onLegacyOutcome(log.id, event.target.value)}>
+          <option value="">À renseigner</option><option value="won">Gagnée</option><option value="lost">Perdue</option><option value="cancelled">Annulée</option>
+        </select>
+      </label>
+    )
+  }
+
+  return (
+    <ul className="option-list">
+      {options.map((option) => (
+        <li key={option.id} className="option-item">
+          <div className="option-head">
+            <strong>{option.label}</strong>
+            <span className="num">{[option.line, option.scoreKey ? `score ${option.scoreKey}` : null, option.odds ? `cote ${Number(option.odds).toFixed(2)}` : null].filter(Boolean).join(' · ')}</span>
+          </div>
+          <div className="option-controls">
+            <label className="option-field">Décision
+              <select value={option.decision} disabled={busy} onChange={(event) => onOption(option.id, { decision: event.target.value })}>
+                {decisions.map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+              </select>
+            </label>
+            <label className="option-field">Résultat
+              <select value={option.outcome} disabled={busy} onChange={(event) => onOption(option.id, { outcome: event.target.value })}>
+                {outcomes.map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+              </select>
+            </label>
+            {option.outcomeSource && <Pill tone={option.outcomeSource === 'auto' ? 'watch' : 'high'} dot={false}>{option.outcomeSource === 'auto' ? 'Auto' : 'Manuel'}</Pill>}
+          </div>
+        </li>
+      ))}
+    </ul>
+  )
+}

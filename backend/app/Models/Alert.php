@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class Alert extends Model
 {
@@ -32,6 +33,11 @@ class Alert extends Model
     public function opportunityLog(): BelongsTo
     {
         return $this->belongsTo(OpportunityLog::class);
+    }
+
+    public function options(): HasMany
+    {
+        return $this->hasMany(AlertOption::class)->orderBy('position');
     }
 
     public function isActive(): bool

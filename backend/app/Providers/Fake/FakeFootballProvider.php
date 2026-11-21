@@ -104,6 +104,11 @@ final class FakeFootballProvider implements FootballProvider
         );
     }
 
+    public function getGoalEvents(string $providerMatchId): ?array
+    {
+        return null;
+    }
+
     private function statisticsCoverage(array $statistics): ?bool
     {
         if ($statistics === []) {

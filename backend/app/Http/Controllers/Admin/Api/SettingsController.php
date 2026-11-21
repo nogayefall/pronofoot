@@ -56,6 +56,8 @@ final class SettingsController extends Controller
         'rules.f121x_enabled' => '0',
         'rules.f121x_cross_gap_max' => '1.00',
         'rules.follow_leader_enabled' => '0',
+        'results.bet_validity' => 'match',
+        'results.count_extra_time' => '1',
     ];
 
     public function index(): JsonResponse
@@ -216,6 +218,10 @@ final class SettingsController extends Controller
         if (! is_string($value)
             || ($setting->key === 'tendance_source' && $value !== 'cote_suggeree')) {
             throw new InvalidArgumentException('La source autorisée est cote_suggeree.');
+        }
+
+        if ($setting->key === 'results.bet_validity' && ! in_array($value, ['match', 'alert'], true)) {
+            throw new InvalidArgumentException('La validité du pari doit être « match » (fin du match) ou « alert » (durée de l’alerte).');
         }
 
         return $value;

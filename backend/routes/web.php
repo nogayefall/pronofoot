@@ -46,6 +46,7 @@ Route::middleware(['auth', EnsureAdministrator::class])->group(function () {
         Route::post('/rule-profiles/{ruleProfile}/activate', [RuleProfileController::class, 'activate'])->name('rule-profiles.activate');
         Route::get('/journal', [OpportunityLogController::class, 'index'])->name('journal.index');
         Route::patch('/journal/{opportunityLog}/outcome', [OpportunityLogController::class, 'updateOutcome'])->name('journal.outcome');
+        Route::patch('/alert-options/{alertOption}', [OpportunityLogController::class, 'updateOption'])->name('alert-options.update');
         Route::get('/statistics', AdminStatisticsController::class)->name('statistics');
     });
     Route::post('/logout', [AuthenticatedSessionController::class, 'destroy'])->name('logout');

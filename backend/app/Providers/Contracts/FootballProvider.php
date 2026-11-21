@@ -25,4 +25,12 @@ interface FootballProvider
      * Tous les matchs d’une date (AAAA-MM-JJ), toutes compétitions, en une requête (fixtures?date=).
      */
     public function getFixturesByDate(string $date): FootballFeed;
+
+    /**
+     * Buts d’un match, dans l’ordre (fixtures/events) : une requête, seulement pour départager l’ordre de deux buts
+     * marqués entre deux relevés d’un match terminé ayant une alerte.
+     *
+     * @return list<array{minute: int|null, extra: int|null, team: string, detail: string}>|null Null si indisponible.
+     */
+    public function getGoalEvents(string $providerMatchId): ?array;
 }

@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Admin\Api;
 
 use App\Http\Controllers\Controller;
+use App\Models\AlertOption;
 use App\Models\OpportunityLog;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -20,7 +21,7 @@ final class OpportunityLogController extends Controller
             'page' => ['nullable', 'integer', 'min:1'],
         ]);
         $query = OpportunityLog::query()
-            ->with(['trackedMatch:id,home_team,away_team', 'matchSnapshot:id,minute,home_score,away_score', 'alert:id,opportunity_log_id,channel,status,expires_at,fallback_used'])
+            ->with(['trackedMatch:id,home_team,away_team', 'matchSnapshot:id,minute,home_score,away_score', 'alert:id,opportunity_log_id,channel,status,expires_at,fallback_used', 'alert.options'])
             ->when(isset($validated['date_from']), fn ($query) => $query->whereDate('evaluated_at', '>=', $validated['date_from']))
             ->when(isset($validated['date_to']), fn ($query) => $query->whereDate('evaluated_at', '<=', $validated['date_to']))
             ->when(isset($validated['match_id']), fn ($query) => $query->where('tracked_match_id', $validated['match_id']))
@@ -60,6 +61,7 @@ final class OpportunityLogController extends Controller
                     'channel' => $log->alert->channel,
                     'expiresAt' => $log->alert->expires_at?->toIso8601String(),
                     'fallbackUsed' => $log->alert->fallback_used,
+                    'options' => $log->alert->options->map(fn (AlertOption $option): array => $this->serializeOption($option))->values(),
                 ],
             ]),
             'pagination' => [
@@ -81,7 +83,68 @@ final class OpportunityLogController extends Controller
         }
 
         $opportunityLog->forceFill(['outcome' => $validated['outcome'] ?? null])->save();
+        // Compatibilité : le résultat d’une alerte est celui de son option principale.
+        $opportunityLog->alert->options()->where('position', 1)->first()?->forceFill([
+            'outcome' => $validated['outcome'] ?? 'pending',
+            'outcome_source' => isset($validated['outcome']) ? 'manual' : null,
+            'settled_at' => isset($validated['outcome']) ? now() : null,
+        ])->save();
 
         return response()->json(['id' => $opportunityLog->id, 'outcome' => $opportunityLog->outcome]);
+    }
+
+    /**
+     * Décision (jouée / ignorée / non renseignée) et résultat d’une option, corrigés par l’administrateur : l’origine du
+     * résultat passe à « manuel » et le calcul automatique ne le remplace plus.
+     */
+    public function updateOption(Request $request, AlertOption $alertOption): JsonResponse
+    {
+        $validated = $request->validate([
+            'decision' => ['nullable', 'in:'.implode(',', AlertOption::DECISIONS)],
+            'outcome' => ['nullable', 'in:'.implode(',', AlertOption::OUTCOMES)],
+        ]);
+        if (! array_key_exists('decision', $validated) && ! array_key_exists('outcome', $validated)) {
+            return response()->json(['message' => 'Indiquez une décision ou un résultat.'], 422);
+        }
+
+        if (isset($validated['decision'])) {
+            $alertOption->decision = $validated['decision'];
+        }
+        if (isset($validated['outcome'])) {
+            $pending = $validated['outcome'] === 'pending';
+            $alertOption->forceFill([
+                'outcome' => $validated['outcome'],
+                'outcome_source' => $pending ? null : 'manual',
+                'settled_at' => $pending ? null : now(),
+            ]);
+        }
+        $alertOption->save();
+
+        if ($alertOption->position === 1 && isset($validated['outcome'])) {
+            $alertOption->alert?->opportunityLog?->forceFill(['outcome' => $validated['outcome'] === 'pending' ? null : $validated['outcome']])->save();
+        }
+
+        return response()->json(['option' => $this->serializeOption($alertOption)]);
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function serializeOption(AlertOption $option): array
+    {
+        return [
+            'id' => $option->id,
+            'position' => $option->position,
+            'type' => $option->type,
+            'label' => $option->label,
+            'side' => $option->side,
+            'scoreKey' => $option->score_key,
+            'line' => $option->line,
+            'odds' => $option->odds,
+            'decision' => $option->decision,
+            'outcome' => $option->outcome,
+            'outcomeSource' => $option->outcome_source,
+            'settledAt' => $option->settled_at?->toIso8601String(),
+        ];
     }
 }
