@@ -97,13 +97,36 @@ class AlertResultsTest extends TestCase
             ['time' => ['elapsed' => 40], 'team' => ['name' => 'Soudan'], 'type' => 'Goal', 'detail' => 'Normal Goal'],
             ['time' => ['elapsed' => 70], 'team' => ['name' => 'Soudan'], 'type' => 'Goal', 'detail' => 'Penalty'],
             ['time' => ['elapsed' => 74], 'team' => ['name' => 'Soudan'], 'type' => 'Goal', 'detail' => 'Missed Penalty'],
-            ['time' => ['elapsed' => 76], 'team' => ['name' => 'Soudan'], 'type' => 'Goal', 'detail' => 'Own Goal'],
+            ['time' => ['elapsed' => 76], 'team' => ['name' => 'Sénégal'], 'player' => ['name' => 'Défenseur du Soudan'], 'type' => 'Goal', 'detail' => 'Own Goal'],
         ];
 
         $this->scan();
 
         $this->assertSame(1, Http::recorded()->filter(fn (array $pair): bool => str_contains($pair[0]->url(), '/fixtures/events'))->count(), 'Une seule requête d’événements.');
         $this->assertSame(['lost', 'won'], $alert->fresh()->options->pluck('outcome')->all(), 'Le Soudan a marqué le prochain but (penalty) avant le but contre son camp profitant au Sénégal.');
+    }
+
+    public function test_the_penalty_shootout_never_changes_the_result_of_an_option(): void
+    {
+        // Tirs au but : le champ goals reste au score de fin de prolongation (score.penalty à part) et les événements de
+        // la séance (comments « Penalty Shootout », dans le désordre, comme dans la réponse réelle) sont ignorés.
+        [$match, $alert] = $this->alertAt(1, 1, 100);
+        $this->snapshot($match, 2, 2, 118);
+        $this->snapshot($match, 2, 2, 120);
+        $this->live = ['PEN', 'Match Finished', 120, 2, 2];
+        $this->events = [
+            ['time' => ['elapsed' => 20, 'extra' => null], 'team' => ['name' => 'Sénégal'], 'type' => 'Goal', 'detail' => 'Normal Goal', 'comments' => null],
+            ['time' => ['elapsed' => 40, 'extra' => null], 'team' => ['name' => 'Soudan'], 'type' => 'Goal', 'detail' => 'Normal Goal', 'comments' => null],
+            ['time' => ['elapsed' => 120, 'extra' => 8], 'team' => ['name' => 'Sénégal'], 'type' => 'Goal', 'detail' => 'Penalty', 'comments' => 'Penalty Shootout'],
+            ['time' => ['elapsed' => 112, 'extra' => null], 'team' => ['name' => 'Soudan'], 'type' => 'Goal', 'detail' => 'Normal Goal', 'comments' => null],
+            ['time' => ['elapsed' => 115, 'extra' => null], 'team' => ['name' => 'Sénégal'], 'type' => 'Goal', 'detail' => 'Normal Goal', 'comments' => null],
+            ['time' => ['elapsed' => 120, 'extra' => 1], 'team' => ['name' => 'Soudan'], 'type' => 'Goal', 'detail' => 'Missed Penalty', 'comments' => 'Penalty Shootout'],
+            ['time' => ['elapsed' => 120, 'extra' => 2], 'team' => ['name' => 'Sénégal'], 'type' => 'Goal', 'detail' => 'Penalty', 'comments' => 'Penalty Shootout'],
+        ];
+
+        $this->scan();
+
+        $this->assertSame(['lost', 'won'], $alert->fresh()->options->pluck('outcome')->all(), 'Le Soudan marque le premier en prolongation (112e) ; les tirs au but réussis du Sénégal ne comptent pas.');
     }
 
     public function test_an_abandoned_match_cancels_the_options_which_stay_out_of_the_statistics(): void

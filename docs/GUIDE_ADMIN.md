@@ -78,7 +78,7 @@ Le filtre en haut de page permet d’afficher seulement les alertes envoyées, e
 - **Over 0.5 en 2e mi-temps** (F121-E2) : gagnée si au moins un but est marqué en 2e mi-temps.
 - Match arrêté, abandonné ou annulé : **Annulée**, sans effet sur les statistiques.
 
-Vous pouvez corriger un résultat dans la liste : il passe en **Manuel** et n’est plus recalculé. Indiquez aussi si vous avez **joué** l’option : les Statistiques donnent un second taux sur vos seules options jouées. Deux réglages, à confirmer, sont dans Paramètres : la validité du pari (fin du match ou durée de l’alerte) et la prise en compte de la prolongation.
+Vous pouvez corriger un résultat dans la liste : il passe en **Manuel** et n’est plus recalculé. Indiquez aussi si vous avez **joué** l’option : les Statistiques donnent un second taux sur vos seules options jouées. Règles confirmées par le client : le pari reste valable jusqu’à la fin du match (les 15 minutes ne concernent que l’expiration de l’alerte), la prolongation compte comme le temps réglementaire, et les tirs au but ne comptent jamais. Ces deux réglages restent modifiables dans Paramètres.
 
 Sur téléphone, le Journal s’affiche en cartes : match, score, règle, décision, justification repliable, puis les listes Décision et Résultat de chaque option, sans défilement horizontal.
 

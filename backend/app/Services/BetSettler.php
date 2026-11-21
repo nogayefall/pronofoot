@@ -14,7 +14,7 @@ use Carbon\CarbonImmutable;
  *  - Over 0.5 2e mi-temps (F121-E2) : gagnée si au moins un but est marqué en 2e mi-temps (prolongation exclue).
  *  - Match arrêté, abandonné ou annulé : annulée.
  *
- * Paramètres (à confirmer) : validité jusqu’à la fin du match ou pendant la durée de l’alerte (ciblée, neutre) ;
+ * Paramètres (confirmés par le client) : validité jusqu’à la fin du match ou pendant la durée de l’alerte (ciblée, neutre) ;
  * prolongation comptée ou non (minute > 90). Si les deux équipes marquent entre deux relevés et que le prochain but
  * compte (option ciblée), l’ordre des buts doit venir des événements du match : sans eux, le résultat reste en attente.
  */

@@ -303,7 +303,8 @@ final class ApiFootballProvider implements FootballProvider
         $goals = [];
         foreach ($events as $event) {
             $detail = is_array($event) ? (string) ($event['detail'] ?? '') : '';
-            if (($event['type'] ?? null) !== 'Goal' || $detail === 'Missed Penalty') {
+            // Penalty manqué, et séance de tirs au but (« Penalty Shootout ») : jamais un but du match.
+            if (($event['type'] ?? null) !== 'Goal' || $detail === 'Missed Penalty' || ($event['comments'] ?? null) === 'Penalty Shootout') {
                 continue;
             }
 
@@ -314,6 +315,9 @@ final class ApiFootballProvider implements FootballProvider
                 'detail' => $detail,
             ];
         }
+
+        // Ordre chronologique (minute, puis temps additionnel) : l’API ne renvoie pas toujours les événements dans l’ordre.
+        usort($goals, fn (array $first, array $second): int => [$first['minute'] ?? 0, $first['extra'] ?? 0] <=> [$second['minute'] ?? 0, $second['extra'] ?? 0]);
 
         return $goals;
     }

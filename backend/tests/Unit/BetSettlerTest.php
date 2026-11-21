@@ -124,4 +124,16 @@ class BetSettlerTest extends TestCase
             'at' => $start->addMinutes($index + 1),
         ], $scores, array_keys($scores));
     }
+
+    public function test_readings_during_the_penalty_shootout_never_add_a_goal(): void
+    {
+        // Pendant les tirs au but (statut P), le score relevé reste celui de la fin de la prolongation.
+        $result = (new BetSettler)->settle(self::OPTIONS, ['home' => 2, 'away' => 2], $this->timeline([[2, 2, 120], [2, 2, 120], [2, 2, 120]]), false, true);
+        $this->assertSame(['lost', 'lost', 'lost', 'lost'], $result['outcomes']);
+        $this->assertFalse($result['needsEvents']);
+
+        // But en prolongation puis tirs au but : seul le but de la 112e compte.
+        $extraTime = (new BetSettler)->settle(self::OPTIONS, ['home' => 2, 'away' => 2], $this->timeline([[2, 3, 112], [2, 3, 120], [2, 3, 120]]), false, true);
+        $this->assertSame(['lost', 'won', 'won', 'lost'], $extraTime['outcomes']);
+    }
 }

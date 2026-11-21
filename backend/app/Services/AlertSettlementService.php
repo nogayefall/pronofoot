@@ -132,7 +132,9 @@ final class AlertSettlementService
                 return null;
             }
 
-            $sides[] = $event['detail'] === 'Own Goal' ? ($side === 'home' ? 'away' : 'home') : $side;
+            // API-Football donne pour un but contre son camp l’équipe qui en profite (vérifié : Canada–Maroc, 2022,
+            // CSC de N. Aguerd attribué au Canada) : aucune inversion.
+            $sides[] = $side;
         }
 
         $after = array_slice($sides, $base['home'] + $base['away']);

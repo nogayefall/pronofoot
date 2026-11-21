@@ -147,17 +147,20 @@ Chaque alerte enregistre ses options (table `alert_options`) : **ciblée** « Pr
 
 - **Calcul** : à la fin du match (FT, AET, PEN, ou fin par absence du flux), à partir des scores déjà enregistrés à chaque relevé, **sans requête API en plus**. Un but contre son camp compte pour l’équipe qui en profite (le score l’indique déjà). Une baisse du score (but annulé par la VAR) remplace la référence sans compter de but.
 - **Match arrêté, abandonné, reporté ou annulé** (ABD, CANC, PST, AWD, WO) : toutes les options sont **annulées** et exclues des statistiques.
-- **Deux buts des deux équipes entre deux relevés** (ordre incertain, seulement pour une option ciblée en attente) : **une seule** requête `/fixtures/events` du match terminé, uniquement pour un match ayant une alerte. Les penalties manqués sont ignorés. Pour un but contre son camp, l’équipe indiquée par l’événement est inversée (convention API-Football **à confirmer**). Si la requête échoue, l’option reste « en attente », à noter à la main.
+- **Deux buts des deux équipes entre deux relevés** (ordre incertain, seulement pour une option ciblée en attente) : **une seule** requête `/fixtures/events` du match terminé, uniquement pour un match ayant une alerte. Les penalties manqués et la séance de tirs au but (événements « Penalty Shootout ») sont ignorés, et les buts sont remis dans l’ordre des minutes. Pour un but contre son camp, API-Football indique l’équipe qui en profite : elle est reprise telle quelle (vérifié sur une réponse réelle : Canada–Maroc, Coupe du monde 2022, CSC de N. Aguerd attribué au Canada). Si la requête échoue, l’option reste « en attente », à noter à la main.
 - **Consommation de quota** : 0 requête dans le cas normal ; au plus 1 requête par match terminé ayant une alerte, et seulement dans le cas rare ci-dessus.
 - **Correction manuelle** : l’administrateur peut corriger un résultat dans le Journal ; l’origine passe à « manuel » et le calcul automatique ne le remplace plus. Remettre « En attente » efface l’origine.
 - **Alertes existantes** (migration) : une option est créée d’après la règle et la sélection de l’alerte (et l’option neutre si le message la mentionne). Le résultat déjà noté devient celui de l’option principale, origine « manuel ».
 - **Statistiques** : taux = gagnées ÷ (gagnées + perdues), annulées et en attente exclues ; par règle et par type d’option, sur toutes les options (résultat automatique) et sur les seules options marquées « jouées ». Filtre par dates conservé (date de l’alerte).
 - **Limite** : un match terminé par absence du flux est évalué sur son dernier relevé ; un but dans les toutes dernières secondes peut manquer (corrigeable à la main).
 
-| Point à confirmer par le client | Défaut | Paramètre |
+- **Tirs au but** : jamais comptés. Le score relevé (champ `goals` d’API-Football) reste celui de la fin de la prolongation pendant et après la séance (vérifié : finale de la Coupe du monde 2022, `goals` 3-3, `score.penalty` 4-2) ; les événements de la séance sont exclus.
+
+| Point confirmé par le client (21 novembre 2026) | Valeur | Paramètre |
 |---|---|---|
-| Validité du pari (options ciblée et neutre) | Jusqu’à la fin du match ; autre choix : pendant la durée de l’alerte (15 min) | `results.bet_validity` = `match` |
-| Prolongation | Comptée (sauf pour Over 0.5 en 2e mi-temps) | `results.count_extra_time` = activé |
+| But contre son camp | Compte pour l’équipe adverse (celle qui en profite) | — |
+| Validité du pari (options ciblée et neutre) | Jusqu’à la fin du match ; les 15 minutes ne concernent que l’expiration de l’alerte. Autre choix possible : pendant la durée de l’alerte | `results.bet_validity` = `match` |
+| Prolongation | Comptée comme le temps réglementaire (sauf pour Over 0.5 en 2e mi-temps) | `results.count_extra_time` = activé |
 
 ## Les 10 situations (annexe section 7 et complément 2)
 
