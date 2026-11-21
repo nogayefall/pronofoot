@@ -2061,13 +2061,32 @@ body.drawer-open {
 }
 
 /* Journal : options d’une alerte (décision, résultat, origine) */
-.cell-options {
-  min-width: 300px;
+.row-with-options td {
+  border-bottom: 0 !important;
+}
+
+.row-options td {
+  padding-top: 0 !important;
+  background: transparent;
+}
+
+.row-options:hover td {
+  background: transparent !important;
+}
+
+.row-options-title {
+  display: block;
+  margin-bottom: 8px;
+  color: var(--muted);
+  font-size: 12px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
 }
 
 .option-list {
   display: grid;
-  gap: 8px;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 340px), 1fr));
+  gap: 10px;
   margin: 0;
   padding: 0;
   list-style: none;
@@ -2075,8 +2094,10 @@ body.drawer-open {
 
 .option-item {
   display: grid;
-  gap: 6px;
-  padding: 8px 10px;
+  align-content: start;
+  gap: 8px;
+  min-width: 0;
+  padding: 10px 12px;
   border: 1px solid var(--line);
   border-radius: var(--radius-field);
   background: var(--surface-2);
@@ -2091,7 +2112,7 @@ body.drawer-open {
 }
 
 .option-head strong {
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 600;
   overflow-wrap: anywhere;
 }
@@ -2102,15 +2123,14 @@ body.drawer-open {
 }
 
 .option-controls {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: flex-end;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto;
+  align-items: end;
   gap: 8px;
 }
 
 .option-field {
   display: grid;
-  flex: 1 1 120px;
   gap: 3px;
   min-width: 0;
   color: var(--muted);
@@ -2119,27 +2139,59 @@ body.drawer-open {
 
 .option-field select {
   width: 100%;
-  min-height: 36px;
+  min-width: 0;
+  min-height: 38px;
+  padding: 6px 30px 6px 10px;
+  font-size: 14px;
 }
 
 .option-controls .pill {
-  margin-bottom: 6px;
+  margin-bottom: 8px;
 }
 
-.journal-reason summary {
-  color: var(--text-2);
-  font-size: 13px;
+.reason-text summary {
   cursor: pointer;
+  list-style: none;
 }
 
-.journal-reason p {
-  margin: 6px 0 0;
-  color: var(--muted);
+.reason-text summary::-webkit-details-marker {
+  display: none;
+}
+
+.reason-toggle {
+  color: var(--accent);
   font-size: 13px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.reason-less,
+.reason-text[open] .reason-short,
+.reason-text[open] .reason-more {
+  display: none;
+}
+
+.reason-text[open] .reason-less {
+  display: inline;
+}
+
+.reason-full {
+  display: block;
+  margin-top: 4px;
   overflow-wrap: anywhere;
 }
 
 @media (max-width: 640px) {
+  .option-controls {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .option-controls .pill {
+    grid-column: 1 / -1;
+    justify-self: start;
+    margin: 0;
+  }
+
   .option-field select {
     min-height: 44px;
     font-size: 16px;

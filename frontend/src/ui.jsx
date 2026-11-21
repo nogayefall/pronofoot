@@ -217,3 +217,17 @@ export function AlertOptionsEditor({ log, busy, decisions, outcomes, onOption, o
     </ul>
   )
 }
+
+export function ReasonText({ text, limit = 160 }) {
+  if (!text) return <span>—</span>
+  if (text.length <= limit) return <span>{text}</span>
+  const cut = text.slice(0, limit)
+  const short = cut.slice(0, Math.max(cut.lastIndexOf(' '), limit * 0.6))
+
+  return (
+    <details className="reason-text">
+      <summary><span className="reason-short">{short}…</span> <span className="reason-toggle reason-more">Voir plus</span><span className="reason-toggle reason-less">Réduire</span></summary>
+      <span className="reason-full">{text}</span>
+    </details>
+  )
+}

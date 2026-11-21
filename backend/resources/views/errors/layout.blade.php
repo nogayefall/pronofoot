@@ -1,7 +1,8 @@
 <!DOCTYPE html>
-<html lang="fr">
+<html lang="fr" translate="no">
 <head>
     <meta charset="utf-8">
+    <meta name="google" content="notranslate">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="robots" content="noindex">
     <title>@yield('title') — PronoFoot</title>
