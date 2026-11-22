@@ -49,15 +49,19 @@ class ConfidenceScorerTest extends TestCase
         $this->assertSame(0.0, $this->rule('F162-Bis', 1, 0, $odds), 'Sans tendance : 0.');
     }
 
-    public function test_f121_d_needs_both_next_scores_at_8_or_less_and_keeps_the_minimum_goals_condition(): void
+    public function test_f121_d_needs_four_goals_and_both_next_scores_at_8_or_less(): void
     {
         $open = new RuleConfiguration(openMatchMinimumGoals: 2);
         // Atalanta – Frosinone : 3-2 à 6.00 et 2-3 à 8.00 (borne incluse) : 80.
         $this->assertSame(80.0, $this->rule('F121-D', 2, 2, ['2-2' => 9.0, '3-2' => 6.00, '2-3' => 8.00], $open));
         $this->assertSame(0.0, $this->rule('F121-D', 2, 2, ['2-2' => 9.0, '3-2' => 6.00, '2-3' => 8.01], $open));
-        // Rennes – Racing, 2-0 : 80 si la condition de buts le permet ; avec le minimum actuel du moteur (4 buts) : 0.
+        // Rennes – Racing, 2-0 : 80 si la condition de buts le permet ; avec le minimum confirmé (4 buts) : 0.
         $this->assertSame(80.0, $this->rule('F121-D', 2, 0, ['2-0' => 3.0, '3-0' => 4.50, '2-1' => 5.50], $open));
         $this->assertSame(0.0, $this->rule('F121-D', 2, 0, ['2-0' => 3.0, '3-0' => 4.50, '2-1' => 5.50]));
+        // Condition confirmée par le client : plus de pastille « À valider » sur F121-D, toujours sur F121-C.
+        $rules = $this->evaluate(2, 2, ['2-2' => 9.0, '3-2' => 6.00, '2-3' => 8.00])['rules'];
+        $this->assertFalse($rules['F121-D']['toConfirm']);
+        $this->assertTrue($rules['F121-C']['toConfirm']);
     }
 
     public function test_f121_e2_scores_the_under_2_5_odds_only_at_halftime(): void

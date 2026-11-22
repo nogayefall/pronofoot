@@ -230,10 +230,10 @@ class AdminApiTest extends TestCase
         ])->assertUnprocessable();
 
         $this->assertDatabaseMissing('settings', ['key' => 'ecart_negatif_comportement']);
-        $this->assertDatabaseHas('settings', ['key' => 'rules.open_match_min_goals', 'value' => '4', 'needs_confirmation' => true]);
+        $this->assertDatabaseHas('settings', ['key' => 'rules.open_match_min_goals', 'value' => '4', 'needs_confirmation' => false]);
         $this->patchJson(route('admin.api.settings.update'), [
             'settings' => ['rules.open_match_min_goals' => ''],
-        ])->assertOk();
+        ])->assertUnprocessable();
         $this->patchJson(route('admin.api.settings.update'), [
             'settings' => ['rules.decision_pipeline' => ['vitality', 'inconnue']],
         ])->assertUnprocessable();

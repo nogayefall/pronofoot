@@ -10,8 +10,8 @@ namespace App\Rules;
  *  - F121-C : équipe désignée = celle qui a le plus petit écart ; 90 si une équipe est désignée et que le score n’est
  *    pas à égalité, 0 sinon (interprétation retenue, exemple Espagne-Angleterre, à valider par le client).
  *  - F162-Bis : plus forte baisse sur la fenêtre de tendance du moteur (2 minutes) ; > 10 % = 95 ; 5 à 10 % = 75 ; sinon 0.
- *  - F121-D : deux scores suivants (h+1-a et h-a+1) ; 80 si les deux cotes sont <= 8.00 ; sinon 0. Condition de buts
- *    minimum du moteur conservée (à confirmer).
+ *  - F121-D : deux scores suivants (h+1-a et h-a+1) ; 80 si les deux cotes sont <= 8.00 ; sinon 0. Au moins 4
+ *    buts (condition du moteur, confirmée par le client).
  *  - F121-E2 : seulement à la mi-temps ; Under 2.5 dans la plage du moteur (1.15 à 1.40) = 85 ; en dessous = 30 ; au-dessus = 0.
  *  - F121-C.2 : une équipe mène de 2 buts ou plus = 90 ; sinon 0.
  *
@@ -22,7 +22,7 @@ final class ConfidenceScorer
 {
     public const RULES = ['F121-E1', 'F121-C', 'F162-Bis', 'F121-D', 'F121-E2', 'F121-C.2'];
 
-    public const TO_CONFIRM = ['F121-C', 'F121-D'];
+    public const TO_CONFIRM = ['F121-C'];
 
     public function __construct(private readonly ConvergenceCalculator $calculator = new ConvergenceCalculator) {}
 
@@ -164,7 +164,7 @@ final class ConfidenceScorer
     {
         $goals = $input->homeScore + $input->awayScore;
         if ($goals < $configuration->openMatchMinimumGoals) {
-            return [0.0, "{$goals} but(s) : moins que les {$configuration->openMatchMinimumGoals} buts du moteur (condition à confirmer), 0."];
+            return [0.0, "{$goals} but(s) : moins que les {$configuration->openMatchMinimumGoals} buts minimum, 0."];
         }
 
         $homeKey = ($input->homeScore + 1).'-'.$input->awayScore;

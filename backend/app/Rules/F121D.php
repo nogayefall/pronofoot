@@ -3,7 +3,7 @@
 namespace App\Rules;
 
 /**
- * F121-D (match ouvert) : score « élevé » (au moins N buts au total, N à confirmer) et cotes des deux scores
+ * F121-D (match ouvert) : score « élevé » (au moins N buts au total, 4 confirmé par le client) et cotes des deux scores
  * suivants inférieures ou égales au seuil (8.00 inclus) : pari neutre Over 4.5.
  */
 final class F121D

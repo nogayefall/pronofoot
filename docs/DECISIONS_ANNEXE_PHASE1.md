@@ -19,7 +19,7 @@ Sources :
 | F121-G (filtre d’abstention) | Écart > 0.50 : abstention. | `rules.abstention_gap_threshold` = 0.50 |
 | Alerte Haute | 0 < écart ≤ 0.50. | `alerts.level_positive_gap` |
 | F121-E2 (mi-temps) | Under 2.5 (total du match) entre 1.15 et 1.40 inclus : Over 0.5 en 2e MT. Seule alerte possible à la mi-temps. | `rules.halftime_under25_min`, `rules.halftime_under25_max` |
-| F121-D (match ouvert) | Score « élevé » et cotes des deux scores suivants ≤ 8.00 : Over 4.5. | `rules.open_match_min_goals` = 4, `rules.upcoming_score_odds_limit` = 8.00 |
+| F121-D (match ouvert) | Au moins 4 buts et cotes des deux scores suivants ≤ 8.00 (inclus) : Over 4.5. Confirmé par le client le 22 novembre 2026. | `rules.open_match_min_goals` = 4, `rules.upcoming_score_odds_limit` = 8.00 |
 | F121-A (1.50) et règle 0-0 du CDC | N’interviennent plus dans l’ordre de décision ; conservés comme paramètres inactifs. | `rules.maximum_directional_gap`, `rules.zero_zero_*` |
 
 ## Ordre de décision appliqué (modifiable : `rules.decision_pipeline`)
@@ -143,7 +143,7 @@ Un score de 0 à 100 par règle, puis la moyenne pondérée par les poids du pro
 | F121-E1 | Écart le plus négatif des deux équipes ; (\|écart\| / 0.50) × 95, plafonné à 95 ; 0 si l’écart est >= 0 | −0.09 → 17.1 (17 dans le document, arrondi au dixième) ; −0.66 → 95 ; +0.18 → 0 |
 | F121-C | Équipe désignée = celle qui a le **plus petit écart** ; 90 si une équipe est désignée et que le score n’est pas à égalité, 0 sinon (égalité au score, écarts égaux ou non calculables). Que l’équipe désignée mène ou soit derrière n’y change rien ; le score « 20 » du document n’est pas appliqué. **Interprétation retenue, exemple Espagne-Angleterre, à valider par le client.** | Espagne derrière (−0.29 contre +1.21) → 90 ; Arsenal (+0.18 contre +5.58) → 90 ; 1-1 → 0 |
 | F162-Bis | Plus forte baisse des cotes du prochain but des deux équipes, sur la même fenêtre de tendance que le moteur (2 minutes ; après un but, variation depuis la première cote) ; baisse > 10 % = 95 ; 5 à 10 % (5 et 10 inclus) = 75 ; sinon 0 | −17 % → 95 ; −6.25 % → 75 ; +1.5 % → 0 |
-| F121-D | Deux scores suivants (h+1-a et h-a+1, par exemple 3-2 et 2-3 pour 2-2) ; 80 si les deux cotes sont <= 8.00 ; sinon 0. **Condition de buts minimum du moteur conservée (4 buts, `rules.open_match_min_goals`), à confirmer** : avec elle, Rennes-Racing (2-0) donne 0 et non 80 | 3-2 à 6.00 et 2-3 à 8.00 → 80 |
+| F121-D | Au moins 4 buts (`rules.open_match_min_goals`) ; deux scores suivants (h+1-a et h-a+1, par exemple 3-2 et 2-3 pour 2-2) ; 80 si les deux cotes sont <= 8.00 (inclus) ; sinon 0. **Confirmé par le client (22 novembre 2026).** Rennes-Racing (2-0) donne donc 0 | 3-2 à 6.00 et 2-3 à 8.00 → 80 |
 | F121-E2 | Seulement à la mi-temps ; Under 2.5 dans la plage du moteur (1.15 à 1.40 inclus) = 85 ; < 1.15 = 30 ; > 1.40 = 0 ; hors mi-temps = 0 | 1.36 → 85 ; 1.40 → 85 ; 1.10 → 30 |
 | F121-C.2 | Une équipe mène de 2 buts ou plus = 90 ; sinon 0 | 2-0 → 90 |
 

@@ -54,7 +54,7 @@ Deux possibilités, qui fonctionnent ensemble :
 
 Chaque match ajouté consomme des requêtes chez le fournisseur : suivez seulement les matchs qui vous intéressent.
 
-**Score de confiance.** Chaque analyse reçoit un score de confiance de 0 à 100 % calculé automatiquement (formules du document V12) : un score par règle (F121-E1, F121-C, F162-Bis, F121-D, F121-E2, F121-C.2), multiplié par le poids de la règle dans le profil actif. Le seuil de validation des profils v11 et V11.9 est de 55 %. Pour l’instant le score est **indicatif** : il ne bloque aucune alerte, car l’étape « convergence » est désactivée dans Paramètres. Les lignes marquées « À valider » attendent une confirmation du client (F121-C, condition de buts de F121-D). Le bouton « Tester la combinaison » du Moteur de règles applique le profil choisi à la situation du Testeur, sans saisie de scores.
+**Score de confiance.** Chaque analyse reçoit un score de confiance de 0 à 100 % calculé automatiquement (formules du document V12) : un score par règle (F121-E1, F121-C, F162-Bis, F121-D, F121-E2, F121-C.2), multiplié par le poids de la règle dans le profil actif. Le seuil de validation des profils v11 et V11.9 est de 55 %. Pour l’instant le score est **indicatif** : il ne bloque aucune alerte, car l’étape « convergence » est désactivée dans Paramètres. La ligne marquée « À valider » (F121-C) attend une confirmation du client. Le bouton « Tester la combinaison » du Moteur de règles applique le profil choisi à la situation du Testeur, sans saisie de scores.
 
 ## 4. Lire le Journal
 

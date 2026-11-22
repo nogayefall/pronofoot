@@ -25,7 +25,7 @@ Référence : `PRONOFOOT_CDC_V9.1.pdf`, section 4.1. Le constructeur de règles 
 | Étape | Condition | Décision |
 |---|---|---|
 | 1. F121-E2 | Mi-temps, Under 2.5 entre 1.15 et 1.40 inclus | **Alerte Mi-temps** (Over 0.5 en 2e MT) ; à la mi-temps, aucune autre alerte |
-| 2. F121-D | Au moins 4 buts (à confirmer) et cotes des deux scores suivants ≤ 8.00 | **Pari neutre** Over 4.5 |
+| 2. F121-D | Au moins 4 buts et cotes des deux scores suivants ≤ 8.00 | **Pari neutre** Over 4.5 |
 | 3. Vitalité | ≤ 40 ou non calculable | Abstention |
 | 4. F162-Bis | Baisse de la cote du score suggéré de plus de 5 % en 2 minutes | **Alerte Critique** (prioritaire sur l’écart) |
 | 5. Hausse | Variation > 0, ou tendance non calculable (moins de 2 minutes de cotes depuis le début du suivi) | Abstention |

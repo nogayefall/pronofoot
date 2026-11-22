@@ -34,7 +34,7 @@ function plural(count, word) {
 const ruleDescriptions = [
   { id: 'F121-C', title: 'Écart des deux équipes', status: 'Disponible', detail: 'Pour chaque équipe : écart = cote du score de son prochain but − cote du score actuel, et tendance de cette cote. Les deux équipes sont évaluées ; la plus forte alerte l’emporte (critique, puis écart le plus négatif, puis baisse la plus forte, à confirmer).' },
   { id: 'F121-C.2', title: 'Avantage de deux buts', status: 'Disponible', detail: 'Indicatif : ne désigne plus l’équipe, puisque les deux équipes sont évaluées.' },
-  { id: 'F121-D', title: 'Match ouvert', status: 'Disponible', detail: 'Au moins 4 buts (à confirmer) et cotes des scores suivants ≤ 8.00 : Over 4.5.' },
+  { id: 'F121-D', title: 'Match ouvert', status: 'Disponible', detail: 'Au moins 4 buts et cotes des scores suivants ≤ 8.00 : Over 4.5.' },
   { id: 'F162-Bis', title: 'Baisse obligatoire', status: 'Disponible', detail: 'Cote du prochain but en baisse de plus de 5 % en 2 minutes : alerte critique, prioritaire sur l’écart.' },
   { id: 'F121-E1', title: 'Écart négatif', status: 'Disponible', detail: 'Cote du prochain but inférieure à celle du score actuel : alerte critique.' },
   { id: 'F121-G', title: 'Filtre d’abstention', status: 'Disponible', detail: 'Écart positif au-delà de 0.50 sans forte baisse : abstention. Entre 0 et 0.50 : alerte haute.' },
@@ -60,7 +60,7 @@ const settingLabels = {
   'rules.vitality_normalization_references': 'Barème de la vitalité',
   'rules.halftime_under25_min': 'F121-E2 : Under 2.5 minimal',
   'rules.halftime_under25_max': 'F121-E2 : Under 2.5 maximal',
-  'rules.open_match_min_goals': 'F121-D : nombre minimal de buts (à confirmer)',
+  'rules.open_match_min_goals': 'F121-D : nombre minimal de buts',
   'rules.abstention_gap_threshold': 'F121-G : seuil d’écart d’abstention',
   'rules.minutes_remaining_enabled': 'Abstention s’il reste peu de minutes (à confirmer)',
   'rules.minutes_remaining_min': 'Minutes de jeu restantes minimales (à confirmer)',

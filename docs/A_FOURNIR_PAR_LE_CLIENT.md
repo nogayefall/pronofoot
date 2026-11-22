@@ -13,7 +13,6 @@ Ces points ne sont plus à fournir : vitalité (barème, bornes incluses, minimu
 - **Règle des minutes restantes** (hors pseudo-code) : abstention s’il reste moins de 10 minutes ? Désactivée par défaut.
 - **Convergence** : l’annexe ne la mentionne pas ; elle est calculée mais ne bloque plus les alertes. Faut-il la remettre dans l’ordre de décision ?
 - **Baisse exactement égale à 5 %** : pas « plus de 5 % », donc pas de F162-Bis ; le moteur passe à l’écart.
-- **F121-D, score « élevé »** : au moins 4 buts au total (la situation 9 est à 2-2). Seuil à confirmer.
 - **Mode économie** :
   - un écart entre 1.50 et 2.00 est-il bien « calme » ?
   - un match est-il bien chaud dès que l’écart est < 1.50 ou que la cote baisse de plus de 5 % ?
