@@ -37,7 +37,7 @@ Sources :
 Étapes facultatives, désactivées par défaut :
 
 - `minutes_remaining` (`rules.minutes_remaining_enabled`, N = `rules.minutes_remaining_min` = 10) : abstention s’il reste moins de N minutes sur 90. **Ne figure pas dans le pseudo-code du client ; à confirmer.** Insérée juste après F121-E2 quand elle est activée.
-- `convergence` (`rules.convergence_enabled`) : une alerte sur une équipe exige un score de confiance supérieur au seuil du profil.
+- `convergence` (`rules.convergence_enabled`, **désactivée**) : une alerte sur une équipe exige un score de confiance supérieur au seuil du profil. Désactivée, le score est seulement calculé et affiché (voir « Score de confiance automatique »).
 
 Les étapes 1 à 3 (et les facultatives `minutes_remaining`, `convergence`) sont communes au match. Les étapes 4 à 9 sont appliquées **à chaque équipe** (voir ci-dessous).
 
@@ -133,6 +133,24 @@ Tests : `test_post_goal_window_follows_the_complement_4` et `test_after_the_post
 | Journal sans doublons | Un relevé dont la décision et la justification sont identiques au précédent pour le même match met à jour la ligne existante (horodatage, nombre de relevés) au lieu d’en créer une. | — |
 
 À confirmer : écart entre 1.50 et 2.00 traité comme « calme » ; définition d’un match chaud ; seuil de 10 % inclus ; classement chaud / calme sur le dernier instantané (au plus 30 s de retard) ; pronostics pré-match absents en Phase 1.
+
+## Score de confiance automatique (document client V12, 22 novembre 2026)
+
+Un score de 0 à 100 par règle, puis la moyenne pondérée par les poids du profil actif (v11 et V11.9 : E1 25, C 20, F162-Bis 20, D 15, E2 10, C.2 10). Classe pure `ConfidenceScorer`, appelée par le moteur : le scan réel et le Testeur utilisent la même fonction. Le score et le détail par règle (score, poids, contribution, explication) sont conservés avec chaque évaluation (`opportunity_logs.confidence`) et affichés dans le Journal et le Testeur. **Il ne bloque aucune alerte** : l’étape « convergence » reste désactivée. Seuil de validation des profils « v11 » et « V11.9 » : **55 %** (score strictement supérieur, comme l’étape existante).
+
+| Règle | Formule appliquée | Exemple vérifié par un test |
+|---|---|---|
+| F121-E1 | Écart le plus négatif des deux équipes ; (\|écart\| / 0.50) × 95, plafonné à 95 ; 0 si l’écart est >= 0 | −0.09 → 17.1 (17 dans le document, arrondi au dixième) ; −0.66 → 95 ; +0.18 → 0 |
+| F121-C | Équipe désignée = celle qui a le **plus petit écart** ; 90 si une équipe est désignée et que le score n’est pas à égalité, 0 sinon (égalité au score, écarts égaux ou non calculables). Que l’équipe désignée mène ou soit derrière n’y change rien ; le score « 20 » du document n’est pas appliqué. **Interprétation retenue, exemple Espagne-Angleterre, à valider par le client.** | Espagne derrière (−0.29 contre +1.21) → 90 ; Arsenal (+0.18 contre +5.58) → 90 ; 1-1 → 0 |
+| F162-Bis | Plus forte baisse des cotes du prochain but des deux équipes, sur la même fenêtre de tendance que le moteur (2 minutes ; après un but, variation depuis la première cote) ; baisse > 10 % = 95 ; 5 à 10 % (5 et 10 inclus) = 75 ; sinon 0 | −17 % → 95 ; −6.25 % → 75 ; +1.5 % → 0 |
+| F121-D | Deux scores suivants (h+1-a et h-a+1, par exemple 3-2 et 2-3 pour 2-2) ; 80 si les deux cotes sont <= 8.00 ; sinon 0. **Condition de buts minimum du moteur conservée (4 buts, `rules.open_match_min_goals`), à confirmer** : avec elle, Rennes-Racing (2-0) donne 0 et non 80 | 3-2 à 6.00 et 2-3 à 8.00 → 80 |
+| F121-E2 | Seulement à la mi-temps ; Under 2.5 dans la plage du moteur (1.15 à 1.40 inclus) = 85 ; < 1.15 = 30 ; > 1.40 = 0 ; hors mi-temps = 0 | 1.36 → 85 ; 1.40 → 85 ; 1.10 → 30 |
+| F121-C.2 | Une équipe mène de 2 buts ou plus = 90 ; sinon 0 | 2-0 → 90 |
+
+- **Exemple complet Arsenal-Everton (64e)** : 1-0 à 2.92, 2-0 à 3.10, 1-1 à 8.50, baisse de 17 % : E1 0, C 90 (18.0), F162-Bis 95 (19.0), D 0, E2 0, C.2 0 : **37.0 %** < 55 % (test unitaire). L’alerte F162-Bis reste envoyée, le score étant indicatif.
+- Scores arrondis au dixième ; score final non calculé si le profil n’a aucun poids, ou s’il pondère une règle sans formule.
+- Testeur : avec un profil choisi (test de combinaison), ses poids et son seuil ; sans profil, ceux du profil actif. Les scores ne se saisissent plus à la main.
+- **Double Suggestion (F121-C + F121-X, section 7 du document)** : non modifiée, en attente des précisions du client.
 
 ## Résultat automatique des alertes, par option (21 novembre 2026)
 

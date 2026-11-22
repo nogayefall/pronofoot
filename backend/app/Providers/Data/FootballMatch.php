@@ -6,7 +6,6 @@ final readonly class FootballMatch
 {
     /**
      * @param  array<string, int|float|null|array<string, int|float|null>>  $statistics  Fake : valeurs plates ; API-Football : clés home et away, chacune avec shots, shots_on_target, corners et possession.
-     * @param  array<string, int|float>  $methodScores
      * @param  array<string, int|float>  $exactScoreOdds
      */
     public function __construct(
@@ -22,7 +21,6 @@ final readonly class FootballMatch
         public ?int $awayScore = null,
         public array $statistics = [],
         public ?float $vitalityScore = null,
-        public array $methodScores = [],
         public ?string $statusSeconds = null,
         public ?bool $stopped = null,
         public ?bool $blocked = null,

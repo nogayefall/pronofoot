@@ -13,6 +13,7 @@ final readonly class EngineResult
      * @param  string|null  $selection  home, away, ou null pour un pari sur le total de buts.
      * @param  list<array<string, mixed>>  $sides  Détail de la règle F121 pour chaque équipe (écart, tendance, décision).
      * @param  list<array<string, mixed>>  $options  Options proposées : ciblée (prochain but d’une équipe) puis neutre (un but de plus).
+     * @param  array<string, mixed>  $confidence  Score de confiance automatique (V12) : total, seuil, détail par règle.
      */
     public function __construct(
         public bool $shouldAlert,
@@ -27,5 +28,6 @@ final readonly class EngineResult
         public ?string $suggestedAction = null,
         public array $sides = [],
         public array $options = [],
+        public array $confidence = [],
     ) {}
 }

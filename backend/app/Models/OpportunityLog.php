@@ -18,6 +18,7 @@ class OpportunityLog extends Model
         'decision',
         'rule_results',
         'filter_results',
+        'confidence',
         'suggested_action',
         'reason',
         'outcome',
@@ -31,6 +32,7 @@ class OpportunityLog extends Model
         return [
             'rule_results' => 'array',
             'filter_results' => 'array',
+            'confidence' => 'array',
             'evaluated_at' => 'datetime',
             'repeat_count' => 'integer',
             'first_evaluated_at' => 'datetime',

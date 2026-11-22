@@ -28,7 +28,7 @@ final class RuleEngine
         private readonly GapFilter $gapFilter = new GapFilter,
         private readonly TrendFilter $trendFilter = new TrendFilter,
         private readonly VitalityFilter $vitalityFilter = new VitalityFilter,
-        private readonly ConvergenceCalculator $convergenceCalculator = new ConvergenceCalculator,
+        private readonly ConfidenceScorer $confidenceScorer = new ConfidenceScorer,
         private readonly SideEvaluator $sideEvaluator = new SideEvaluator,
     ) {}
 
@@ -40,13 +40,19 @@ final class RuleEngine
         $lowestGapSide = $directionalResult->details['selectedTeam'] ?? null;
         $f121E2 = $this->f121E2->evaluate($input, $configuration);
         $f121D = $this->f121D->evaluate($input, $configuration);
-        $convergenceScore = $this->convergenceCalculator->calculate($input->methodScores, $configuration->methodWeights);
+        // Score de confiance automatique (V12) : calculé et conservé à chaque évaluation ; il ne bloque une alerte que si
+        // l’étape « convergence » est activée.
+        $confidence = $this->confidenceScorer->evaluate($input, $configuration, [
+            'home' => $this->sideChange($input, SideOutcome::HOME, $lowestGapSide),
+            'away' => $this->sideChange($input, SideOutcome::AWAY, $lowestGapSide),
+        ]);
+        $convergenceScore = $confidence['score'];
         $vitalityFilter = $input->vitalityUnavailable
             ? new FilterResult(true, self::VITALITY_UNAVAILABLE.' : filtre non appliqué (à confirmer).', ['applied' => false])
             : $this->vitalityFilter->evaluate($input, $configuration);
         $steps = [];
 
-        $finish = function (bool $alert, string $reason, array $sideOutcomes = [], ?SideOutcome $winner = null, ?string $rule = null, ?string $level = null, ?string $action = null, array $options = []) use (&$steps, $input, $configuration, $directionalResult, $leaderResult, $f121E2, $f121D, $vitalityFilter, $convergenceScore, $lowestGapSide): EngineResult {
+        $finish = function (bool $alert, string $reason, array $sideOutcomes = [], ?SideOutcome $winner = null, ?string $rule = null, ?string $level = null, ?string $action = null, array $options = []) use (&$steps, $input, $configuration, $directionalResult, $leaderResult, $f121E2, $f121D, $vitalityFilter, $convergenceScore, $confidence, $lowestGapSide): EngineResult {
             $focus = $winner ?? $this->lowestGapOutcome($sideOutcomes, $lowestGapSide);
             $designation = match (true) {
                 $focus !== null && $focus->gap !== null => new RuleResult('F121-C', RuleVerdict::Candidate, details: ['selectedTeam' => $focus->side, 'selectedGap' => $focus->gap]),
@@ -89,6 +95,7 @@ final class RuleEngine
                 $action,
                 array_map(fn (SideOutcome $outcome): array => $outcome->toArray(), $sideOutcomes),
                 $options,
+                $confidence,
             );
         };
         $abstain = function (string $step, string $reason) use (&$steps, $finish): EngineResult {
@@ -112,7 +119,7 @@ final class RuleEngine
                     fn (string $candidate): bool => in_array($candidate, SideEvaluator::SIDE_STEPS, true),
                 ));
 
-                return $this->decideSides($input, $configuration, $sideSteps, $lowestGapSide, $steps, $finish);
+                return $this->decideSides($input, $configuration, $sideSteps, $lowestGapSide, $steps, $finish, $convergenceScore);
             }
 
             switch ($step) {
@@ -211,6 +218,7 @@ final class RuleEngine
         ?string $lowestGapSide,
         array &$steps,
         \Closure $finish,
+        ?float $convergence,
     ): EngineResult {
         $sides = [SideOutcome::HOME, SideOutcome::AWAY];
         $leadMargin = $input->homeScore - $input->awayScore;
@@ -247,10 +255,9 @@ final class RuleEngine
         }
 
         if (in_array('convergence', $configuration->pipeline, true)) {
-            $convergence = $this->convergenceCalculator->calculate($input->methodScores, $configuration->methodWeights);
             if ($convergence === null || $convergence <= $configuration->minimumConvergenceScore) {
                 $reason = $convergence === null
-                    ? 'La convergence ne peut pas être calculée sans les scores et poids définis.'
+                    ? 'La convergence ne peut pas être calculée sans les poids du profil.'
                     : 'Le score de convergence ne dépasse pas le seuil configuré.';
                 $steps[] = ['step' => 'convergence', 'outcome' => 'abstention', 'reason' => $reason];
 

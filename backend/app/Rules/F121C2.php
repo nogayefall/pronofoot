@@ -34,7 +34,6 @@ final class F121C2
         return new RuleResult(
             ruleId: 'F121-C.2',
             verdict: RuleVerdict::Candidate,
-            score: $input->methodScores['F121-C.2'] ?? null,
             details: [
                 ...$details,
                 'selectedTeam' => $selectedTeam,

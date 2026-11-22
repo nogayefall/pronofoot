@@ -504,3 +504,13 @@ export function statisticsOptionRows(byRule) {
     ...block,
   })))
 }
+
+export const CONFIDENCE_RULES = ['F121-E1', 'F121-C', 'F162-Bis', 'F121-D', 'F121-E2', 'F121-C.2']
+
+/** Score de confiance automatique (V12) : libellé court, ou null si l’évaluation n’en a pas. */
+export function confidenceSummary(confidence) {
+  if (!confidence) return null
+  if (confidence.score === null || confidence.score === undefined) return 'Non calculé'
+  const format = (value) => Number(value).toLocaleString('fr-FR', { minimumFractionDigits: 1, maximumFractionDigits: 1 })
+  return `${format(confidence.score)} %${confidence.threshold === undefined || confidence.threshold === null ? '' : ` (seuil ${format(confidence.threshold)} %)`}`
+}

@@ -94,7 +94,6 @@ class ProviderPilotsTest extends TestCase
                 exactScoreOdds: $oddsMatch->exactScoreOdds,
                 vitalityScore: $footballMatch->vitalityScore,
                 oddsChangePercent: -6.0,
-                methodScores: ['F121-C' => 82],
             ),
             new RuleConfiguration(
                 activeRules: RuleConfiguration::DEFINED_RULES,
@@ -131,7 +130,6 @@ class ProviderPilotsTest extends TestCase
                     exactScoreOdds: $oddsMatch->exactScoreOdds,
                     vitalityScore: $footballMatch->vitalityScore,
                     oddsChangePercent: $scenario === 'trend-data-missing' ? null : -1.0,
-                    methodScores: ['F121-C' => 82],
                 ),
                 new RuleConfiguration(
                     activeRules: RuleConfiguration::DEFINED_RULES,

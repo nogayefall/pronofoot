@@ -40,7 +40,6 @@ final class F121C
         return new RuleResult(
             ruleId: 'F121-C',
             verdict: $selectedTeam === null ? RuleVerdict::Abstain : RuleVerdict::Candidate,
-            score: $input->methodScores['F121-C'] ?? null,
             reason: $selectedTeam === null ? 'Les deux écarts sont égaux ; aucune direction n’est définie.' : null,
             details: [
                 'currentOdds' => (float) $currentOdds,

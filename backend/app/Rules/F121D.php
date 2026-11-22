@@ -39,7 +39,6 @@ final class F121D
             ruleId: 'F121-D',
             verdict: $isCandidate ? RuleVerdict::Candidate : RuleVerdict::NoSignal,
             suggestedAction: $isCandidate ? self::ACTION : null,
-            score: $input->methodScores['F121-D'] ?? null,
             reason: $isCandidate ? null : 'Une cote des scores suivants dépasse le seuil configuré.',
             details: [
                 'totalGoals' => $totalGoals,

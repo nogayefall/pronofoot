@@ -35,7 +35,6 @@ final class F121E2
             ruleId: 'F121-E2',
             verdict: $isCandidate ? RuleVerdict::Candidate : RuleVerdict::NoSignal,
             suggestedAction: $isCandidate ? self::ACTION : null,
-            score: $input->methodScores['F121-E2'] ?? null,
             reason: $isCandidate ? null : 'La cote Under 2.5 est hors de la plage du signal mi-temps.',
             details: [
                 'under25Odds' => $odds,

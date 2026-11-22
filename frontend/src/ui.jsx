@@ -231,3 +231,29 @@ export function ReasonText({ text, limit = 160 }) {
     </details>
   )
 }
+
+export function ConfidenceBreakdown({ confidence, convergenceStep = false }) {
+  if (!confidence) return null
+  const format = (value, digits = 1) => value === null || value === undefined ? '—' : Number(value).toLocaleString('fr-FR', { minimumFractionDigits: digits, maximumFractionDigits: digits })
+  const scored = confidence.score !== null && confidence.score !== undefined
+
+  return (
+    <div className="confidence">
+      <p className="confidence-total">
+        <strong>{scored ? `${format(confidence.score)} %` : 'Non calculé'}</strong>
+        <span>{scored ? ` · seuil ${format(confidence.threshold)} % ${confidence.passes ? 'dépassé' : 'non atteint'}` : ` · ${confidence.reason ?? ''}`}</span>
+        <span className="confidence-note">{convergenceStep ? 'Étape « convergence » activée : le score décide.' : 'Indicatif : l’étape « convergence » est désactivée, le score ne bloque aucune alerte.'}</span>
+      </p>
+      <ul className="confidence-rules">
+        {Object.entries(confidence.rules ?? {}).map(([ruleId, rule]) => (
+          <li key={ruleId}>
+            <span className="num confidence-rule">{ruleId}</span>
+            <span className="num confidence-score">{format(rule.score)}</span>
+            <span className="num confidence-weight">× {format(rule.weight, 0)} → {format(rule.contribution, 2)}</span>
+            <span className="confidence-detail">{rule.detail}{rule.toConfirm && <> <Pill tone="high" dot={false}>À valider</Pill></>}</span>
+          </li>
+        ))}
+      </ul>
+    </div>
+  )
+}

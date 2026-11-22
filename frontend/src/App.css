@@ -2197,3 +2197,94 @@ body.drawer-open {
     font-size: 16px;
   }
 }
+
+/* Score de confiance automatique (V12) */
+.confidence {
+  display: grid;
+  gap: 8px;
+}
+
+.confidence-total {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 6px;
+  margin: 0;
+  font-size: 14px;
+}
+
+.confidence-total strong {
+  font-size: 18px;
+}
+
+.confidence-note {
+  flex-basis: 100%;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.confidence-rules {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.confidence-rules li {
+  display: grid;
+  grid-template-columns: 76px 44px 104px minmax(0, 1fr);
+  align-items: baseline;
+  gap: 8px;
+  padding: 6px 0;
+  border-top: 1px solid var(--line);
+  font-size: 13px;
+}
+
+.confidence-rule {
+  font-weight: 600;
+}
+
+.confidence-score {
+  text-align: right;
+}
+
+.confidence-weight {
+  color: var(--text-2);
+  font-size: 12px;
+}
+
+.confidence-detail {
+  color: var(--text-2);
+  overflow-wrap: anywhere;
+}
+
+.confidence-detail .pill {
+  padding: 1px 7px;
+  font-size: 11px;
+}
+
+.journal-confidence {
+  margin-top: 8px;
+}
+
+.journal-confidence summary {
+  color: var(--accent);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.journal-confidence[open] summary {
+  margin-bottom: 6px;
+}
+
+@media (max-width: 640px) {
+  .confidence-rules li {
+    grid-template-columns: 76px 44px minmax(0, 1fr);
+  }
+
+  .confidence-detail {
+    grid-column: 1 / -1;
+  }
+}

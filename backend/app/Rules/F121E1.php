@@ -25,7 +25,6 @@ final class F121E1
         return new RuleResult(
             ruleId: 'F121-E1',
             verdict: $isNegative ? RuleVerdict::Candidate : RuleVerdict::NoSignal,
-            score: $input->methodScores['F121-E1'] ?? null,
             reason: $isNegative ? null : 'Écart positif ou nul : pas d’écart négatif.',
             details: [
                 'selectedTeam' => $details['selectedTeam'] ?? null,

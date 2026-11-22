@@ -28,8 +28,6 @@ class RuleSimulationController extends Controller
             'halftime' => ['nullable', 'boolean'],
             'under_2_5_odds' => ['nullable', 'numeric', 'gt:0'],
             'rule_profile_id' => ['nullable', 'integer', 'exists:rule_profiles,id'],
-            'method_scores' => ['nullable', 'array'],
-            'method_scores.*' => ['numeric', 'between:0,100'],
         ]);
 
         $input = new RuleInput(
@@ -40,16 +38,19 @@ class RuleSimulationController extends Controller
             oddsChangePercent: isset($validated['odds_change_percent']) ? (float) $validated['odds_change_percent'] : null,
             halftime: (bool) ($validated['halftime'] ?? false),
             under25Odds: isset($validated['under_2_5_odds']) ? (float) $validated['under_2_5_odds'] : null,
-            methodScores: array_map('floatval', $validated['method_scores'] ?? []),
         );
 
         $profile = isset($validated['rule_profile_id']) ? RuleProfile::query()->findOrFail($validated['rule_profile_id']) : null;
+        // Sans profil choisi : réglages du Testeur, mais poids et seuil du profil actif pour le score de confiance.
+        $activeProfile = $profile === null ? RuleProfile::query()->where('is_active', true)->first() : null;
         $configuration = $profile === null
             ? new RuleConfiguration(
                 trendSource: $validated['tendance_source'] ?? 'cote_suggeree',
                 stableOddsChangePercent: isset($validated['tendance_seuil_stable'])
                     ? (float) $validated['tendance_seuil_stable']
                     : 5.0,
+                minimumConvergenceScore: $activeProfile === null ? 75.0 : $configurationFactory->make($activeProfile)->minimumConvergenceScore,
+                methodWeights: is_array($activeProfile?->settings['method_weights'] ?? null) ? $activeProfile->settings['method_weights'] : [],
             )
             : $configurationFactory->make($profile);
         $result = $ruleEngine->evaluate($input, $configuration);
@@ -70,6 +71,8 @@ class RuleSimulationController extends Controller
                 'validationThreshold' => $configuration->minimumConvergenceScore,
                 'convergenceStep' => in_array('convergence', $configuration->pipeline, true),
                 'convergencePasses' => $result->convergenceScore === null ? null : $result->convergenceScore > $configuration->minimumConvergenceScore,
+                'confidence' => $result->confidence,
+                'confidenceProfile' => ($profile ?? $activeProfile)?->name,
                 'reason' => $result->reason,
             ],
             'profile' => $profile?->name,
@@ -85,7 +88,7 @@ class RuleSimulationController extends Controller
                 'ruleId' => $rule->ruleId,
                 'verdict' => $rule->verdict->value,
                 'suggestedAction' => $rule->suggestedAction,
-                'score' => $rule->score,
+                'score' => $result->confidence['rules'][$ruleId]['score'] ?? null,
                 'reason' => $rule->reason,
                 'details' => $rule->details,
             ];

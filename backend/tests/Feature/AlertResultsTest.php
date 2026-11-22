@@ -71,6 +71,27 @@ class AlertResultsTest extends TestCase
         $this->assertSame(['unset', 'unset'], $options->pluck('decision')->all());
     }
 
+    public function test_the_scan_stores_the_automatic_confidence_score_with_the_evaluation(): void
+    {
+        RuleProfile::query()->update(['settings' => ['active_rules' => RuleConfiguration::DEFINED_RULES, 'method_weights' => ['F121-E1' => 25, 'F121-C' => 20, 'F162-Bis' => 20, 'F121-D' => 15, 'F121-E2' => 10, 'F121-C.2' => 10], 'validation_threshold' => 55]]);
+        $match = $this->match();
+        $before = CarbonImmutable::now()->subMinutes(3);
+        $match->snapshots()->create(['minute' => 60, 'home_score' => 1, 'away_score' => 1, 'exact_score_odds' => ['1-1' => 3.19, '2-1' => 3.10, '1-2' => 10.0], 'statistics' => [], 'odds_captured_at' => $before, 'captured_at' => $before]);
+        $this->live = ['2H', 'Second Half', 62, 1, 1];
+
+        app(ScanService::class)->runOnce(forceRefresh: true);
+
+        // Grimsby – Cheltenham : écart −0.09 → E1 = 17.1 ; égalité → F121-C = 0. Le score ne bloque pas l’alerte.
+        $log = OpportunityLog::query()->where('decision', 'alert')->sole();
+        $this->assertSame(17.1, $log->confidence['rules']['F121-E1']['score']);
+        $this->assertSame(0, $log->confidence['rules']['F121-C']['score']);
+        $this->assertSame(55, $log->confidence['threshold']);
+        $this->assertNotNull($log->confidence['score']);
+        $this->actingAs(User::factory()->create(['is_admin' => true]))
+            ->getJson(route('admin.api.journal.index'))
+            ->assertJsonPath('data.0.confidence.rules.F121-E1.score', 17.1);
+    }
+
     public function test_options_are_settled_automatically_at_full_time_without_extra_request(): void
     {
         [$match, $alert] = $this->alertAt(1, 1, 62);

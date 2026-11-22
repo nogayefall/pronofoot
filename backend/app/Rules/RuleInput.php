@@ -20,7 +20,6 @@ final readonly class RuleInput
      * @param  string|null  $postGoalPhase  Phase après un but : premier relevé, fenêtre, ou null hors fenêtre.
      * @param  float|null  $postGoalChangePercent  Variation depuis la première cote relevée après le dernier but.
      * @param  array<string, int|float>  $exactScoreOdds
-     * @param  array<string, int|float>  $methodScores
      * @param  bool|null  $halftime  Match arrêté à la mi-temps.
      * @param  float|null  $under25Odds  Cote Under 2.5 buts (total du match), utilisée par F121-E2.
      * @param  int|null  $minute  Minute de jeu, utilisée par la règle facultative des minutes restantes.
@@ -37,7 +36,6 @@ final readonly class RuleInput
         public array $exactScoreOdds,
         public ?float $vitalityScore = null,
         public ?float $oddsChangePercent = null,
-        public array $methodScores = [],
         public ?bool $halftime = null,
         public ?float $under25Odds = null,
         public ?int $minute = null,

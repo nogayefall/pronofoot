@@ -393,7 +393,6 @@ class ScanService
                         awayScore: $footballMatch->awayScore,
                         exactScoreOdds: $oddsMatch->exactScoreOdds,
                         vitalityScore: $vitality,
-                        methodScores: $footballMatch->methodScores,
                         halftime: $halftime,
                         under25Odds: $oddsMatch->under25Odds,
                         minute: $footballMatch->minute,
@@ -1313,6 +1312,7 @@ class ScanService
                 $now,
                 ruleResults: $this->serializeRules($result),
                 filterResults: $this->serializeFilters($result),
+                confidence: $result->confidence ?: null,
             );
 
             return 0;
@@ -1357,6 +1357,7 @@ class ScanService
                     $this->serializeRules($result),
                     $this->serializeFilters($result),
                     $result->suggestedAction,
+                    $result->confidence ?: null,
                 );
 
                 return 0;
@@ -1381,6 +1382,7 @@ class ScanService
                 $this->serializeRules($result),
                 $this->serializeFilters($result),
                 $result->suggestedAction,
+                $result->confidence ?: null,
             );
 
             $alert = $opportunity->alert()->create([
@@ -1617,6 +1619,7 @@ class ScanService
         array $ruleResults = [],
         array $filterResults = [],
         ?string $suggestedAction = null,
+        ?array $confidence = null,
     ): OpportunityLog {
         // Relevé identique au précédent pour ce match (même décision, même justification) : la ligne existante est
         // mise à jour (horodatage, compteur) au lieu d’en créer une nouvelle, pour que le Journal ne grossisse pas à
@@ -1638,6 +1641,7 @@ class ScanService
                     'rule_profile_id' => $profile?->id ?? $previous->rule_profile_id,
                     'rule_results' => $ruleResults,
                     'filter_results' => $filterResults,
+                    'confidence' => $confidence ?? $previous->confidence,
                     'evaluated_at' => $now,
                     'first_evaluated_at' => $previous->first_evaluated_at ?? $previous->evaluated_at,
                     'repeat_count' => (int) $previous->repeat_count + 1,
@@ -1658,6 +1662,7 @@ class ScanService
             'rule_results' => $ruleResults,
             'filter_results' => $filterResults,
             'suggested_action' => $suggestedAction,
+            'confidence' => $confidence,
             'reason' => $reason,
             'evaluated_at' => $now,
             'first_evaluated_at' => $now,

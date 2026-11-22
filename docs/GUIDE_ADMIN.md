@@ -22,7 +22,7 @@ Pour vous déconnecter, utilisez le bouton **Se déconnecter** en haut à droite
 | **Tableau de bord** | Quatre indicateurs (matchs suivis, alertes actives, quota API restant, fréquence de scan), une carte par alerte active (niveau, minute et score, score suggéré, cote, écart, compte à rebours) et le tableau des matchs suivis avec leur vitalité et leur décision. L’état du scan et l’heure du dernier relevé sont en bas du menu. Un bandeau orange apparaît en mode économie, rouge quand le quota est épuisé. |
 | **Matchs suivis** | Choisir les matchs à surveiller, voir leur fiche (tirs, tirs cadrés, corners, possession de chaque équipe, vitalité). |
 | **Moteur de règles** | Les règles disponibles, et vos **profils** : méthodes activées, poids, seuil de validation. Vous pouvez créer un profil, l’enregistrer, l’activer et le tester. Un nouveau profil démarre avec les règles par défaut cochées ; un avertissement rouge s’affiche si le profil actif n’a aucune règle cochée (aucune alerte de règle possible). Une règle décochée ne donne jamais d’alerte. |
-| **Testeur manuel** | Essayer une situation (score, cotes, vitalité, tendance, mi-temps) pour voir la décision du moteur. Rien n’est envoyé. |
+| **Testeur manuel** | Essayer une situation (score, cotes, vitalité, tendance, mi-temps) pour voir la décision du moteur et le **score de confiance** détaillé par règle (même calcul que le scan, poids du profil actif). Rien n’est envoyé. |
 | **Journal des décisions** | Tout ce que le système a vu et décidé, match par match. C’est ici que vous notez si une alerte a été gagnée ou perdue. |
 | **Statistiques** | Le nombre d’alertes et le taux de réussite (gagnées ÷ (gagnées + perdues), annulées et en attente exclues), au total, par règle et par type d’option (ciblée, neutre…). Deux taux : sur toutes les options (résultat automatique) et sur les seules options que vous avez marquées « jouées ». Filtre par dates. |
 | **Paramètres** | Les seuils et fréquences (vitalité, tendance, écarts, quota, ligues suivies…). Une modification s’applique au passage suivant du scan. Les lignes marquées « À confirmer » attendent une décision de votre part. |
@@ -54,6 +54,8 @@ Deux possibilités, qui fonctionnent ensemble :
 
 Chaque match ajouté consomme des requêtes chez le fournisseur : suivez seulement les matchs qui vous intéressent.
 
+**Score de confiance.** Chaque analyse reçoit un score de confiance de 0 à 100 % calculé automatiquement (formules du document V12) : un score par règle (F121-E1, F121-C, F162-Bis, F121-D, F121-E2, F121-C.2), multiplié par le poids de la règle dans le profil actif. Le seuil de validation des profils v11 et V11.9 est de 55 %. Pour l’instant le score est **indicatif** : il ne bloque aucune alerte, car l’étape « convergence » est désactivée dans Paramètres. Les lignes marquées « À valider » attendent une confirmation du client (F121-C, condition de buts de F121-D). Le bouton « Tester la combinaison » du Moteur de règles applique le profil choisi à la situation du Testeur, sans saisie de scores.
+
 ## 4. Lire le Journal
 
 Chaque ligne correspond à un moment où PronoFoot a regardé un match.
@@ -67,6 +69,8 @@ Chaque ligne correspond à un moment où PronoFoot a regardé un match.
 | Décision | Alerte, abstention, alerte invalidée, alerte expirée, but détecté, incident… |
 | Justification | La raison en clair, par exemple « La cote est stable : abstention » ou « Match “mort” : vitalité inférieure au minimum ». |
 | Options : décision et résultat | Pour chaque option de l’alerte (ciblée, neutre, Over 4.5, Over 0.5 en 2e mi-temps) : votre **décision** (Jouée, Ignorée, Non renseignée) et le **résultat** (Gagnée, Perdue, Annulée, En attente). |
+
+Sous la justification, « Score de confiance : 37,0 % (seuil 55,0 %) » s’ouvre pour afficher le détail par règle (score, poids, contribution, explication).
 
 Le filtre en haut de page permet d’afficher seulement les alertes envoyées, en attente, expirées, etc.
 

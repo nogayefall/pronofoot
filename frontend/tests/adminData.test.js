@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { createRuleTestPayload, parseCorrectScoreOdds, teamStatisticsRows, journalDecisionLabel, parseAlertMessage, trackedMatchDecision, quotaSummary, elapsedLabel, matchStatusLabel, unavailableReason, availableMatchesView, leagueFilters, leagueFilterCounts, leagueFilterFromUrl, effectiveLeagueFilter, leagueChosenInUrl, scanModeLabel, upcomingMatchesView, statisticsOptionRows } from '../src/adminData.js'
+import { createRuleTestPayload, parseCorrectScoreOdds, teamStatisticsRows, journalDecisionLabel, parseAlertMessage, trackedMatchDecision, quotaSummary, elapsedLabel, matchStatusLabel, unavailableReason, availableMatchesView, leagueFilters, leagueFilterCounts, leagueFilterFromUrl, effectiveLeagueFilter, leagueChosenInUrl, scanModeLabel, upcomingMatchesView, statisticsOptionRows, confidenceSummary } from '../src/adminData.js'
 
 test('parseCorrectScoreOdds reads decimal comma and dot formats', () => {
   assert.deepEqual(parseCorrectScoreOdds('0-0 = 7,50\n1-0 : 8.60\n0-1 = 9,80'), {
@@ -299,4 +299,10 @@ test('statisticsOptionRows lists one row per rule and option type with both rate
     ['F121-D-over45', 'Over 4.5 (F121-D)', 0, null],
   ])
   assert.deepEqual(statisticsOptionRows(undefined), [])
+})
+
+test('confidenceSummary shows the automatic confidence score with its threshold', () => {
+  assert.equal(confidenceSummary(null), null)
+  assert.equal(confidenceSummary({ score: null, threshold: 55 }), 'Non calculé')
+  assert.equal(confidenceSummary({ score: 37, threshold: 55 }).replace(/\s/g, ' '), '37,0 % (seuil 55,0 %)')
 })

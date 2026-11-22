@@ -424,7 +424,8 @@ class AdminApiTest extends TestCase
             'is_active' => true,
             'settings' => [
                 'active_rules' => RuleConfiguration::DEFINED_RULES,
-                'method_weights' => ['F121-C' => 1.0],
+                // Score automatique : F121-C à égalité = 0, baisse de 6 % (F162-Bis) = 75 : (0 + 75) / 2 = 37.5.
+                'method_weights' => ['F121-C' => 1.0, 'F162-Bis' => 1.0],
                 'validation_threshold' => 75,
             ],
         ]);
@@ -435,13 +436,15 @@ class AdminApiTest extends TestCase
             'exact_score_odds' => ['0-0' => 7.5, '1-0' => 8.6, '0-1' => 9.8],
             'vitality_score' => 61,
             'odds_change_percent' => -6,
-            'method_scores' => ['F121-C' => 70],
         ];
 
         $this->postJson(route('admin.rule-test'), $payload)
             ->assertOk()
             ->assertJsonPath('profile', 'Profil de test')
-            ->assertJsonPath('decision.convergenceScore', 70)
+            ->assertJsonPath('decision.convergenceScore', 37.5)
+            ->assertJsonPath('decision.confidence.rules.F162-Bis.score', 75)
+            ->assertJsonPath('decision.confidence.rules.F121-C.contribution', 0)
+            ->assertJsonPath('rules.F162-Bis.score', 75)
             ->assertJsonPath('decision.validationThreshold', 75)
             ->assertJsonPath('decision.convergencePasses', false)
             ->assertJsonPath('decision.convergenceStep', false)
@@ -454,9 +457,15 @@ class AdminApiTest extends TestCase
             ->assertJsonPath('decision.shouldAlert', false)
             ->assertJson(fn (AssertableJson $json) => $json->where('decision.reason', fn (string $reason): bool => str_starts_with($reason, 'Le score de convergence ne dépasse pas le seuil configuré.'))->etc());
 
-        $this->postJson(route('admin.rule-test'), [...$payload, 'method_scores' => ['F121-C' => 82]])
+        $profile->forceFill(['settings' => [...$profile->settings, 'validation_threshold' => 30]])->save();
+        $this->postJson(route('admin.rule-test'), $payload)
             ->assertJsonPath('decision.convergencePasses', true)
             ->assertJsonPath('decision.shouldAlert', true);
+
+        // Sans profil choisi, le Testeur prend les poids et le seuil du profil actif pour le score.
+        $this->postJson(route('admin.rule-test'), array_diff_key($payload, ['rule_profile_id' => true]))
+            ->assertJsonPath('decision.convergenceScore', 37.5)
+            ->assertJsonPath('decision.confidenceProfile', 'Profil de test');
     }
 
     public function test_convergence_step_is_disabled_by_default(): void

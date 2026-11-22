@@ -278,7 +278,6 @@ class RuleEngineTest extends TestCase
                 exactScoreOdds: ['0-0' => 7.5, '1-0' => 8.6, '0-1' => 9.8],
                 vitalityScore: 61,
                 oddsChangePercent: -1.0,
-                methodScores: array_fill_keys($undefinedRuleIds, 100),
             ),
             new RuleConfiguration(
                 activeRules: $undefinedRuleIds,
@@ -320,7 +319,6 @@ class RuleEngineTest extends TestCase
                 exactScoreOdds: ['0-0' => 7.5, '1-0' => 8.6, '0-1' => 9.8],
                 vitalityScore: 61,
                 oddsChangePercent: 3.0,
-                methodScores: ['F121-C' => 82],
             ),
             new RuleConfiguration(
                 trendSource: 'cote_suggeree',
@@ -370,7 +368,6 @@ class RuleEngineTest extends TestCase
                         exactScoreOdds: ['0-0' => 7.5, '1-0' => 8.6, '0-1' => 9.8],
                         vitalityScore: 61,
                         oddsChangePercent: $change,
-                        methodScores: ['F121-C' => 90],
                     ),
                     $configuration,
                 );
@@ -390,10 +387,10 @@ class RuleEngineTest extends TestCase
                 exactScoreOdds: ['0-0' => 7.5, '1-0' => 8.6, '0-1' => 9.8],
                 vitalityScore: 61,
                 oddsChangePercent: -6.0,
-                methodScores: ['F121-C' => 75],
             ),
             new RuleConfiguration(
-                methodWeights: ['F121-C' => 1.0],
+                // Score automatique : baisse de 6 % (F162-Bis) = 75, seule règle pondérée.
+                methodWeights: ['F162-Bis' => 1.0],
                 pipeline: [...RuleConfiguration::DEFAULT_PIPELINE, 'convergence'],
             ),
         );
@@ -414,14 +411,13 @@ class RuleEngineTest extends TestCase
                 oddsChangePercent: -6.0,
             ),
             new RuleConfiguration(
-                methodWeights: ['F121-C' => 1.0],
                 pipeline: [...RuleConfiguration::DEFAULT_PIPELINE, 'convergence'],
             ),
         );
 
-        $this->assertNull($result->convergenceScore);
+        $this->assertNull($result->convergenceScore, 'Aucun poids dans le profil : score non calculé.');
         $this->assertFalse($result->shouldAlert);
-        $this->assertStringStartsWith('La convergence ne peut pas être calculée sans les scores et poids définis.', $result->reason);
+        $this->assertStringStartsWith('La convergence ne peut pas être calculée sans les poids du profil.', $result->reason);
 
         $withoutConvergenceStep = (new RuleEngine)->evaluate(
             new RuleInput(
