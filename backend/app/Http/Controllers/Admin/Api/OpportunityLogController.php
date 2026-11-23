@@ -47,6 +47,7 @@ final class OpportunityLogController extends Controller
                 'ruleResults' => $log->rule_results ?? [],
                 'filterResults' => $log->filter_results ?? [],
                 'confidence' => $log->confidence,
+                'plancher' => $log->plancher,
                 'suggestedAction' => $log->suggested_action,
                 'outcome' => $log->outcome,
                 'evaluatedAt' => $log->evaluated_at?->toIso8601String(),

@@ -43,6 +43,9 @@ class ScanService
 
     private ?OddsFeed $cachedOddsFeed = null;
 
+    /** Le flux de cotes gardé contient les lignes Over/Under du total du match (mode Plancher). */
+    private bool $cachedOddsHasGoalLines = false;
+
     public function __construct(
         private readonly FootballProvider $footballProvider,
         private readonly OddsProvider $oddsProvider,
@@ -51,6 +54,7 @@ class ScanService
         private readonly RuleConfigurationFactory $ruleConfigurationFactory,
         private readonly VitalityCalculator $vitalityCalculator = new VitalityCalculator,
         private readonly AlertMessageFormatter $messageFormatter = new AlertMessageFormatter,
+        private readonly GoalFloorScanService $goalFloor = new GoalFloorScanService,
     ) {}
 
     public function runOnce(int $scanNumber = 0, bool $forceRefresh = true): ScanPassResult
@@ -187,8 +191,14 @@ class ScanService
         $goalCount = $this->detectGoals($trackedMatches, $footballMatches, $now);
         $goalWindowActive = $this->hasRecentGoal($trackedMatches, $now, $goalWindow);
         $effectiveOddsInterval = $goalWindowActive ? $goalInterval : $oddsInterval;
+        $profile = RuleProfile::query()->where('is_active', true)->first();
+        $configuration = $profile === null ? null : $this->ruleConfigurationFactory->make($profile, $settingValues);
+        // Mode Plancher : scans dus à ce relevé (jamais au relevé d’un but). Les lignes Over/Under du total du match ne
+        // sont demandées que dans ce cas.
+        $floorScans = $this->dueGoalFloorScans($trackedMatches, $footballMatches, $settingValues, $configuration?->isActive('F121-E2') === true);
         $oddsDue = $forceRefresh
             || $goalCount > 0
+            || ($floorScans !== [] && ! $this->cachedOddsHasGoalLines)
             || $this->cachedOddsFeed === null
             || $this->lastOddsFetchAt === null
             || $this->lastOddsFetchAt->addSeconds($effectiveOddsInterval)->lessThanOrEqualTo($now);
@@ -198,6 +208,7 @@ class ScanService
         if ($oddsDue) {
             $this->cachedOddsFeed = null;
             $this->lastOddsFetchAt = null;
+            $this->cachedOddsHasGoalLines = false;
 
             try {
                 $halftimeTracked = $trackedMatches->contains(function (TrackedMatch $trackedMatch) use ($footballMatches): bool {
@@ -205,7 +216,7 @@ class ScanService
 
                     return $match instanceof FootballMatch && strcasecmp($match->status, 'Halftime') === 0;
                 });
-                $oddsFeed = $this->oddsProvider->getLiveOdds($scanNumber, includeUnder25: $halftimeTracked);
+                $oddsFeed = $this->oddsProvider->getLiveOdds($scanNumber, includeUnder25: $halftimeTracked, includeGoalLines: $floorScans !== []);
                 $this->rememberProviderStatus('odds', [
                     'driver' => $oddsFeed->driver,
                     'requestsUsed' => $oddsFeed->requestsUsed,
@@ -217,6 +228,7 @@ class ScanService
                 if ($oddsFeed->reachable === true && $oddsFeed->exactScoreMarketAvailable) {
                     $this->cachedOddsFeed = $oddsFeed;
                     $this->lastOddsFetchAt = $now;
+                    $this->cachedOddsHasGoalLines = $floorScans !== [] && $oddsFeed->overUnderMarketAvailable === true;
                 } else {
                     $oddsUnavailableReason = $oddsFeed->statusMessage;
                     $oddsFailureEventType = ! $oddsFeed->exactScoreMarketAvailable
@@ -260,8 +272,9 @@ class ScanService
         }
         $oddsMatches = $oddsFeed === null ? [] : $this->indexMatches($oddsFeed->matches);
         $autoTracked = $autoMode ? $this->syncAutomaticMatches($footballFeed, $oddsMatches, $autoLeagueIds) : 0;
-        $profile = RuleProfile::query()->where('is_active', true)->first();
         $alertsCreated = 0;
+        /** @var list<array{0: TrackedMatch, 1: MatchSnapshot, 2: FootballMatch, 3: OddsMatch, 4: string}> $floorCandidates */
+        $floorCandidates = [];
         $snapshotsStored = 0;
         $errors = 0;
 
@@ -309,6 +322,14 @@ class ScanService
 
                 if (in_array($trackedMatch->id, $this->goalMatchIds, true)) {
                     continue;
+                }
+
+                // Scan Plancher : traité après les règles du passage, pour dédupliquer avec l’option neutre d’une alerte
+                // créée à ce même relevé. Sans cotes de score exact ni lignes Over/Under, il attend le relevé suivant.
+                $floorScan = $floorScans[$trackedMatch->id] ?? null;
+                if ($floorScan !== null && $oddsMatch !== null && $oddsMatch->exactScoreOdds !== [] && $this->cachedOddsHasGoalLines
+                    && ($floorScan === 'pause' || ($oddsMatch->stopped !== true && $footballMatch->stopped !== true))) {
+                    $floorCandidates[] = [$trackedMatch, $snapshot, $footballMatch, $oddsMatch, $floorScan];
                 }
 
                 if (! $isDue) {
@@ -379,7 +400,7 @@ class ScanService
                     && $snapshotAge->addSeconds($statisticsInterval)->greaterThanOrEqualTo($now)
                     ? $snapshot->vitality_score
                     : null;
-                $configuration = $this->ruleConfigurationFactory->make($profile, $settingValues);
+                $configuration ??= $this->ruleConfigurationFactory->make($profile, $settingValues);
                 // Règle F121 pour les deux équipes : prochain but à domicile (h+1-a) et à l’extérieur (h-a+1).
                 $sideKeys = $this->sideScoreKeys($footballMatch->homeScore, $footballMatch->awayScore);
                 $postGoal = $this->postGoalSides($trackedMatch, $oddsMatch, $sideKeys, $goalWindow, $now);
@@ -405,6 +426,16 @@ class ScanService
                 );
 
                 $alertsCreated += $this->recordDecision($trackedMatch, $snapshot, $profile, $result, $footballMatch, $now);
+            } catch (Throwable $exception) {
+                $errors++;
+                $this->recordProcessingError($trackedMatch, $exception, $now);
+            }
+        }
+
+        foreach ($floorCandidates as [$trackedMatch, $snapshot, $footballMatch, $oddsMatch, $floorScan]) {
+            try {
+                $floorResult = $this->goalFloor->scan($trackedMatch, $snapshot, $footballMatch, $oddsMatch, $floorScan, $settingValues, $profile, $configuration, $now);
+                $alertsCreated += $floorResult['alert'] ? 1 : 0;
             } catch (Throwable $exception) {
                 $errors++;
                 $this->recordProcessingError($trackedMatch, $exception, $now);
@@ -474,6 +505,33 @@ class ScanService
                 ->addSeconds($heat === 'hot' ? $hotInterval : $calmInterval)
                 ->lessThanOrEqualTo($now);
         })->values();
+    }
+
+    /**
+     * Scans Plancher dus à ce relevé, par match suivi (hors matchs dont un but vient d’être détecté).
+     *
+     * @param  Collection<int, TrackedMatch>  $trackedMatches
+     * @param  array<string, FootballMatch|OddsMatch>  $footballMatches
+     * @param  array<string, int|float|bool|array|string|null>  $settings
+     * @return array<int, string>
+     */
+    private function dueGoalFloorScans(Collection $trackedMatches, array $footballMatches, array $settings, bool $e2Active): array
+    {
+        $scans = [];
+        foreach ($trackedMatches as $trackedMatch) {
+            $footballMatch = $footballMatches[$trackedMatch->provider_match_id] ?? null;
+            if (! $footballMatch instanceof FootballMatch || in_array($trackedMatch->id, $this->goalMatchIds, true)
+                || $footballMatch->homeScore === null || $footballMatch->awayScore === null) {
+                continue;
+            }
+
+            $scan = $this->goalFloor->dueScan($trackedMatch, $footballMatch, $settings, $e2Active);
+            if ($scan !== null) {
+                $scans[$trackedMatch->id] = $scan;
+            }
+        }
+
+        return $scans;
     }
 
     private function inPostGoalWindow(TrackedMatch $trackedMatch, int $goalWindow, CarbonImmutable $now): bool
@@ -1153,9 +1211,11 @@ class ScanService
         CarbonImmutable $now,
         ?FootballMatch $footballMatch = null,
     ): void {
+        // Les alertes Plancher (Over sur le total du match) restent valables après un but.
         $alerts = Alert::query()
             ->whereIn('status', ['queued', 'sent'])
-            ->whereHas('opportunityLog', fn ($query) => $query->where('tracked_match_id', $trackedMatch->id))
+            ->whereHas('opportunityLog', fn ($query) => $query->where('tracked_match_id', $trackedMatch->id)
+                ->where(fn ($rule) => $rule->whereNull('rule_id')->orWhere('rule_id', '!=', GoalFloorScanService::RULE_ID)))
             ->get();
         $adminWasAlerted = $alerts->contains(fn (Alert $alert): bool => $alert->status === 'sent');
 

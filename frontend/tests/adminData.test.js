@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { createRuleTestPayload, parseCorrectScoreOdds, teamStatisticsRows, journalDecisionLabel, parseAlertMessage, trackedMatchDecision, quotaSummary, elapsedLabel, matchStatusLabel, unavailableReason, availableMatchesView, leagueFilters, leagueFilterCounts, leagueFilterFromUrl, effectiveLeagueFilter, leagueChosenInUrl, scanModeLabel, upcomingMatchesView, statisticsOptionRows, confidenceSummary } from '../src/adminData.js'
+import { createRuleTestPayload, parseCorrectScoreOdds, teamStatisticsRows, journalDecisionLabel, parseAlertMessage, trackedMatchDecision, quotaSummary, elapsedLabel, matchStatusLabel, unavailableReason, availableMatchesView, leagueFilters, leagueFilterCounts, leagueFilterFromUrl, effectiveLeagueFilter, leagueChosenInUrl, scanModeLabel, upcomingMatchesView, statisticsOptionRows, confidenceSummary, plancherSummary } from '../src/adminData.js'
 
 test('parseCorrectScoreOdds reads decimal comma and dot formats', () => {
   assert.deepEqual(parseCorrectScoreOdds('0-0 = 7,50\n1-0 : 8.60\n0-1 = 9,80'), {
@@ -305,4 +305,37 @@ test('confidenceSummary shows the automatic confidence score with its threshold'
   assert.equal(confidenceSummary(null), null)
   assert.equal(confidenceSummary({ score: null, threshold: 55 }), 'Non calculé')
   assert.equal(confidenceSummary({ score: 37, threshold: 55 }).replace(/\s/g, ' '), '37,0 % (seuil 55,0 %)')
+})
+
+test('plancherSummary shows the scan, the list, the floor and the bets with their low value flag', () => {
+  assert.equal(plancherSummary(null), null)
+  const summary = plancherSummary({
+    mode: 'Plancher', scan: 'pause', minute: 45, score: '0-2', scoreOddsLimit: 8,
+    list: [{ score: '0-2', odds: 4.25 }, { score: '0-3', odds: 3.75 }, { score: '0-4', odds: 7 }, { score: '1-2', odds: 7 }, { score: '1-3', odds: 7 }],
+    totalMax: 4, floor: 2,
+    proposals: [{ type: 'central', bet: 'Over 3.5', odds: 2.064, lowValue: false }, { type: 'prudent', bet: 'Over 2.5', odds: 1.225, lowValue: true }],
+    skipped: [], under25: 4, underAboveTotalMax: { line: '4.5', odds: 1.22 },
+    e2Signal: { under25: 4, minimum: 1.15, maximum: 1.4, inBand: false }, notified: true,
+  })
+  assert.equal(summary.title, 'Mode Plancher · scan pause (E2)')
+  assert.equal(summary.moment, "45' · 0-2")
+  assert.equal(summary.list, 'Liste ≤ 8.00 : 0-2, 0-3, 0-4, 1-2, 1-3')
+  assert.equal(summary.floor, 'total_max 4 · Plancher +2 buts')
+  assert.deepEqual(summary.bets.map((bet) => [bet.label, bet.text, bet.lowValue]), [['Pari central', 'Over 3.5 @2.064', false], ['Pari prudent', 'Over 2.5 @1.225', true]])
+  assert.equal(summary.unders, 'Under 2.5 : 4.00 · Under 4.5 : 1.22 · Signal E2 d’origine : non (1.15 à 1.40, sans décider)')
+
+  const none = plancherSummary({ scan: 'depart', minute: 8, score: '2-1', list: [], totalMax: null, floor: null, proposals: [], skipped: [] })
+  assert.equal(none.list, 'Liste ≤ 8.00 : aucun score atteignable')
+  assert.equal(none.floor, null)
+  assert.equal(journalDecisionLabel({ decision: 'no_alert', eventType: 'plancher_scan' }), 'Plancher : aucun pari')
+  assert.equal(journalDecisionLabel({ decision: 'alert', eventType: 'plancher_scan' }), 'Plancher')
+})
+
+test('parseAlertMessage reads a Plancher alert with its central and prudent bets', () => {
+  const parsed = parseAlertMessage(['PLANCHER · scan de la pause (E2)', "Getafe - Atlético  0-2  45'", 'Liste ≤ 8.00 : 0-2, 0-3, 0-4, 1-2, 1-3', 'total_max 4 · Plancher +2 buts', 'Pari central : Over 3.5 @2.064', 'Pari prudent : Over 2.5 @1.225 (valeur faible)', 'Mode Plancher. Résultat probable, jamais garanti. Aucun pari n’est placé.'].join('\n'))
+  assert.equal(parsed.label, 'Plancher')
+  assert.equal(parsed.score, '0-2')
+  assert.equal(parsed.minute, 45)
+  assert.equal(parsed.bet, 'Over 3.5 @2.064')
+  assert.deepEqual(parsed.options.map((option) => option.label), ['Pari central', 'Pari prudent'])
 })

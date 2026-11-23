@@ -69,6 +69,56 @@ final class AlertMessageFormatter
         return implode("\n", $lines);
     }
 
+    /**
+     * Scan Plancher (annexe « Quoi coder v2 ») : liste <= 8.00, total_max, plancher, paris central et prudent.
+     *
+     * @param  list<array{score: string, odds: float}>  $list
+     * @param  list<array{type: string, bet: string, odds: float, lowValue: bool}>  $proposals
+     */
+    public function goalFloor(
+        string $homeTeam,
+        string $awayTeam,
+        int $homeScore,
+        int $awayScore,
+        ?int $minute,
+        string $scan,
+        float $scoreOddsLimit,
+        array $list,
+        int $totalMax,
+        int $floor,
+        array $proposals,
+    ): string {
+        $title = match ($scan) {
+            'depart' => 'PLANCHER · scan de départ',
+            'pause' => 'PLANCHER · scan de la pause (E2)',
+            'soixante' => 'PLANCHER · scan de la 60e',
+            default => 'PLANCHER',
+        };
+        $lines = [
+            $title,
+            $this->matchLine($homeTeam, $awayTeam, $homeScore, $awayScore, $minute),
+            'Liste ≤ '.$this->decimal($scoreOddsLimit).' : '.implode(', ', array_column($list, 'score')),
+            "total_max {$totalMax} · Plancher +{$floor} but".($floor > 1 ? 's' : ''),
+        ];
+        foreach ($proposals as $proposal) {
+            $lines[] = ($proposal['type'] === 'central' ? 'Pari central' : 'Pari prudent').' : '.$proposal['bet'].' @'.self::odds($proposal['odds'])
+                .($proposal['lowValue'] ? ' (valeur faible)' : '');
+        }
+        $lines[] = 'Mode Plancher. Résultat probable, jamais garanti. Aucun pari n’est placé.';
+
+        return implode("\n", $lines);
+    }
+
+    /**
+     * Cote sans zéro inutile, au moins deux décimales : 2.064, 1.69, 1.10.
+     */
+    public static function odds(float $value): string
+    {
+        $text = number_format($value, 3, '.', '');
+
+        return str_ends_with($text, '0') ? substr($text, 0, -1) : $text;
+    }
+
     public function abstention(string $homeTeam, string $awayTeam, ?int $homeScore, ?int $awayScore, ?int $minute, string $reason): string
     {
         return implode("\n", [

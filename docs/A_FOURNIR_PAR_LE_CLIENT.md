@@ -8,6 +8,11 @@ Ces points ne sont plus à fournir : vitalité (barème, bornes incluses, minimu
 
 ## Règles et décisions métier encore à confirmer
 
+- **Mode Plancher (23 novembre 2026)** :
+  - Scan de la pause = scan E2 : appliqué ainsi, l’alerte F121-E2 d’origine n’est plus envoyée à la mi-temps (signal journalisé sans décider). À confirmer.
+  - Scan de départ à 3 minutes jamais testé, scan de la 60e « logique à confirmer » (points ouverts 1 et 2 du document).
+  - Cotes en direct : la plupart des matchs n’ont qu’une ligne Over/Under ; le pari prudent sera souvent écarté faute de cote. Faut-il une autre source pour les lignes basses ?
+
 - **Ordre de décision** : le complément 2 donne les données complètes des 10 situations (toutes passent) et un pseudo-code. L’ordre appliqué s’en écarte sur neuf points (F121-E2 en premier, F121-D avant les écarts, étape « hausse », équipe désignée, tendance non calculable…) : voir le tableau de [`DECISIONS_ANNEXE_PHASE1.md`](./DECISIONS_ANNEXE_PHASE1.md). À confirmer.
 - **F162-Bis et filtre d’écart** : une forte baisse déclenche une alerte même si l’écart dépasse 0.50, alors que le CDC Phase 1 exige que les trois filtres soient validés. Est-ce voulu ?
 - **Règle des minutes restantes** (hors pseudo-code) : abstention s’il reste moins de 10 minutes ? Désactivée par défaut.

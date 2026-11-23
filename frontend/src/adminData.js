@@ -166,6 +166,7 @@ const JOURNAL_INCIDENTS = {
   scan_resumed: 'Scan repris',
   match_finished: 'Match terminé : suivi arrêté',
   penalty_shootout: 'Tirs au but : pas d’analyse',
+  plancher_scan: 'Plancher : aucun pari',
 }
 
 const JOURNAL_DECISIONS = {
@@ -180,6 +181,7 @@ const JOURNAL_DECISIONS = {
  * Libellé français d'une ligne du Journal, à partir de sa décision et de son type d'événement.
  */
 export function journalDecisionLabel({ decision, eventType }) {
+  if (eventType === 'plancher_scan' && decision === 'alert') return 'Plancher'
   if (decision === 'no_alert') {
     return eventType === 'evaluation' ? 'Abstention' : (JOURNAL_INCIDENTS[eventType] ?? 'Incident')
   }
@@ -192,6 +194,7 @@ const ALERT_LEVELS = {
   'ALERTE HAUTE': ['high', 'Alerte Haute'],
   'SIGNAL MI-TEMPS': ['halftime', 'Signal Mi-temps'],
   'PARI NEUTRE': ['neutral', 'Pari Neutre'],
+  PLANCHER: ['neutral', 'Plancher'],
 }
 
 const LEVEL_SEVERITY = ['critical', 'high', 'halftime', 'neutral', 'other']
@@ -248,6 +251,10 @@ export function parseAlertMessage(message) {
 
       if (key === 'Prochain but') parsed.target = value
       else if (key === 'Pari') parsed.bet = value
+      else if (key === 'Pari central' || key === 'Pari prudent') {
+        parsed.options.push({ label: key, text: value })
+        parsed.bet ??= value
+      }
       else if (key === 'Écart') parsed.gap = value === 'n.c.' ? null : value
       else if (key === 'Vitalité' && value.startsWith('non disponible')) parsed.vitalityNote = `Vitalité ${value}`
       else if (key === 'Vitalité') parsed.vitality = value === 'n.c.' ? null : parseDecimal(value.split('/')[0])
@@ -486,6 +493,51 @@ export const OPTION_TYPE_LABELS = {
   neutral: 'Neutre',
   over45: 'Over 4.5 (F121-D)',
   halftime_over05: 'Over 0.5 2e MT (F121-E2)',
+  plancher_central: 'Plancher central',
+  plancher_prudent: 'Plancher prudent',
+}
+
+export const PLANCHER_SCAN_LABELS = { depart: 'départ', pause: 'pause (E2)', soixante: 'soixante' }
+
+const formatOdds = (value) => {
+  if (value === null || value === undefined || !Number.isFinite(Number(value))) return null
+  const text = Number(value).toFixed(3)
+  return text.endsWith('0') ? text.slice(0, -1) : text
+}
+
+/**
+ * Scan Plancher du Journal : textes prêts à afficher (scan, liste ≤ 8.00, total_max, plancher, paris et cotes,
+ * « valeur faible », paris écartés, Under 2.5, Under de la ligne total_max + 0.5, signal E2 d’origine).
+ */
+export function plancherSummary(plancher) {
+  if (!plancher) return null
+  const limit = formatOdds(plancher.scoreOddsLimit ?? 8)
+  const list = plancher.list ?? []
+  const floor = plancher.floor
+  const underAbove = plancher.underAboveTotalMax
+  const e2 = plancher.e2Signal
+
+  return {
+    title: `Mode ${plancher.mode ?? 'Plancher'} · scan ${PLANCHER_SCAN_LABELS[plancher.scan] ?? plancher.scan}`,
+    moment: [plancher.minute === null || plancher.minute === undefined ? null : `${plancher.minute}'`, plancher.score].filter(Boolean).join(' · '),
+    list: list.length ? `Liste ≤ ${limit} : ${list.map((item) => item.score).join(', ')}` : `Liste ≤ ${limit} : aucun score atteignable`,
+    listLabel: `Liste ≤ ${limit}`,
+    scores: list.map((item) => item.score),
+    floor: plancher.totalMax === null || plancher.totalMax === undefined ? null : `total_max ${plancher.totalMax} · Plancher ${floor > 0 ? '+' : ''}${floor} but${Math.abs(floor) > 1 ? 's' : ''}`,
+    bets: (plancher.proposals ?? []).map((bet) => ({
+      key: bet.type,
+      label: bet.type === 'central' ? 'Pari central' : 'Pari prudent',
+      text: `${bet.bet} @${formatOdds(bet.odds)}`,
+      lowValue: bet.lowValue === true,
+    })),
+    skipped: (plancher.skipped ?? []).map((bet) => `${bet.bet} : ${bet.reason}`),
+    unders: [
+      plancher.under25 === null || plancher.under25 === undefined ? null : `Under 2.5 : ${formatOdds(plancher.under25)}`,
+      underAbove?.odds ? `Under ${underAbove.line} : ${formatOdds(underAbove.odds)}` : null,
+      e2 ? `Signal E2 d’origine : ${e2.inBand ? 'oui' : 'non'} (${formatOdds(e2.minimum)} à ${formatOdds(e2.maximum)}, sans décider)` : null,
+    ].filter(Boolean).join(' · '),
+    notified: plancher.notified === true,
+  }
 }
 
 export const OPTION_DECISIONS = [['unset', 'Non renseignée'], ['played', 'Jouée'], ['ignored', 'Ignorée']]

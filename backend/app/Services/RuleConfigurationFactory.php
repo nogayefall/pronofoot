@@ -49,6 +49,8 @@ final class RuleConfigurationFactory
             minimumMinutesRemaining: is_int($settings['rules.minutes_remaining_min'] ?? null) ? $settings['rules.minutes_remaining_min'] : 10,
             crossGapMaximum: is_numeric($settings['rules.f121x_cross_gap_max'] ?? null) ? (float) $settings['rules.f121x_cross_gap_max'] : 1.0,
             followLeader: ($settings['rules.follow_leader_enabled'] ?? false) === true,
+            // Scan Plancher de la pause actif : il devient le scan E2, le signal Under 2.5 d’origine ne décide plus.
+            halftimeSignalDecides: ($settings['plancher.scan_pause_enabled'] ?? false) === false,
         );
     }
 

@@ -134,6 +134,28 @@ Tests : `test_post_goal_window_follows_the_complement_4` et `test_after_the_post
 
 À confirmer : écart entre 1.50 et 2.00 traité comme « calme » ; définition d’un match chaud ; seuil de 10 % inclus ; classement chaud / calme sur le dernier instantané (au plus 30 s de retard) ; pronostics pré-match absents en Phase 1.
 
+## Mode Plancher (annexe client « Quoi coder v2 », 23 novembre 2026)
+
+Seul le mode **Plancher** est codé (`plancher()`, `proposer()`, `scan_du_moment()`), pas le mode Complet (festival, fourchette). Classe pure `GoalFloor`, appelée par le scan réel (`GoalFloorScanService`). Le pari ciblé (E1, F162-Bis…) reste en dehors de ce module.
+
+| Étape | Règle appliquée | Paramètre |
+|---|---|---|
+| Liste | Scores exacts **atteignables** (h ≥ buts domicile et a ≥ buts extérieur), score actuel compris, cote ≤ 8.00 (**8.00 inclus**). Cotes absentes, suspendues ou verrouillées (≤ 1.001) ignorées. | `plancher.score_odds_limit` = 8.00 |
+| total_max / plancher | total_max = plus grand total de la liste ; plancher = total_max − buts actuels ; **plancher < 1 : aucun pari**. | — |
+| Paris | **Central** = Over (total_max − 0.5) ; **prudent** = Over (total_max − 1.5), seulement si plancher ≥ 2. Lignes sur le **total du match**. Cote < 1.25 : « valeur faible », sans bloquer. | `plancher.low_value_odds` = 1.25 |
+| Doublons | Ligne déjà acquise (buts ≥ ligne) ou déjà posée pour ce match : non proposée. « Déjà posée » = paris Plancher précédents, **option neutre des alertes** et Over 4.5 de F121-D. Ligne sans cote : non proposée. | — |
+| Scans | Trois par match, **jamais à chaque but** (ni au relevé où un but est détecté) : **départ** (1re mi-temps, minute 3 à 11), **pause** (statut mi-temps), **soixante** (2e mi-temps, minute 60 à 65). Premier relevé dans la fenêtre, une seule fois chacun. Chaque scan s’active séparément. | `plancher.scan_*_enabled`, `plancher.depart_minute_from/to`, `plancher.soixante_minute_from/to` |
+| Pause = scan E2 | Le scan de la pause n’a lieu que si **F121-E2 est cochée dans le profil actif**. Le signal E2 d’origine (Under 2.5 entre 1.15 et 1.40) est **journalisé sans décider** : à la mi-temps, le moteur n’envoie plus l’alerte « Over 0.5 2e MT » (il la renvoie si le scan de la pause est désactivé). Le score de confiance de F121-E2 est inchangé. | `plancher.scan_pause_enabled` |
+| Telegram | Une alerte par scan qui propose au moins un pari (titre « PLANCHER · scan … »), activable par scan. Désactivée : la ligne du Journal et les paris (notés en fin de match) restent. | `plancher.notify_depart/pause/soixante` |
+| Journal | Ligne « Plancher » par scan : minute, score, liste ≤ 8.00, total_max, plancher, paris et cotes, « valeur faible », paris écartés et raison, scan, mode = Plancher, Under 2.5, Under de la ligne total_max + 0.5, signal E2 d’origine (pause). | colonne `opportunity_logs.plancher` |
+| Résultat | Chaque pari est une option (`plancher_central`, `plancher_prudent`) notée à la fin du match : **gagnée si le total final dépasse la ligne**, sinon perdue (prolongation selon `results.count_extra_time`, tirs au but jamais). Pas d’expiration à 15 minutes, pas d’invalidation par un but. Statistiques par type. | — |
+
+**Données lues.** Les scores exacts viennent du relevé déjà fait à chaque passage (bet 23). Les lignes Over/Under du total du match ne sont demandées que quand un scan Plancher est dû : bet 25 (« Match Goals », lignes .5) puis bet 36 (« Over/Under Line »), réunis, bet 25 d’abord. Coût : 2 requêtes par passage où un scan est dû (une à la mi-temps, où bet 36 est déjà lu), communes à tous les matchs.
+
+**Constat en direct (API réelle, 23 novembre 2026, 14 h UTC, 8 matchs à la mi-temps).** Les cotes live existent pendant la pause : statut `stopped` = vrai, bet 23 avec 14 à 20 scores ouverts (les scores lointains suspendus), bet 36 et bet 25 ouverts. Mais pour 7 matchs sur 8, chaque marché ne donne qu’**une seule ligne** (la ligne principale, parfois un quart de ligne 1.25 ou 2.25 dans bet 36) ; un seul match avait toute l’échelle (3.5 à 7.5). Conséquence : la ligne du pari prudent (la plus basse) manque souvent ; le pari est alors écarté (« cote absente ou verrouillée ») et le Journal le dit.
+
+**Tests.** Les 6 matchs réels du document (Getafe, Atalanta–Inter, Marseille–Le Mans, Chicago–Charlotte, Anderlecht–OHL, Paris FC–Angers) donnent exactement la liste, le total_max, le plancher et les paris du tableau ; Getafe avec la ligne 3.5 déjà posée ne propose que Over 2.5 ; Chicago à 2-1 ne propose rien.
+
 ## Score de confiance automatique (document client V12, 22 novembre 2026)
 
 Un score de 0 à 100 par règle, puis la moyenne pondérée par les poids du profil actif (v11 et V11.9 : E1 25, C 20, F162-Bis 20, D 15, E2 10, C.2 10). Classe pure `ConfidenceScorer`, appelée par le moteur : le scan réel et le Testeur utilisent la même fonction. Le score et le détail par règle (score, poids, contribution, explication) sont conservés avec chaque évaluation (`opportunity_logs.confidence`) et affichés dans le Journal et le Testeur. **Il ne bloque aucune alerte** : l’étape « convergence » reste désactivée. Seuil de validation des profils « v11 » et « V11.9 » : **55 %** (score strictement supérieur, comme l’étape existante).
@@ -161,6 +183,7 @@ Chaque alerte enregistre ses options (table `alert_options`) : **ciblée** « Pr
 | Ciblée | l’équipe désignée marque le **prochain but** après l’alerte | l’autre équipe marque d’abord, ou aucun but avant la fin de validité |
 | Neutre | au moins un but est marqué après l’alerte | aucun but avant la fin de validité |
 | Over 4.5 (F121-D) | le total final est de 5 buts ou plus | moins de 5 buts |
+| Plancher central / prudent (Over N.5) | le total final dépasse la ligne | sinon |
 | Over 0.5 2e MT (F121-E2) | au moins un but après l’alerte (donnée à la mi-temps), jusqu’à la fin du temps réglementaire (temps additionnel compris, prolongation exclue) | aucun but en 2e mi-temps |
 
 - **Calcul** : à la fin du match (FT, AET, PEN, ou fin par absence du flux), à partir des scores déjà enregistrés à chaque relevé, **sans requête API en plus**. Un but contre son camp compte pour l’équipe qui en profite (le score l’indique déjà). Une baisse du score (but annulé par la VAR) remplace la référence sans compter de but.

@@ -266,8 +266,23 @@ class ScanServiceTest extends TestCase
             && str_contains($job->body, '0-0 → 1-0'));
     }
 
+    public function test_with_the_plancher_pause_scan_the_original_e2_signal_is_logged_without_deciding(): void
+    {
+        $match = $this->trackedMatch('fake-halftime-signal');
+        $this->activeProfile(['F121-E2', 'F121-D', 'F121-C', 'F121-C.2', 'F121-E1']);
+
+        app(ScanService::class)->runOnce();
+
+        $log = OpportunityLog::query()->where('tracked_match_id', $match->id)->where('event_type', 'evaluation')->sole();
+        $this->assertSame('no_alert', $log->decision);
+        $this->assertStringContainsString('journalisé sans décider', $log->reason);
+        $this->assertSame(0, OpportunityLog::query()->where('rule_id', 'F121-E2')->where('decision', 'alert')->count());
+    }
+
     public function test_halftime_match_only_receives_the_f121_e2_signal(): void
     {
+        // Scan Plancher de la pause désactivé : F121-E2 décide comme avant.
+        Setting::query()->where('key', 'plancher.scan_pause_enabled')->update(['value' => '0']);
         $match = $this->trackedMatch('fake-halftime-signal');
         $this->activeProfile(['F121-E2', 'F121-D', 'F121-C', 'F121-C.2', 'F121-E1']);
 

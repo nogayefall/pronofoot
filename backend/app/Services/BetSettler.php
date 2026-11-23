@@ -12,6 +12,7 @@ use Carbon\CarbonImmutable;
  *  - Neutre : gagnée si au moins un but est marqué après l’alerte.
  *  - Over 4.5 (F121-D) : gagnée si le total final est de 5 buts ou plus.
  *  - Over 0.5 2e mi-temps (F121-E2) : gagnée si au moins un but est marqué en 2e mi-temps (prolongation exclue).
+ *  - Plancher central / prudent (Over N.5 sur le total du match) : gagnée si le total final dépasse la ligne.
  *  - Match arrêté, abandonné ou annulé : annulée.
  *
  * Paramètres (confirmés par le client) : validité jusqu’à la fin du match ou pendant la durée de l’alerte (ciblée, neutre) ;
@@ -23,7 +24,7 @@ final class BetSettler
     public const REGULATION_MINUTES = 90;
 
     /**
-     * @param  list<array{type: string, side?: string|null}>  $options
+     * @param  list<array{type: string, side?: string|null, line?: string|null}>  $options
      * @param  array{home: int, away: int}  $base  Score au moment de l’alerte.
      * @param  list<array{home: int, away: int, minute: int|null, at: CarbonImmutable}>  $timeline  Scores relevés après l’alerte.
      * @param  CarbonImmutable|null  $validUntil  Fin de validité (durée de l’alerte) ; null = jusqu’à la fin du match.
@@ -63,6 +64,7 @@ final class BetSettler
                 'neutral' => $this->goals($base, $withinValidity) === [] ? 'lost' : 'won',
                 'over45' => $this->finalTotal($base, $counted) >= 5 ? 'won' : 'lost',
                 'halftime_over05' => $this->goals($base, $regulation) === [] ? 'lost' : 'won',
+                'plancher_central', 'plancher_prudent' => $this->overLine($option['line'] ?? null, $base, $counted),
                 default => null,
             };
         }
@@ -117,6 +119,21 @@ final class BetSettler
         }
 
         return $goals;
+    }
+
+    /**
+     * Over N.5 sur le total du match (buts marqués avant l’alerte inclus) : gagnée si le total final dépasse la ligne.
+     *
+     * @param  array{home: int, away: int}  $base
+     * @param  list<array{home: int, away: int, minute: int|null, at: CarbonImmutable}>  $steps
+     */
+    private function overLine(?string $line, array $base, array $steps): ?string
+    {
+        if ($line === null || ! preg_match('/(\d+(?:\.\d+)?)/', $line, $match)) {
+            return null;
+        }
+
+        return $this->finalTotal($base, $steps) > (float) $match[1] ? 'won' : 'lost';
     }
 
     /**

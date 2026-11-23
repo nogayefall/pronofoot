@@ -58,6 +58,18 @@ final class SettingsController extends Controller
         'rules.follow_leader_enabled' => '0',
         'results.bet_validity' => 'match',
         'results.count_extra_time' => '1',
+        'plancher.scan_depart_enabled' => '1',
+        'plancher.depart_minute_from' => '3',
+        'plancher.depart_minute_to' => '11',
+        'plancher.scan_pause_enabled' => '1',
+        'plancher.scan_soixante_enabled' => '1',
+        'plancher.soixante_minute_from' => '60',
+        'plancher.soixante_minute_to' => '65',
+        'plancher.notify_depart' => '1',
+        'plancher.notify_pause' => '1',
+        'plancher.notify_soixante' => '1',
+        'plancher.score_odds_limit' => '8.00',
+        'plancher.low_value_odds' => '1.25',
     ];
 
     public function index(): JsonResponse

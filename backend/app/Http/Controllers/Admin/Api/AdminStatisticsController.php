@@ -11,7 +11,7 @@ use Illuminate\Http\Request;
 /**
  * Statistiques des alertes : taux de réussite = gagnées ÷ (gagnées + perdues) ; les annulées et en attente ne comptent
  * pas. Par alerte (option principale), par règle, et par règle et type d’option (ciblée, neutre, Over 4.5, Over 0.5
- * 2e mi-temps), sur toutes les options (résultat automatique) et sur les seules options marquées « jouées ».
+ * 2e mi-temps, Plancher central et prudent), sur toutes les options (résultat automatique) et sur les seules options marquées « jouées ».
  */
 final class AdminStatisticsController extends Controller
 {

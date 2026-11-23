@@ -24,7 +24,7 @@ final class FakeOddsProvider implements OddsProvider
 
     public function __construct(private readonly FakeFixtureLoader $fixtures) {}
 
-    public function getLiveOdds(int $scanNumber = 0, bool $includeUnder25 = false): OddsFeed
+    public function getLiveOdds(int $scanNumber = 0, bool $includeUnder25 = false, bool $includeGoalLines = false): OddsFeed
     {
         $fixture = $this->fixtures->load();
         $matches = [];
@@ -52,6 +52,7 @@ final class FakeOddsProvider implements OddsProvider
                 stopped: ($football['status'] ?? null) === 'halftime',
                 under25Odds: $includeUnder25 && is_numeric($odds['under_2_5_odds'] ?? null) ? (float) $odds['under_2_5_odds'] : null,
                 overLineOdds: is_array($odds['over_line_odds'] ?? null) ? array_map('floatval', $odds['over_line_odds']) : [],
+                underLineOdds: $includeGoalLines && is_array($odds['under_line_odds'] ?? null) ? array_map('floatval', $odds['under_line_odds']) : [],
             );
         }
 

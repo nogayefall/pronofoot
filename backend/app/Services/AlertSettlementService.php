@@ -74,7 +74,7 @@ final class AlertSettlementService
             }
 
             $pending = $alert->options->where('outcome', 'pending')->values();
-            $options = $pending->map(fn (AlertOption $option): array => ['type' => $option->type, 'side' => $option->side])->all();
+            $options = $pending->map(fn (AlertOption $option): array => ['type' => $option->type, 'side' => $option->side, 'line' => $option->line])->all();
             $baseScore = ['home' => (int) $base->home_score, 'away' => (int) $base->away_score];
             $validUntil = $validityAlert && $alert->expires_at !== null ? CarbonImmutable::instance($alert->expires_at) : null;
             $result = $this->settler->settle($options, $baseScore, $timeline, $cancelled, $countExtraTime, $validUntil);

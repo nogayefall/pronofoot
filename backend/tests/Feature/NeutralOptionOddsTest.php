@@ -5,6 +5,7 @@ namespace Tests\Feature;
 use App\Models\Alert;
 use App\Models\OpportunityLog;
 use App\Models\RuleProfile;
+use App\Models\Setting;
 use App\Models\TrackedMatch;
 use App\Rules\RuleConfiguration;
 use App\Services\ScanService;
@@ -32,6 +33,8 @@ class NeutralOptionOddsTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
+        // Ces tests comptent les requêtes des règles existantes : les scans Plancher (requêtes bet 25 et 36) sont désactivés.
+        Setting::query()->whereIn('key', ['plancher.scan_depart_enabled', 'plancher.scan_pause_enabled', 'plancher.scan_soixante_enabled'])->update(['value' => '0']);
         config([
             'services.pronofoot.football_driver' => 'real',
             'services.pronofoot.odds_driver' => 'api_football',

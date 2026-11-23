@@ -405,6 +405,18 @@ final class ApiFootballMapper
      */
     public function mapOverLineOdds(string $rawResponse): ?array
     {
+        return $this->mapGoalLineOdds($rawResponse, 36, 'Over', false);
+    }
+
+    /**
+     * Cotes Over ou Under du total de buts par ligne, lues dans odds/live?bet=36 (« Over/Under Line ») ou bet=25
+     * (« Match Goals »). Valeur non suspendue, cote positive, une seule valeur par ligne (sinon la ligne est ignorée).
+     * Mode Plancher : lignes entières et quarts de ligne (2.25, 2.75) ignorés, ils ne servent ni aux paris ni au Journal.
+     *
+     * @return array<string, array<string, float>>|null Null si la réponse n’a pas la structure attendue.
+     */
+    public function mapGoalLineOdds(string $rawResponse, int $betId, string $side, bool $halfLinesOnly = true): ?array
+    {
         try {
             $payload = json_decode($rawResponse, true, flags: JSON_THROW_ON_ERROR);
         } catch (JsonException) {
@@ -424,14 +436,15 @@ final class ApiFootballMapper
 
             $lines = [];
             foreach (is_array($item['odds'] ?? null) ? $item['odds'] : [] as $market) {
-                if (! is_array($market) || ($market['id'] ?? null) !== 36 || ! is_array($market['values'] ?? null)) {
+                if (! is_array($market) || ($market['id'] ?? null) !== $betId || ! is_array($market['values'] ?? null)) {
                     continue;
                 }
 
                 foreach ($market['values'] as $value) {
                     if (is_array($value)
-                        && ($value['value'] ?? null) === 'Over'
+                        && ($value['value'] ?? null) === $side
                         && is_numeric($value['handicap'] ?? null)
+                        && (! $halfLinesOnly || fmod((float) $value['handicap'], 1.0) === 0.5)
                         && ($value['suspended'] ?? null) === false
                         && is_numeric($value['odd'] ?? null)
                         && is_finite((float) $value['odd'])

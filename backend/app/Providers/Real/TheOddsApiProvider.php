@@ -15,7 +15,7 @@ final class TheOddsApiProvider implements OddsProvider
         return [];
     }
 
-    public function getLiveOdds(int $scanNumber = 0, bool $includeUnder25 = false): OddsFeed
+    public function getLiveOdds(int $scanNumber = 0, bool $includeUnder25 = false, bool $includeGoalLines = false): OddsFeed
     {
         return new OddsFeed(
             driver: 'real',

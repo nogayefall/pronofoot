@@ -56,6 +56,14 @@ Chaque match ajouté consomme des requêtes chez le fournisseur : suivez seuleme
 
 **Score de confiance.** Chaque analyse reçoit un score de confiance de 0 à 100 % calculé automatiquement (formules du document V12) : un score par règle (F121-E1, F121-C, F162-Bis, F121-D, F121-E2, F121-C.2), multiplié par le poids de la règle dans le profil actif. Le seuil de validation des profils v11 et V11.9 est de 55 %. Pour l’instant le score est **indicatif** : il ne bloque aucune alerte, car l’étape « convergence » est désactivée dans Paramètres. La ligne marquée « À valider » (F121-C) attend une confirmation du client. Le bouton « Tester la combinaison » du Moteur de règles applique le profil choisi à la situation du Testeur, sans saisie de scores.
 
+**Mode Plancher.** Trois fois par match (jamais à chaque but), PronoFoot lit la liste des scores exacts encore possibles dont la cote est de 8.00 ou moins, et en déduit combien de buts de plus sont probables (le **plancher**) :
+
+- **départ** : premier relevé entre la 3e et la 11e minute ;
+- **pause** : à la mi-temps. C’est le scan E2 : il n’a lieu que si F121-E2 est cochée dans le profil actif, et l’ancienne alerte « Over 0.5 en 2e mi-temps » n’est plus envoyée (son signal reste écrit au Journal) ;
+- **soixante** : premier relevé entre la 60e et la 65e minute.
+
+Il propose deux paris sur le total du match : **central** Over (total_max − 0.5) et **prudent** Over (total_max − 1.5) quand le plancher est d’au moins 2 buts. Une cote sous 1.25 est marquée **Valeur faible**. Une ligne déjà posée sur ce match (par un scan précédent ou par l’option neutre d’une alerte) ou déjà gagnée n’est pas reproposée. Le message Telegram commence par « PLANCHER ». Les fenêtres, chaque scan et chaque envoi Telegram se règlent dans **Paramètres** (lignes « Plancher »). Résultat probable, jamais garanti.
+
 ## 4. Lire le Journal
 
 Chaque ligne correspond à un moment où PronoFoot a regardé un match.
@@ -68,7 +76,9 @@ Chaque ligne correspond à un moment où PronoFoot a regardé un match.
 | Règle | La règle qui a produit la décision (par exemple F121-E1, F121-D). |
 | Décision | Alerte, abstention, alerte invalidée, alerte expirée, but détecté, incident… |
 | Justification | La raison en clair, par exemple « La cote est stable : abstention » ou « Match “mort” : vitalité inférieure au minimum ». |
-| Options : décision et résultat | Pour chaque option de l’alerte (ciblée, neutre, Over 4.5, Over 0.5 en 2e mi-temps) : votre **décision** (Jouée, Ignorée, Non renseignée) et le **résultat** (Gagnée, Perdue, Annulée, En attente). |
+| Options : décision et résultat | Pour chaque option de l’alerte (ciblée, neutre, Over 4.5, Over 0.5 en 2e mi-temps, Plancher central et prudent) : votre **décision** (Jouée, Ignorée, Non renseignée) et le **résultat** (Gagnée, Perdue, Annulée, En attente). |
+
+Une ligne de règle **Plancher** montre le scan (départ, pause ou soixante), la liste ≤ 8.00, le total_max, le plancher, les paris avec leur cote et la mention « Valeur faible », les paris écartés et pourquoi, puis l’Under 2.5 et l’Under de la ligne au-dessus du total_max. Filtre « Règle » : tapez **Plancher** ; filtre « État » : **Non envoyée (Plancher)** pour les scans dont Telegram est désactivé.
 
 Sous la justification, « Score de confiance : 37,0 % (seuil 55,0 %) » s’ouvre pour afficher le détail par règle (score, poids, contribution, explication).
 
@@ -80,6 +90,7 @@ Le filtre en haut de page permet d’afficher seulement les alertes envoyées, e
 - **Neutre** « Un but de plus » : gagnée si au moins un but est marqué après l’alerte.
 - **Over 4.5** (F121-D) : gagnée si le match finit avec 5 buts ou plus.
 - **Over 0.5 en 2e mi-temps** (F121-E2) : gagnée si au moins un but est marqué en 2e mi-temps.
+- **Plancher central / prudent** (Over N.5) : gagné si le total final du match dépasse la ligne. Ces paris restent valables après un but, jusqu’à la fin du match.
 - Match arrêté, abandonné ou annulé : **Annulée**, sans effet sur les statistiques.
 
 Vous pouvez corriger un résultat dans la liste : il passe en **Manuel** et n’est plus recalculé. Indiquez aussi si vous avez **joué** l’option : les Statistiques donnent un second taux sur vos seules options jouées. Règles confirmées par le client : le pari reste valable jusqu’à la fin du match (les 15 minutes ne concernent que l’expiration de l’alerte), la prolongation compte comme le temps réglementaire, et les tirs au but ne comptent jamais. Ces deux réglages restent modifiables dans Paramètres.

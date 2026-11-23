@@ -2288,3 +2288,12 @@ body.drawer-open {
     grid-column: 1 / -1;
   }
 }
+
+/* Mode Plancher : détail d’un scan dans le Journal. */
+.plancher { display: grid; gap: 4px; font-size: 0.875rem; line-height: 1.45; }
+.plancher p { margin: 0; overflow-wrap: break-word; }
+.plancher-title strong { color: var(--text, inherit); }
+.plancher-bets { list-style: none; margin: 2px 0; padding: 0; display: grid; gap: 4px; }
+.plancher-bets li { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.plancher .nowrap { white-space: nowrap; }
+.plancher-note { color: var(--muted, inherit); font-size: 0.8125rem; }

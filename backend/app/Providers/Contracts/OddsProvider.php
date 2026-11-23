@@ -8,8 +8,10 @@ interface OddsProvider
 {
     /**
      * @param  bool  $includeUnder25  Ajoute la cote Under 2.5 buts (total du match) nécessaire à F121-E2.
+     * @param  bool  $includeGoalLines  Ajoute les cotes Over et Under du total du match par ligne (mode Plancher),
+     *                                  demandées seulement quand un scan Plancher est dû.
      */
-    public function getLiveOdds(int $scanNumber = 0, bool $includeUnder25 = false): OddsFeed;
+    public function getLiveOdds(int $scanNumber = 0, bool $includeUnder25 = false, bool $includeGoalLines = false): OddsFeed;
 
     /**
      * Cotes Over du total de buts par match et par ligne (« 2.5 » => 1.95), marché Over/Under (pari 36).

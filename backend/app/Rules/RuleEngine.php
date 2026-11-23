@@ -130,6 +130,10 @@ final class RuleEngine
                         break;
                     }
 
+                    if ($f121E2->verdict === RuleVerdict::Candidate && ! $configuration->halftimeSignalDecides) {
+                        return $abstain($step, 'Signal F121-E2 d’origine (Under 2.5 dans la plage configurée) journalisé sans décider : le scan Plancher de la pause est le scan E2.');
+                    }
+
                     if ($f121E2->verdict === RuleVerdict::Candidate) {
                         return $this->commonAlert($step, 'F121-E2', 'Mi-temps', $f121E2->suggestedAction, 'Signal mi-temps : cote Under 2.5 dans la plage configurée.', $steps, $finish);
                     }

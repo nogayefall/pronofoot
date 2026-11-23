@@ -145,7 +145,7 @@ export function AlertCard({ alert, parsed, competition, ruleTitle, countdown }) 
       {parsed.options.length > 0 && <ul className="alert-options" aria-label="Options proposées (aucune n’est jouée automatiquement)">{parsed.options.map((option) => <li key={option.label}><strong>{option.label}</strong> {option.text}</li>)}</ul>}
       {parsed.vitalityNote && <p className="alert-note">{parsed.vitalityNote}</p>}
       <p className="alert-meta">
-        Expire dans <span className="num">{countdown}</span>
+        {alert.expiresAt ? <>Expire dans <span className="num">{countdown}</span></> : 'Valable jusqu’à la fin du match'}
         {alert.channel && <> · {alert.channel === 'telegram' ? 'Telegram' : alert.channel === 'log' ? 'journal' : alert.channel}{alert.status === 'queued' ? ' (en file)' : ''}{alert.fallbackUsed ? ' · repli' : ''}</>}
       </p>
     </article>
@@ -229,6 +229,25 @@ export function ReasonText({ text, limit = 160 }) {
       <summary><span className="reason-short">{short}…</span> <span className="reason-toggle reason-more">Voir plus</span><span className="reason-toggle reason-less">Réduire</span></summary>
       <span className="reason-full">{text}</span>
     </details>
+  )
+}
+
+/**
+ * Détail d’un scan Plancher dans le Journal : liste ≤ 8.00, total_max, plancher, paris et cotes, « valeur faible ».
+ */
+export function PlancherDetails({ summary }) {
+  if (!summary) return null
+
+  return (
+    <div className="plancher">
+      <p className="plancher-title"><strong>{summary.title}</strong>{summary.moment && <span className="num"> · {summary.moment}</span>}</p>
+      <p className="num">{summary.listLabel} : {summary.scores.length ? summary.scores.map((score, index) => <span key={score} className="plancher-score">{index ? ', ' : ''}<span className="nowrap">{score}</span></span>) : 'aucun score atteignable'}</p>
+      {summary.floor && <p className="num">{summary.floor}</p>}
+      {summary.bets.length > 0 && <ul className="plancher-bets">{summary.bets.map((bet) => <li key={bet.key}><span>{bet.label}</span> <strong className="num">{bet.text}</strong>{bet.lowValue && <> <Pill tone="high" dot={false}>Valeur faible</Pill></>}</li>)}</ul>}
+      {summary.skipped.length > 0 && <p className="plancher-note">Écartés : {summary.skipped.join(' · ')}</p>}
+      {summary.unders && <p className="plancher-note num">{summary.unders}</p>}
+      <p className="plancher-note">{summary.bets.length ? (summary.notified ? 'Alerte Telegram envoyée.' : 'Telegram désactivé pour ce scan : Journal seulement.') : 'Aucun pari proposé.'} Résultat probable, jamais garanti.</p>
+    </div>
   )
 }
 
