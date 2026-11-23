@@ -1,24 +1,27 @@
-/* PronoFoot — identité « Terrain de nuit ». Toutes les couleurs, polices et rayons sont définis ici. */
+/* PronoFoot — identité du logo client : bleu nuit, violet, vert menthe. Toutes les couleurs, polices et rayons sont
+   définis ici. Contrastes vérifiés (WCAG AA) : texte secondaire ≥ 5,4:1 sur les surfaces, accent ≥ 10:1. */
 
 :root {
-  --bg: #08110d;
-  --sidebar: #0b1510;
-  --surface: #0f1b15;
-  --surface-2: #14241c;
-  --input-bg: #0c1710;
-  --line: #1f3328;
-  --line-input: #2a4234;
+  --bg: #0a1022;
+  --sidebar: #0c1325;
+  --surface: #111a33;
+  --surface-2: #17223f;
+  --input-bg: #0d1530;
+  --line: #222e52;
+  --line-input: #2f3c68;
 
-  --text: #e8f1ea;
-  --text-2: #c5d6ca;
-  --muted: #9db3a5;
-  --muted-2: #8fa597;
+  --text: #eaedfb;
+  --text-2: #c8cee9;
+  --muted: #9ba5c9;
+  --muted-2: #8d97bd;
 
-  --accent: #b8f34a;
-  --accent-hover: #d6ff86;
-  --on-accent: #08110d;
-  --accent-soft: rgba(184, 243, 74, .12);
-  --accent-line: rgba(184, 243, 74, .4);
+  --accent: #2ee6a6;
+  --accent-hover: #6ff0c2;
+  --on-accent: #06101f;
+  --accent-soft: rgba(46, 230, 166, .12);
+  --accent-line: rgba(46, 230, 166, .4);
+  --violet: #a98bff;
+  --violet-soft: rgba(169, 139, 255, .14);
 
   --critical: #ff8a7b;
   --critical-bg: rgba(255, 107, 90, .14);
@@ -27,9 +30,9 @@
   --high-bg: rgba(255, 194, 74, .14);
   --high-line: rgba(255, 194, 74, .4);
   --ok: #4ade9a;
-  --watch: #b9cabf;
-  --watch-bg: rgba(143, 165, 151, .14);
-  --dead: #8fa597;
+  --watch: #bcc4e2;
+  --watch-bg: rgba(141, 151, 189, .14);
+  --dead: #8d97bd;
 
   --font-sans: 'Space Grotesk', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
   --font-mono: 'JetBrains Mono', ui-monospace, 'SFMono-Regular', Consolas, monospace;
@@ -145,7 +148,8 @@ code {
 
 .logo-mark {
   flex: none;
-  color: var(--accent);
+  display: block;
+  border-radius: 8px;
 }
 
 .brand-name {
@@ -154,8 +158,15 @@ code {
   letter-spacing: -.01em;
 }
 
+.brand-name {
+  background: linear-gradient(90deg, var(--violet), var(--accent));
+  background-clip: text;
+  -webkit-background-clip: text;
+  color: transparent;
+}
+
 .brand-name span {
-  color: var(--accent);
+  color: inherit;
 }
 
 .mobile-bar,
@@ -219,7 +230,7 @@ code {
 }
 
 .nav-item-active .nav-count {
-  background: rgba(8, 17, 13, .16);
+  background: rgba(6, 10, 24, .16);
   color: var(--on-accent);
 }
 
@@ -465,7 +476,7 @@ code {
 
 .pill-watch,
 .pill-other {
-  border-color: rgba(143, 165, 151, .3);
+  border-color: rgba(141, 151, 189, .3);
   background: var(--watch-bg);
   color: var(--watch);
 }
@@ -803,7 +814,7 @@ code {
 }
 
 .data-table tbody tr:hover td {
-  background: rgba(20, 36, 28, .55);
+  background: rgba(23, 34, 63, .55);
 }
 
 .data-table td strong {
@@ -1044,7 +1055,7 @@ code {
 }
 
 .league-chip[aria-pressed="true"] .league-chip-count {
-  background: rgba(8, 17, 13, .16);
+  background: rgba(6, 10, 24, .16);
   color: var(--on-accent);
 }
 
@@ -1118,7 +1129,7 @@ code {
 }
 
 .data-table-matches tbody tr:hover td.cell-action {
-  background: #111f18;
+  background: #131d38;
 }
 
 .tracked-note {
@@ -1651,7 +1662,7 @@ input[type='date'] {
     z-index: 30;
     inset: 0;
     display: block;
-    background: rgba(4, 9, 7, .6);
+    background: rgba(4, 7, 18, .6);
   }
 
   .drawer-account {

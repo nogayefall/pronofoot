@@ -29,13 +29,9 @@ export function Icon({ name, size = 20 }) {
 }
 
 /** Logo PronoFoot : un cercle traversé d'une ligne de pouls. */
-export function Logo({ size = 30 }) {
-  return (
-    <svg className="logo-mark" width={size} height={size} viewBox="0 0 32 32" fill="none" aria-hidden="true">
-      <circle cx="16" cy="16" r="14" stroke="currentColor" strokeWidth="2" />
-      <path d="M5 16.5h5.2l2.3-5 3.6 10.5 3-8.2 1.6 2.7H27" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-    </svg>
-  )
+/** Emblème du logo client (P et ballon), servi par l’application : /brand/logo-emblem.png. */
+export function Logo({ size = 34 }) {
+  return <img className="logo-mark" src="/brand/logo-emblem.png" width={size} height={size} alt="" aria-hidden="true" />
 }
 
 export function Brand({ href = '/admin' }) {

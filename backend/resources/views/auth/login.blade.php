@@ -5,15 +5,19 @@
     <meta name="google" content="notranslate">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="robots" content="noindex">
+    <meta name="theme-color" content="#0c1325">
+    <link rel="icon" href="/favicon.ico" sizes="32x32 48x48">
+    <link rel="apple-touch-icon" href="/brand/apple-touch-icon.png">
     <title>Connexion administrateur — PronoFoot</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500&family=Space+Grotesk:wght@400;500;600;700&display=swap">
     <style nonce="{{ $cspNonce ?? '' }}">
         :root {
-            --bg: #08110d; --surface: #0f1b15; --input-bg: #0c1710; --line: #1f3328; --line-input: #2a4234;
-            --text: #e8f1ea; --text-2: #c5d6ca; --muted: #9db3a5; --muted-2: #8fa597;
-            --accent: #b8f34a; --accent-hover: #d6ff86; --on-accent: #08110d;
+            /* Identité du logo client : bleu nuit, violet, vert menthe (mêmes valeurs que l’administration). */
+            --bg: #0a1022; --surface: #111a33; --input-bg: #0d1530; --line: #222e52; --line-input: #2f3c68;
+            --text: #eaedfb; --text-2: #c8cee9; --muted: #9ba5c9; --muted-2: #8d97bd;
+            --accent: #2ee6a6; --accent-hover: #6ff0c2; --on-accent: #06101f; --violet: #a98bff;
             --critical: #ff8a7b; --critical-bg: rgba(255, 107, 90, .14); --critical-line: rgba(255, 107, 90, .45);
             --font-sans: 'Space Grotesk', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
             --font-mono: 'JetBrains Mono', ui-monospace, Consolas, monospace;
@@ -26,17 +30,16 @@
 
         .layout { display: grid; min-height: 100vh; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
 
-        .hero { position: relative; display: flex; flex-direction: column; justify-content: space-between; gap: 48px; padding: 56px 64px; overflow: hidden; border-right: 1px solid var(--line); background: linear-gradient(160deg, #0c1a13 0%, #08110d 100%); }
-        .pitch { position: absolute; inset: 0; width: 100%; height: 100%; color: var(--accent); opacity: .12; pointer-events: none; }
+        .hero { position: relative; display: flex; flex-direction: column; justify-content: space-between; gap: 48px; padding: 56px 64px; overflow: hidden; border-right: 1px solid var(--line); background: linear-gradient(160deg, #111a3a 0%, #0a1022 100%); }
+        .pitch { position: absolute; inset: 0; width: 100%; height: 100%; color: var(--violet); opacity: .1; pointer-events: none; }
         .hero > *:not(.pitch) { position: relative; }
-        .brand { display: inline-flex; align-items: center; gap: 10px; color: var(--text); font-size: 22px; font-weight: 700; letter-spacing: -.01em; }
-        .brand svg { flex: none; color: var(--accent); }
-        .brand-name span { color: var(--accent); }
+        .brand { display: block; }
+        .brand img { display: block; width: 168px; height: 168px; border-radius: 22px; box-shadow: 0 18px 40px rgba(0, 0, 0, .35); }
         .eyebrow { margin-bottom: 18px; color: var(--accent); font-family: var(--font-mono); font-size: 13px; letter-spacing: .14em; text-transform: uppercase; }
         .hero-title { max-width: 17ch; font-size: 52px; font-weight: 700; letter-spacing: -.02em; line-height: 1.08; }
         .lead { max-width: 46ch; margin-top: 22px; color: var(--muted); font-size: 18px; }
         .pills { display: flex; flex-wrap: wrap; gap: 10px; padding: 0; list-style: none; }
-        .pills li { padding: 7px 15px; border: 1px solid var(--line-input); border-radius: 999px; background: rgba(15, 27, 21, .8); color: var(--text-2); font-size: 14px; }
+        .pills li { padding: 7px 15px; border: 1px solid var(--line-input); border-radius: 999px; background: rgba(17, 26, 51, .8); color: var(--text-2); font-size: 14px; }
 
         .panel { display: grid; place-items: center; padding: 56px 32px; }
         .form-wrap { width: 100%; max-width: 420px; }
@@ -61,6 +64,7 @@
             .layout { grid-template-columns: minmax(0, 1fr); }
             .hero { gap: 32px; padding: 32px 16px; border-right: 0; border-bottom: 1px solid var(--line); }
             .hero-title { max-width: none; font-size: 36px; }
+            .brand img { width: 112px; height: 112px; border-radius: 16px; }
             .lead { font-size: 16px; }
             .panel { padding: 36px 16px 48px; }
         }
@@ -81,8 +85,7 @@
             <rect x="280" y="800" width="160" height="40" />
         </svg>
         <p class="brand">
-            <svg width="34" height="34" viewBox="0 0 32 32" fill="none" aria-hidden="true"><circle cx="16" cy="16" r="14" stroke="currentColor" stroke-width="2"/><path d="M5 16.5h5.2l2.3-5 3.6 10.5 3-8.2 1.6 2.7H27" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
-            <span class="brand-name">Prono<span>Foot</span></span>
+            <img src="/brand/logo-full.png" width="168" height="168" alt="PronoFoot">
         </p>
         <div>
             <p class="eyebrow">Détecteur d’opportunités live</p>

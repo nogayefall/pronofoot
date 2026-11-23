@@ -5,6 +5,9 @@
     <meta name="google" content="notranslate">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="csrf-token" content="{{ csrf_token() }}">
+    <meta name="theme-color" content="#0c1325">
+    <link rel="icon" href="/favicon.ico" sizes="32x32 48x48">
+    <link rel="apple-touch-icon" href="/brand/apple-touch-icon.png">
     <title>Administration — PronoFoot</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -26,7 +29,7 @@
         <script type="module" src="admin-assets/app.js?v={{ $assetVersion('app.js') }}"></script>
     @endif
 </head>
-<body style="margin:0;background:#08110d;color:#e8f1ea">
+<body style="margin:0;background:#0a1022;color:#eaedfb">
     <div id="root" data-admin-name="{{ auth()->user()->name }}">
         <main style="max-width:42rem;margin:4rem auto;padding:2rem 1rem;font-family:'Space Grotesk',system-ui,sans-serif;color:#c5d6ca">
             <h1>Chargement de l’interface PronoFoot…</h1>
