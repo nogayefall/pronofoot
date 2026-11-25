@@ -14,7 +14,7 @@ Ces points ne sont plus à fournir : vitalité (barème, bornes incluses, minimu
   - Cotes en direct : la plupart des matchs n’ont qu’une ligne Over/Under ; le pari prudent sera souvent écarté faute de cote. Faut-il une autre source pour les lignes basses ?
 
 - **Ordre de décision** : le complément 2 donne les données complètes des 10 situations (toutes passent) et un pseudo-code. L’ordre appliqué s’en écarte sur neuf points (F121-E2 en premier, F121-D avant les écarts, étape « hausse », équipe désignée, tendance non calculable…) : voir le tableau de [`DECISIONS_ANNEXE_PHASE1.md`](./DECISIONS_ANNEXE_PHASE1.md). À confirmer.
-- **F162-Bis et filtre d’écart** : une forte baisse déclenche une alerte même si l’écart dépasse 0.50, alors que le CDC Phase 1 exige que les trois filtres soient validés. Est-ce voulu ?
+- **F162-Bis et filtre d’écart** : depuis le 25 novembre 2026, une baisse seule avec un écart supérieur à 0.50 est une abstention si une seule équipe est en signal. L’exemple Sénégal – Soudan (écart +0.70, baisse −12.5 %, alerte Critique attendue) devient donc une abstention : à valider.
 - **Règle des minutes restantes** (hors pseudo-code) : abstention s’il reste moins de 10 minutes ? Désactivée par défaut.
 - **Convergence** : l’annexe ne la mentionne pas ; elle est calculée mais ne bloque plus les alertes. Faut-il la remettre dans l’ordre de décision ?
 - **Baisse exactement égale à 5 %** : pas « plus de 5 % », donc pas de F162-Bis ; le moteur passe à l’écart.

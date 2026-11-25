@@ -419,6 +419,8 @@ class AdminApiTest extends TestCase
 
     public function test_testing_a_combination_shows_the_confidence_score_and_applies_the_optional_convergence_step(): void
     {
+        // Ce test porte sur la convergence, avec une baisse seule et un écart de 1.10.
+        Setting::query()->where('key', 'rules.strong_drop_requires_gap')->update(['value' => '0']);
         $profile = RuleProfile::query()->create([
             'name' => 'Profil de test',
             'is_active' => true,

@@ -22,7 +22,8 @@ class RuleEngineTest extends TestCase
             vitalityScore: 61,
             oddsChangePercent: $trend,
         );
-        $strongDrop = (new RuleEngine)->evaluate($input(-6.0), new RuleConfiguration);
+        $strongDrop = (new RuleEngine)->evaluate($input(-6.0), new RuleConfiguration(strongDropRequiresGap: false));
+        $this->assertFalse((new RuleEngine)->evaluate($input(-6.0), new RuleConfiguration)->shouldAlert, 'Par défaut : baisse seule, écart 1.10 > 0.50, abstention.');
         $slightDrop = (new RuleEngine)->evaluate($input(-1.0), new RuleConfiguration);
 
         $this->assertSame('home', $strongDrop->rules['F121-C']->details['selectedTeam']);
@@ -392,6 +393,7 @@ class RuleEngineTest extends TestCase
                 // Score automatique : baisse de 6 % (F162-Bis) = 75, seule règle pondérée.
                 methodWeights: ['F162-Bis' => 1.0],
                 pipeline: [...RuleConfiguration::DEFAULT_PIPELINE, 'convergence'],
+                strongDropRequiresGap: false,
             ),
         );
 
@@ -412,6 +414,7 @@ class RuleEngineTest extends TestCase
             ),
             new RuleConfiguration(
                 pipeline: [...RuleConfiguration::DEFAULT_PIPELINE, 'convergence'],
+                strongDropRequiresGap: false,
             ),
         );
 
@@ -427,7 +430,7 @@ class RuleEngineTest extends TestCase
                 vitalityScore: 61,
                 oddsChangePercent: -6.0,
             ),
-            new RuleConfiguration,
+            new RuleConfiguration(strongDropRequiresGap: false),
         );
         $this->assertTrue($withoutConvergenceStep->shouldAlert);
     }

@@ -5,6 +5,7 @@ namespace Tests\Feature;
 use App\Models\Alert;
 use App\Models\OpportunityLog;
 use App\Models\RuleProfile;
+use App\Models\Setting;
 use App\Models\TrackedMatch;
 use App\Rules\RuleConfiguration;
 use App\Services\ScanService;
@@ -47,8 +48,26 @@ class TwoSidedScanTest extends TestCase
         parent::tearDown();
     }
 
+    public function test_by_default_a_drop_alone_with_a_large_gap_is_a_justified_abstention_in_the_journal(): void
+    {
+        $this->assertDatabaseHas('settings', ['key' => 'rules.strong_drop_requires_gap', 'value' => '1']);
+        $match = TrackedMatch::query()->create(['provider' => 'real', 'provider_match_id' => '601', 'home_team' => 'Rennes', 'away_team' => 'Racing', 'is_active' => true]);
+        $before = CarbonImmutable::now()->subMinutes(3);
+        $match->snapshots()->create(['minute' => 57, 'home_score' => 2, 'away_score' => 0, 'exact_score_odds' => ['2-0' => 3.00, '3-0' => 4.00, '2-1' => 5.00], 'statistics' => [], 'odds_captured_at' => $before, 'captured_at' => $before]);
+        $this->fakeApi(['2-0' => '3.00', '3-0' => '4.10', '2-1' => '4.50']);
+
+        $result = app(ScanService::class)->runOnce();
+
+        $this->assertSame(0, $result->alertsCreated);
+        $this->assertSame(0, Alert::query()->count());
+        $log = OpportunityLog::query()->where('event_type', 'evaluation')->sole();
+        $this->assertSame('no_alert', $log->decision);
+        $this->assertStringStartsWith('Abstention : baisse de cote seule (F162-Bis), mais écart +1.50 supérieur à 0.50 (F121-G)', $log->reason);
+    }
+
     public function test_the_away_team_falling_odds_alert_although_the_home_team_has_the_smaller_gap(): void
     {
+        Setting::query()->where('key', 'rules.strong_drop_requires_gap')->update(['value' => '0']);
         $match = TrackedMatch::query()->create([
             'provider' => 'real',
             'provider_match_id' => '601',

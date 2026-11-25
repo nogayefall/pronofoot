@@ -100,6 +100,7 @@ class ProviderPilotsTest extends TestCase
                 trendSource: 'cote_suggeree',
                 stableOddsChangePercent: 3.0,
                 methodWeights: ['F121-C' => 1.0],
+                strongDropRequiresGap: false,
             ),
         );
 

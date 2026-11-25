@@ -97,6 +97,7 @@ const settingLabels = {
   'rules.f121x_enabled': 'F121-X : pari neutre sur écart croisé (à confirmer)',
   'rules.f121x_cross_gap_max': 'F121-X : écart croisé maximal (à confirmer)',
   'rules.follow_leader_enabled': 'F121-C.2 : suivre l’équipe qui mène de 2 buts (à confirmer)',
+  'rules.strong_drop_requires_gap': 'F162-Bis exige un écart <= seuil F121-G',
 }
 
 const settingDescriptions = {
@@ -152,6 +153,7 @@ const settingDescriptions = {
   'rules.f121x_enabled': '|écart domicile − écart extérieur| sous le seuil dans un match ouvert : pari neutre « un but de plus ». Désactivée par défaut.',
   'rules.f121x_cross_gap_max': 'Seuil de l’écart croisé pour F121-X.',
   'rules.follow_leader_enabled': 'Si une équipe mène de 2 buts ou plus, seule cette équipe est évaluée. Désactivée par défaut.',
+  'rules.strong_drop_requires_gap': 'Activé : quand une seule équipe est en signal, une baisse de cote seule ne déclenche pas d’alerte Critique si l’écart dépasse le seuil F121-G (abstention notée au Journal). Sans effet si les deux équipes sont en signal, ni dans les 2 minutes après un but.',
   'scan.idle_interval_seconds': 'Quand aucun match n’est suivi et qu’aucun match des championnats suivis n’est en direct : pas de statistiques ni de cotes, et le flux n’est relu qu’après cette pause.',
 }
 
@@ -160,6 +162,7 @@ const decisionStepLabels = {
   'F121-D': 'Match ouvert (F121-D)',
   minutes_remaining: 'Minutes restantes (facultatif)',
   trend_drop: 'Forte baisse (F162-Bis)',
+  strong_drop_gap: 'Écart exigé par F162-Bis (F121-G)',
   trend_rise: 'Hausse de la cote',
   gap_negative: 'Écart négatif (F121-E1)',
   gap_too_high: 'Écart trop grand (F121-G)',

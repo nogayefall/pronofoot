@@ -9,12 +9,13 @@ use App\Rules\RuleConfiguration;
 use App\Rules\RuleEngine;
 use App\Rules\RuleInput;
 use App\Services\RuleConfigurationFactory;
+use App\Services\ScanSettings;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
 class RuleSimulationController extends Controller
 {
-    public function __invoke(Request $request, RuleEngine $ruleEngine, RuleConfigurationFactory $configurationFactory): JsonResponse
+    public function __invoke(Request $request, RuleEngine $ruleEngine, RuleConfigurationFactory $configurationFactory, ScanSettings $settings): JsonResponse
     {
         $validated = $request->validate([
             'home_score' => ['required', 'integer', 'min:0'],
@@ -51,6 +52,7 @@ class RuleSimulationController extends Controller
                     : 5.0,
                 minimumConvergenceScore: $activeProfile === null ? 75.0 : $configurationFactory->make($activeProfile)->minimumConvergenceScore,
                 methodWeights: is_array($activeProfile?->settings['method_weights'] ?? null) ? $activeProfile->settings['method_weights'] : [],
+                strongDropRequiresGap: ($settings->all()['rules.strong_drop_requires_gap'] ?? true) !== false,
             )
             : $configurationFactory->make($profile);
         $result = $ruleEngine->evaluate($input, $configuration);

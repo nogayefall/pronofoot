@@ -110,7 +110,7 @@ Quelques événements fréquents :
 
 | Décision | Signification |
 |---|---|
-| **Alerte Critique** | Un but de l’équipe désignée est très probable. Deux cas : la cote de son prochain but a **baissé de plus de 5 %** en deux minutes (le bookmaker a eu une information), ou cette cote est **plus basse** que celle du score actuel (écart négatif). |
+| **Alerte Critique** | Un but de l’équipe désignée est très probable. Deux cas : la cote de son prochain but a **baissé de plus de 5 %** en deux minutes (le bookmaker a eu une information) avec un écart d’au plus 0,50 si cette équipe est la seule en signal, ou cette cote est **plus basse** que celle du score actuel (écart négatif). |
 | **Alerte Haute** | Un but de l’équipe désignée est probable : la cote de son prochain but est un peu plus haute que celle du score actuel (écart entre 0 et 0,50). |
 | **Alerte Mi-temps** | À la mi-temps, la cote « moins de 2,5 buts » est entre 1,15 et 1,40 : signal « plus de 0,5 but en 2e mi-temps ». C’est la seule alerte possible pendant la mi-temps. |
 | **Pari neutre (Over 4.5)** | Match très ouvert (par exemple 2-3) où les cotes des scores suivants sont toutes à 8,00 ou moins. |
@@ -121,14 +121,14 @@ PronoFoot vérifie toujours dans cet ordre et s’arrête à la première condit
 1. **Mi-temps** : cote « moins de 2,5 buts » entre 1,15 et 1,40 → Alerte Mi-temps ; sinon, rien pendant la mi-temps.
 2. **Match ouvert** : au moins 4 buts et cotes des scores suivants à 8,00 ou moins → Pari neutre Over 4.5.
 3. **Vitalité** de 40 ou moins → Abstention (match « mort »).
-4. **Forte baisse** de la cote du prochain but (plus de 5 % en deux minutes) → **Alerte Critique**.
+4. **Forte baisse** de la cote du prochain but (plus de 5 % en deux minutes) → **Alerte Critique**. Exception (réglage « F162-Bis exige un écart <= seuil F121-G », activé par défaut) : si une seule équipe est en signal et que son écart dépasse 0,50, c’est une **Abstention**, avec le motif au Journal.
 5. **Hausse** de cette cote, ou tendance pas encore calculable (moins de 2 minutes de cotes depuis le début du suivi) → Abstention.
 6. **Écart négatif** → **Alerte Critique**.
 7. **Écart au-delà de 0,50** → Abstention.
 8. **Écart entre 0 et 0,50** → **Alerte Haute**.
 9. Sinon (écart nul) → Abstention.
 
-Dans les 2 minutes qui suivent un but, les étapes 4 à 9 sont remplacées par les règles « après un but » décrites dans la section 4 (premier relevé, puis baisse de plus de 5 % seulement).
+Dans les 2 minutes qui suivent un but, les étapes 4 à 9 (et l’exception de l’étape 4) sont remplacées par les règles « après un but » décrites dans la section 4 (premier relevé, puis baisse de plus de 5 % seulement).
 
 L’alerte reçue rappelle le match, la minute, le score, le niveau (Alerte Critique, Alerte Haute…), le signal, l’écart, la vitalité, la tendance et l’heure d’expiration.
 

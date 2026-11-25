@@ -56,6 +56,7 @@ final readonly class RuleConfiguration
      * @param  bool  $followLeader  F121-C.2 (à confirmer) : si une équipe mène de 2 buts ou plus, seule elle est évaluée.
      * @param  bool  $halftimeSignalDecides  F121-E2 décide à la mi-temps. Faux quand le scan Plancher de la pause (scan E2,
      *                                       annexe « Quoi coder v2 ») est actif : le signal d’origine est journalisé sans décider.
+     * @param  bool  $strongDropRequiresGap  Une seule équipe en signal : F162-Bis exige un écart <= seuil F121-G.
      */
     public function __construct(
         public array $activeRules = self::DEFINED_RULES,
@@ -79,6 +80,7 @@ final readonly class RuleConfiguration
         public float $crossGapMaximum = 1.0,
         public bool $followLeader = false,
         public bool $halftimeSignalDecides = true,
+        public bool $strongDropRequiresGap = true,
     ) {
         foreach ([
             'maximumDirectionalGap' => $maximumDirectionalGap,

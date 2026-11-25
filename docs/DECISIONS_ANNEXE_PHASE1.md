@@ -13,7 +13,7 @@ Sources :
 | Vitalité (F166/F167) | Totaux des deux équipes, bornes incluses. Tirs ≥ 15 : 30, ≥ 8 : 20, ≥ 3 : 10. Cadrés ≥ 6 : 30, ≥ 3 : 20, ≥ 1 : 10. Possession de l’équipe la plus haute ≥ 60 % : 20, ≥ 50 % : 10. Corners ≥ 8 : 20, ≥ 4 : 10. Une statistique manquante rend l’indice non calculable, jamais 0. | `rules.vitality_normalization_references` |
 | Vitalité | ≤ 40 « match mort » : abstention. | `rules.minimum_vitality` = 41 |
 | Tendance | Pour **chaque équipe** : variation sur 2 minutes de la cote du score de son prochain but (domicile h+1-a, extérieur h-a+1). | `tendance_source` |
-| F162-Bis (baisse obligatoire) | Baisse de plus de 5 % : alerte Critique, **prioritaire sur l’écart**. | `tendance_seuil_stable` = 5 |
+| F162-Bis (baisse obligatoire) | Baisse de plus de 5 % : alerte Critique. Depuis le 25 novembre 2026, si **une seule équipe** est en signal, l’écart doit être ≤ 0.50 (voir « F162-Bis exige un écart »). | `tendance_seuil_stable` = 5, `rules.strong_drop_requires_gap` = activé |
 | Hausse | Variation > 0 : abstention. Une baisse faible ou une cote stable ne bloque plus. | — |
 | F121-E1 (écart négatif) | Écart = cote du prochain but − cote du score actuel. Négatif : alerte Critique. | `alerts.level_negative_gap` |
 | F121-G (filtre d’abstention) | Écart > 0.50 : abstention. | `rules.abstention_gap_threshold` = 0.50 |
@@ -27,7 +27,7 @@ Sources :
 1. `F121-E2` — à la mi-temps : Under 2.5 entre 1.15 et 1.40 → alerte Mi-temps ; sinon abstention (aucune autre alerte à la mi-temps).
 2. `F121-D` — au moins 4 buts et cotes à venir ≤ 8.00 → pari neutre Over 4.5.
 3. `vitality` — vitalité ≤ 40 ou non calculable → abstention.
-4. `trend_drop` — baisse de plus de 5 % → alerte Critique (F162-Bis).
+4. `trend_drop` — baisse de plus de 5 % → alerte Critique (F162-Bis) ; retirée ensuite si une seule équipe est en signal et que son écart dépasse 0.50.
 5. `trend_rise` — hausse → abstention.
 6. `gap_negative` — écart < 0 → alerte Critique (F121-E1).
 7. `gap_too_high` — écart > 0.50 → abstention (F121-G).
@@ -81,9 +81,23 @@ Tests : `tests/Unit/TwoSidedRuleTest.php` (Arsenal – Everton, Sénégal – So
 Autres points à confirmer :
 
 - Une baisse de **exactement** 5 % n’est pas « plus de 5 % » : pas de F162-Bis, le moteur passe à l’écart.
-- Avec F162-Bis prioritaire, une forte baisse donne une alerte même si l’écart dépasse 0.50 : le « filtre » d’écart ne bloque plus dans ce cas, contrairement au critère d’acceptation du CDC Phase 1 (« aucune alerte si un des 3 filtres n’est pas validé »).
+- F162-Bis et écart supérieur à 0.50 : réglé le 25 novembre 2026 quand une seule équipe est en signal (abstention). Deux équipes en signal, ou 2 minutes après un but : l’alerte reste possible.
 - **Tendance après un but** : voir la section « Gestion des cotes après un but (complément 4) ». La baisse mécanique de −26 % constatée en réel (2-0 de 9.60 avant le but à 7.10 après) ne compte plus : seules les cotes prises après le but servent.
 - **Journal « pas de scan » (à confirmer)** : une seule ligne quand un match passe en « pas de scan » (écart supérieur à 2.00), et une autre quand il en sort ; rien entre les deux.
+
+## F162-Bis exige un écart (décision du 25 novembre 2026)
+
+Réglage « F162-Bis exige un écart <= seuil F121-G » (`rules.strong_drop_requires_gap`), **activé par défaut**. Quand **une seule équipe** est en signal et que ce signal est une baisse de cote (F162-Bis), l’écart de cette équipe doit être inférieur ou égal au seuil F121-G (`rules.abstention_gap_threshold` = 0.50, inclus). Sinon : abstention, motif au Journal « baisse de cote seule (F162-Bis), mais écart +4.13 supérieur à 0.50 (F121-G) : pas d’alerte » (étape `strong_drop_gap`). Le Testeur applique le même réglage.
+
+- **Deux équipes en signal** : inchangé, alerte neutre seule (« un but de plus »).
+- **2 minutes après un but** (complément 4) : inchangé, une baisse depuis la première cote après le but suffit.
+- Écart négatif (F121-E1), petit écart (F121-C), F121-D et mode Plancher : inchangés.
+
+**Origine** : 204 alertes où F162-Bis intervient, en production du 20 au 25 novembre 2026. Les 46 alertes à une seule équipe, hors but, avec un écart supérieur à 0.50 ont gagné 14 fois et perdu 24 fois (8 sans résultat). Les 70 alertes neutres (deux équipes en signal) que le réglage aurait transformées en paris ciblés ont gagné 48 fois sur 56 : elles sont gardées.
+
+**Exemple testé** : RB Leipzig – Lens, 75e, 2-1 (alerte #2807, perdue) : extérieur 2-2 à 6.50, écart +4.13, baisse −7.1 % ; domicile en hausse (+4.6 %) → abstention.
+
+**À valider par le client** : l’exemple Sénégal – Soudan qu’il avait transmis (2-0 de 4.00 à 3.50, écart +0.70, baisse −12.5 %, alerte Critique) devient une abstention avec ce réglage. Les 10 situations de l’annexe restent toutes conformes.
 
 ## Cote Under 2.5 réelle (pari 36)
 

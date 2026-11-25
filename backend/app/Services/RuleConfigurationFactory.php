@@ -51,6 +51,7 @@ final class RuleConfigurationFactory
             followLeader: ($settings['rules.follow_leader_enabled'] ?? false) === true,
             // Scan Plancher de la pause actif : il devient le scan E2, le signal Under 2.5 d’origine ne décide plus.
             halftimeSignalDecides: ($settings['plancher.scan_pause_enabled'] ?? false) === false,
+            strongDropRequiresGap: ($settings['rules.strong_drop_requires_gap'] ?? true) !== false,
         );
     }
 

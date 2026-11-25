@@ -9,6 +9,7 @@ namespace App\Rules;
  * F121-D (match ouvert), vitalité. Puis la règle F121 est appliquée aux DEUX équipes : prochain but à domicile
  * (score h+1-a) et à l’extérieur (h-a+1), chacune avec son écart et sa tendance (forte baisse F162-Bis, hausse,
  * écart négatif F121-E1, écart trop grand F121-G, petit écart). Après un but, le complément 4 s’applique à chaque équipe.
+ * Si une seule équipe est en signal, F162-Bis exige un écart <= seuil F121-G (réglage, activé par défaut).
  *
  * Options d’une alerte (règle du client) : si une seule équipe donne un signal, deux options — ciblée « prochain but de
  * l’équipe » puis neutre « un but de plus dans le match » (Over buts actuels + 0,5). Si les deux équipes donnent un signal,
@@ -252,8 +253,24 @@ final class RuleEngine
             array_push($steps, ...$outcome->steps);
         }
 
-        $summary = 'Détail — '.implode(' ; ', array_map(fn (SideOutcome $outcome): string => $outcome->summary(), $outcomes)).'.';
         $alerts = array_values(array_filter($outcomes, fn (SideOutcome $outcome): bool => $outcome->alert));
+        $blocked = null;
+        if (count($alerts) === 1 && $this->strongDropBlockedByGap($alerts[0], $configuration)) {
+            $blocked = sprintf(
+                'baisse de cote seule (F162-Bis), mais écart %s supérieur à %s (F121-G) : pas d’alerte',
+                SideOutcome::signed((float) $alerts[0]->gap, 2),
+                number_format($configuration->abstentionGapThreshold, 2, '.', ''),
+            );
+            $steps[] = ['step' => 'strong_drop_gap', 'outcome' => 'abstention', 'reason' => $blocked, 'side' => $alerts[0]->side];
+            $outcomes = array_map(fn (SideOutcome $outcome): SideOutcome => $outcome->alert ? $outcome->withoutAlert($blocked) : $outcome, $outcomes);
+            $alerts = [];
+        }
+
+        $summary = 'Détail — '.implode(' ; ', array_map(fn (SideOutcome $outcome): string => $outcome->summary(), $outcomes)).'.';
+        if ($blocked !== null) {
+            return $finish(false, 'Abstention : '.$blocked.'. '.$summary, $outcomes);
+        }
+
         if ($alerts === []) {
             return $finish(false, (count($outcomes) === 2 ? 'Abstention pour les deux équipes. ' : 'Abstention. ').$summary, $outcomes);
         }
@@ -307,6 +324,19 @@ final class RuleEngine
         );
 
         return $finish(true, $reason.' '.$summary, $outcomes, null, $strongest->rule, $strongest->level, $neutral['action'], [[...$neutral, 'origin' => 'both_sides']]);
+    }
+
+    /**
+     * « F162-Bis exige un écart <= seuil F121-G » : seule équipe en signal, signal venu de la baisse de cote, écart
+     * au-delà du seuil. Les règles après un but (complément 4) ne sont pas concernées.
+     */
+    private function strongDropBlockedByGap(SideOutcome $outcome, RuleConfiguration $configuration): bool
+    {
+        return $configuration->strongDropRequiresGap
+            && $outcome->rule === 'F162-Bis'
+            && $outcome->postGoalPhase === null
+            && $outcome->gap !== null
+            && $outcome->gap > $configuration->abstentionGapThreshold;
     }
 
     /**

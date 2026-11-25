@@ -339,6 +339,7 @@ class AdministratorAuthenticationTest extends TestCase
 
     public function test_manual_rule_simulation_uses_the_rule_engine_without_sending_an_alert(): void
     {
+        Setting::query()->where('key', 'rules.strong_drop_requires_gap')->update(['value' => '0']);
         $this->actingAs($this->createAdministrator())
             ->postJson(route('admin.rule-test'), [
                 'home_score' => 0,
@@ -359,6 +360,12 @@ class AdministratorAuthenticationTest extends TestCase
             ->assertJsonPath('decision.selection', 'home')
             ->assertJsonPath('decision.convergenceScore', null)
             ->assertJsonPath('simulationOnly', true);
+
+        // Par défaut, le Testeur sans profil suit le même réglage que le scan : écart 1.10 > 0.50, abstention.
+        Setting::query()->where('key', 'rules.strong_drop_requires_gap')->update(['value' => '1']);
+        $this->postJson(route('admin.rule-test'), ['home_score' => 0, 'away_score' => 0, 'exact_score_odds' => ['0-0' => 7.5, '1-0' => 8.6, '0-1' => 9.8], 'vitality_score' => 61, 'odds_change_percent' => -6])
+            ->assertJsonPath('decision.shouldAlert', false)
+            ->assertJsonPath('decision.rule', null);
     }
 
     public function test_manual_rule_simulation_rejects_vitality_outside_the_documented_range(): void

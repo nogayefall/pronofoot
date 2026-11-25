@@ -27,6 +27,9 @@ class ScanServiceTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
+        // Les scénarios fictifs déclenchent leur alerte par une baisse seule avec un écart de 1.10 : réglage désactivé ici
+        // (il est testé dans StrongDropGapTest et TwoSidedScanTest).
+        Setting::query()->where('key', 'rules.strong_drop_requires_gap')->update(['value' => '0']);
         config([
             'services.pronofoot.football_driver' => 'fake',
             'services.pronofoot.odds_driver' => 'fake',

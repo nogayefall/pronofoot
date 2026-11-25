@@ -26,7 +26,11 @@ class TwoSidedRuleTest extends TestCase
 
     public function test_senegal_sudan_two_nil_falling_from_four_to_three_fifty_alerts_for_senegal(): void
     {
-        $result = $this->decide(1, 0, ['1-0' => 2.80, '2-0' => 3.50, '1-1' => 6.00], ['home' => $this->change(4.00, 3.50), 'away' => 1.0]);
+        // Exemple du client antérieur à la décision du 25 novembre 2026 (écart +0.70) : alerte seulement si le réglage
+        // « F162-Bis exige un écart <= seuil F121-G » est désactivé. À valider par le client.
+        $example = fn (RuleConfiguration $configuration): EngineResult => $this->decide(1, 0, ['1-0' => 2.80, '2-0' => 3.50, '1-1' => 6.00], ['home' => $this->change(4.00, 3.50), 'away' => 1.0], $configuration);
+        $this->assertFalse($example(new RuleConfiguration)->shouldAlert);
+        $result = $example(new RuleConfiguration(strongDropRequiresGap: false));
 
         $this->assertTrue($result->shouldAlert);
         $this->assertSame('home', $result->selection);
@@ -57,7 +61,7 @@ class TwoSidedRuleTest extends TestCase
 
     public function test_away_team_falling_odds_alert_even_when_the_home_team_has_the_smaller_gap(): void
     {
-        $result = $this->decide(2, 0, ['2-0' => 3.00, '3-0' => 4.00, '2-1' => 4.50], ['home' => 2.0, 'away' => -8.0]);
+        $result = $this->decide(2, 0, ['2-0' => 3.00, '3-0' => 4.00, '2-1' => 4.50], ['home' => 2.0, 'away' => -8.0], new RuleConfiguration(strongDropRequiresGap: false));
 
         $this->assertTrue($result->shouldAlert, 'Avant : seule l’équipe à l’écart le plus faible (domicile) était évaluée.');
         $this->assertSame('away', $result->selection);
@@ -116,7 +120,7 @@ class TwoSidedRuleTest extends TestCase
                 sideOddsChangePercent: ['home' => -12.5, 'away' => 1.0],
                 overLineOdds: ['1.5' => 1.85, '2.5' => 3.10],
             ),
-            new RuleConfiguration,
+            new RuleConfiguration(strongDropRequiresGap: false),
         );
 
         $this->assertSame('home', $result->selection);
@@ -167,7 +171,7 @@ class TwoSidedRuleTest extends TestCase
     public function test_follow_the_leader_is_off_by_default_and_only_evaluates_the_leader_when_enabled(): void
     {
         $odds = ['2-0' => 3.00, '3-0' => 4.00, '2-1' => 4.50];
-        $this->assertSame('away', $this->decide(2, 0, $odds, ['home' => 2.0, 'away' => -8.0])->selection, 'Désactivé : les deux équipes sont évaluées.');
+        $this->assertSame('away', $this->decide(2, 0, $odds, ['home' => 2.0, 'away' => -8.0], new RuleConfiguration(strongDropRequiresGap: false))->selection, 'Désactivé : les deux équipes sont évaluées.');
 
         $leaderOnly = $this->decide(2, 0, $odds, ['home' => 2.0, 'away' => -8.0], new RuleConfiguration(followLeader: true));
         $this->assertFalse($leaderOnly->shouldAlert, 'Seul le leader (domicile, cote en hausse) est évalué.');
@@ -203,7 +207,7 @@ class TwoSidedRuleTest extends TestCase
         $this->assertStringContainsString('petit écart positif, mais F121-C est inactive', $withoutC->reason);
 
         $odds = ['2-0' => 3.00, '3-0' => 4.00, '2-1' => 4.50];
-        $leaderUnchecked = $this->decide(2, 0, $odds, ['home' => 2.0, 'away' => -8.0], new RuleConfiguration(activeRules: ['F121-C', 'F162-Bis', 'F121-E1'], followLeader: true));
+        $leaderUnchecked = $this->decide(2, 0, $odds, ['home' => 2.0, 'away' => -8.0], new RuleConfiguration(activeRules: ['F121-C', 'F162-Bis', 'F121-E1'], followLeader: true, strongDropRequiresGap: false));
         $this->assertSame('away', $leaderUnchecked->selection, 'Réglage activé mais F121-C.2 décochée : les deux équipes restent évaluées.');
         $this->assertCount(2, $leaderUnchecked->sides);
     }

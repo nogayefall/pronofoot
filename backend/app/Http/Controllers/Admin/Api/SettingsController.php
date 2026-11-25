@@ -58,6 +58,7 @@ final class SettingsController extends Controller
         'rules.follow_leader_enabled' => '0',
         'results.bet_validity' => 'match',
         'results.count_extra_time' => '1',
+        'rules.strong_drop_requires_gap' => '1',
         'plancher.scan_depart_enabled' => '1',
         'plancher.depart_minute_from' => '3',
         'plancher.depart_minute_to' => '11',

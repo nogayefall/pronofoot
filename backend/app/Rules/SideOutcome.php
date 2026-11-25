@@ -51,6 +51,14 @@ final readonly class SideOutcome
     }
 
     /**
+     * Même équipe, mêmes cotes, mais alerte retirée : abstention avec son motif.
+     */
+    public function withoutAlert(string $reason): self
+    {
+        return new self($this->side, $this->scoreKey, $this->nextOdds, $this->currentOdds, $this->gap, $this->change, false, 0, null, null, $reason, $this->steps, $this->postGoalPhase);
+    }
+
+    /**
      * @return array<string, mixed>
      */
     public function toArray(): array
