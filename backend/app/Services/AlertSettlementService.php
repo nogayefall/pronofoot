@@ -14,7 +14,8 @@ use Illuminate\Support\Facades\DB;
  * Résultat automatique des options des alertes d’un match, à la fin du match. Utilise les scores déjà enregistrés à
  * chaque relevé et le score final : celui du flux (fin par statut), sinon celui du match demandé au fournisseur (fin par
  * absence du flux : une requête par match ayant des options à noter). Une requête fixtures/events au plus par match, et
- * seulement si deux buts des deux équipes sont tombés entre deux relevés alors que l’ordre compte (option ciblée).
+ * seulement si l’ordre des buts compte (option ciblée) et reste douteux : buts des deux équipes entre deux relevés, ou score
+ * redescendu puis remonté.
  */
 final class AlertSettlementService
 {
@@ -157,7 +158,14 @@ final class AlertSettlementService
                     $events = $this->footballProvider->getGoalEvents($trackedMatch->provider_match_id);
                     $eventRequests++;
                 }
-                $goalOrder = $this->goalOrder($events, $trackedMatch, $result['baseGoals']);
+                $goalOrder = $this->goalOrder(
+                    $events,
+                    $trackedMatch,
+                    $result['minimumBaseGoals'],
+                    array_sum($baseScore),
+                    $base->minute === null ? null : (int) $base->minute,
+                    $timeline === [] ? array_sum($baseScore) : $timeline[array_key_last($timeline)]['home'] + $timeline[array_key_last($timeline)]['away'],
+                );
                 if ($goalOrder !== null) {
                     $result = $this->settler->settle($options, $baseScore, $timeline, $cancelled, $countExtraTime, $validUntil, $goalOrder);
                 }
@@ -188,17 +196,25 @@ final class AlertSettlementService
     }
 
     /**
-     * Équipes des buts marqués après l’alerte, dans l’ordre des événements.
+     * Équipes des buts marqués après l’alerte, dans l’ordre des événements. Null si les événements manquent ou ne
+     * correspondent pas au score final.
      *
      * @param  list<array{minute: int|null, extra: int|null, team: string, detail: string}>|null  $events
-     * @param  int  $baseGoals  Buts marqués avant l’alerte et non annulés depuis.
+     * @param  int  $minimumBaseGoals  Buts d’avant l’alerte, moins ceux que le score a perdus depuis.
+     * @param  int  $baseGoals  Total au moment de l’alerte.
      * @return list<string>|null
      */
-    private function goalOrder(?array $events, TrackedMatch $trackedMatch, int $baseGoals): ?array
+    private function goalOrder(?array $events, TrackedMatch $trackedMatch, int $minimumBaseGoals, int $baseGoals, ?int $baseMinute, int $finalTotal): ?array
     {
-        if ($events === null) {
+        if ($events === null || count($events) !== $finalTotal) {
             return null;
         }
+
+        // Baisse du score depuis l’alerte : la minute des événements dit si le but d’avant l’alerte a vraiment été annulé.
+        $before = $baseMinute === null
+            ? $minimumBaseGoals
+            : count(array_filter($events, fn (array $event): bool => $event['minute'] !== null && $event['minute'] <= $baseMinute));
+        $before = max($minimumBaseGoals, min($baseGoals, $before));
 
         $sides = [];
         foreach ($events as $event) {
@@ -216,8 +232,6 @@ final class AlertSettlementService
             $sides[] = $side;
         }
 
-        $after = array_slice($sides, max(0, $baseGoals));
-
-        return $after === [] ? null : $after;
+        return array_slice($sides, max(0, $before));
     }
 }

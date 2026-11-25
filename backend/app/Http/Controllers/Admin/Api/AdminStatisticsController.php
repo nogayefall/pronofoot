@@ -12,6 +12,7 @@ use Illuminate\Http\Request;
  * Statistiques des alertes : taux de réussite = gagnées ÷ (gagnées + perdues) ; les annulées et en attente ne comptent
  * pas. Par alerte (option principale), par règle, et par règle et type d’option (ciblée, neutre, Over 4.5, Over 0.5
  * 2e mi-temps, Plancher central et prudent), sur toutes les options (résultat automatique) et sur les seules options marquées « jouées ».
+ * Les résultats automatiques et ceux notés à la main sont aussi donnés séparément (auto, manual).
  */
 final class AdminStatisticsController extends Controller
 {
@@ -32,13 +33,13 @@ final class AdminStatisticsController extends Controller
             $alertOptions = $log->alert?->options ?? collect();
             if ($alertOptions->isEmpty()) {
                 // Alerte sans option enregistrée (antérieure ou saisie à la main) : son résultat vaut pour son option principale.
-                $options->push(['rule' => $rule, 'type' => $this->inferType($log), 'position' => 1, 'decision' => 'unset', 'outcome' => $log->outcome ?? 'pending']);
+                $options->push(['rule' => $rule, 'type' => $this->inferType($log), 'position' => 1, 'decision' => 'unset', 'outcome' => $log->outcome ?? 'pending', 'source' => $log->outcome === null ? null : 'manual']);
 
                 continue;
             }
 
             foreach ($alertOptions as $option) {
-                $options->push(['rule' => $rule, 'type' => $option->type, 'position' => $option->position, 'decision' => $option->decision, 'outcome' => $option->outcome]);
+                $options->push(['rule' => $rule, 'type' => $option->type, 'position' => $option->position, 'decision' => $option->decision, 'outcome' => $option->outcome, 'source' => $option->outcome_source]);
             }
         }
 
@@ -58,6 +59,7 @@ final class AdminStatisticsController extends Controller
                 'cancelled' => $primary->where('outcome', 'cancelled')->count(),
                 'unrated' => $primary->where('outcome', 'pending')->count(),
                 'successRatePercent' => $this->rate($primary),
+                ...$this->bySource($primary),
             ],
             'byRule' => $options->groupBy('rule')->map(function ($ruleOptions): array {
                 $rulePrimary = $ruleOptions->where('position', 1);
@@ -68,6 +70,7 @@ final class AdminStatisticsController extends Controller
                     'lost' => $rulePrimary->where('outcome', 'lost')->count(),
                     'cancelled' => $rulePrimary->where('outcome', 'cancelled')->count(),
                     'successRatePercent' => $this->rate($rulePrimary),
+                    ...$this->bySource($rulePrimary),
                     'byType' => $ruleOptions->groupBy('type')->map(fn ($typeOptions): array => $this->block($typeOptions)),
                 ];
             }),
@@ -90,6 +93,7 @@ final class AdminStatisticsController extends Controller
             'cancelled' => $options->where('outcome', 'cancelled')->count(),
             'pending' => $options->where('outcome', 'pending')->count(),
             'successRatePercent' => $this->rate($options),
+            ...$this->bySource($options),
             'played' => [
                 'options' => $played->count(),
                 'won' => $played->where('outcome', 'won')->count(),
@@ -97,6 +101,27 @@ final class AdminStatisticsController extends Controller
                 'successRatePercent' => $this->rate($played),
             ],
         ];
+    }
+
+    /**
+     * Résultats automatiques et résultats notés à la main, séparément.
+     *
+     * @return array<string, array{won: int, lost: int, cancelled: int, successRatePercent: float|null}>
+     */
+    private function bySource($options): array
+    {
+        $sources = [];
+        foreach (['auto', 'manual'] as $source) {
+            $group = $options->where('source', $source);
+            $sources[$source] = [
+                'won' => $group->where('outcome', 'won')->count(),
+                'lost' => $group->where('outcome', 'lost')->count(),
+                'cancelled' => $group->where('outcome', 'cancelled')->count(),
+                'successRatePercent' => $this->rate($group),
+            ];
+        }
+
+        return $sources;
     }
 
     private function rate($options): ?float

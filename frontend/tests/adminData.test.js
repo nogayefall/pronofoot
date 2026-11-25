@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { createRuleTestPayload, parseCorrectScoreOdds, teamStatisticsRows, journalDecisionLabel, parseAlertMessage, trackedMatchDecision, quotaSummary, elapsedLabel, matchStatusLabel, unavailableReason, availableMatchesView, leagueFilters, leagueFilterCounts, leagueFilterFromUrl, effectiveLeagueFilter, leagueChosenInUrl, scanModeLabel, upcomingMatchesView, statisticsOptionRows, confidenceSummary, plancherSummary } from '../src/adminData.js'
+import { createRuleTestPayload, parseCorrectScoreOdds, teamStatisticsRows, journalDecisionLabel, parseAlertMessage, trackedMatchDecision, quotaSummary, elapsedLabel, matchStatusLabel, unavailableReason, availableMatchesView, leagueFilters, leagueFilterCounts, leagueFilterFromUrl, effectiveLeagueFilter, leagueChosenInUrl, scanModeLabel, upcomingMatchesView, statisticsOptionRows, confidenceSummary, plancherSummary, sourceRate } from '../src/adminData.js'
 
 test('parseCorrectScoreOdds reads decimal comma and dot formats', () => {
   assert.deepEqual(parseCorrectScoreOdds('0-0 = 7,50\n1-0 : 8.60\n0-1 = 9,80'), {
@@ -299,6 +299,13 @@ test('statisticsOptionRows lists one row per rule and option type with both rate
     ['F121-D-over45', 'Over 4.5 (F121-D)', 0, null],
   ])
   assert.deepEqual(statisticsOptionRows(undefined), [])
+})
+
+test('sourceRate shows the rate and the counts of one result origin', () => {
+  assert.equal(sourceRate(undefined), '—')
+  assert.equal(sourceRate({ won: 0, lost: 0, cancelled: 2 }), '—')
+  assert.equal(sourceRate({ won: 73, lost: 104 }).replace(/\s/g, ' '), '41,2 % (73 / 177)')
+  assert.equal(sourceRate({ won: 108, lost: 2 }).replace(/\s/g, ' '), '98,2 % (108 / 110)')
 })
 
 test('confidenceSummary shows the automatic confidence score with its threshold', () => {

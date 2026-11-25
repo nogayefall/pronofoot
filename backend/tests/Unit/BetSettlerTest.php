@@ -154,13 +154,30 @@ class BetSettlerTest extends TestCase
     {
         $result = (new BetSettler)->settle([['type' => 'targeted', 'side' => 'home'], ['type' => 'neutral', 'line' => 'Over 4.5']], ['home' => 2, 'away' => 2], $this->timeline([[1, 2, 59], [2, 2, 75]]), false, true);
 
-        $this->assertSame(['won', 'lost'], $result['outcomes'], 'Le prochain vrai but est pour le domicile, mais le total final reste 4.');
-        $this->assertSame(3, $result['baseGoals'], 'Ordre des événements : 3 buts valables avant l’alerte.');
+        $this->assertSame([null, 'lost'], $result['outcomes'], 'But annulé puis nouveau but, ou erreur passagère du flux : les événements départagent.');
+        $this->assertTrue($result['needsEvents']);
+        $this->assertSame(3, $result['minimumBaseGoals']);
+
+        $cancelled = (new BetSettler)->settle([['type' => 'targeted', 'side' => 'home']], ['home' => 2, 'away' => 2], $this->timeline([[1, 2, 59], [2, 2, 75]]), false, true, goalOrder: ['home']);
+        $this->assertSame(['won'], $cancelled['outcomes'], 'Événements : un vrai but du domicile après l’alerte.');
+        $glitch = (new BetSettler)->settle([['type' => 'targeted', 'side' => 'home']], ['home' => 2, 'away' => 2], $this->timeline([[1, 2, 59], [2, 2, 75]]), false, true, goalOrder: []);
+        $this->assertSame(['lost'], $glitch['outcomes'], 'Événements : aucun but après l’alerte, erreur du flux.');
+    }
+
+    public function test_chicago_charlotte_a_passing_feed_error_is_settled_by_the_match_events(): void
+    {
+        // Alerte à 1-1 (77e), 0-1 affiché par erreur à la 90e, score final 1-2 : Charlotte a marqué le prochain but.
+        $settle = fn (?array $goalOrder): array => (new BetSettler)->settle([['type' => 'targeted', 'side' => 'home'], ['type' => 'neutral', 'line' => 'Over 2.5']], ['home' => 1, 'away' => 1], $this->timeline([[1, 1, 90], [0, 1, 90], [1, 2, 90]]), false, true, goalOrder: $goalOrder);
+
+        $this->assertNull($settle(null)['outcomes'][0]);
+        $this->assertTrue($settle(null)['needsEvents']);
+        $this->assertSame(['lost', 'won'], $settle(['away'])['outcomes']);
     }
 
     public function test_a_cancelled_second_half_goal_does_not_win_over_zero_point_five(): void
     {
         $this->assertSame(['lost'], (new BetSettler)->settle([['type' => 'halftime_over05']], ['home' => 0, 'away' => 0], $this->timeline([[1, 0, 60], [0, 0, 61], [0, 0, 90]]), false, true)['outcomes']);
+        $this->assertSame([null], (new BetSettler)->settle([['type' => 'halftime_over05']], ['home' => 0, 'away' => 1], $this->timeline([[0, 0, 60], [0, 1, 61], [0, 1, 90]]), false, true)['outcomes'], 'Doute : en attente.');
     }
 
     public function test_readings_during_the_penalty_shootout_never_add_a_goal(): void

@@ -10,8 +10,9 @@ umask 077
 BACKUP_DIR="${BACKUP_DIR:-/var/backups/pronofoot}"
 DB_NAME="${DB_NAME:-pronofoot}"
 CREDENTIALS="${CREDENTIALS:-/etc/pronofoot/mysql-backup.cnf}"
-# Durée de conservation en jours : à confirmer avec le client. Vide = aucune suppression automatique.
-RETENTION_DAYS="${RETENTION_DAYS:-}"
+# Rotation : sauvegardes quotidiennes de plus de 14 jours supprimées (vide = aucune suppression). Les sauvegardes faites à
+# la main (sous-dossier « manuelles ») ne sont jamais supprimées.
+RETENTION_DAYS="${RETENTION_DAYS-14}"
 
 mkdir -p "$BACKUP_DIR"
 timestamp="$(date +%F-%H%M)"
@@ -27,7 +28,7 @@ gzip -t "$target"
 sha256sum "$target" > "$target.sha256"
 
 if [[ -n "$RETENTION_DAYS" ]]; then
-  find "$BACKUP_DIR" -name "${DB_NAME}-*.sql.gz*" -type f -mtime +"$RETENTION_DAYS" -delete
+  find "$BACKUP_DIR" -maxdepth 1 -name "${DB_NAME}-*.sql.gz*" -type f -mtime +"$RETENTION_DAYS" -delete
 fi
 
 logger -t pronofoot-backup "Sauvegarde réussie : $target"

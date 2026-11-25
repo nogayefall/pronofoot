@@ -557,6 +557,16 @@ export function statisticsOptionRows(byRule) {
   })))
 }
 
+/**
+ * Taux d’une origine de résultats (automatique ou notée à la main) : « 41,8 % (74 / 177) », ou « — » sans résultat.
+ */
+export function sourceRate(block) {
+  const won = block?.won ?? 0
+  const total = won + (block?.lost ?? 0)
+  if (total === 0) return '—'
+  return `${((won / total) * 100).toLocaleString('fr-FR', { minimumFractionDigits: 1, maximumFractionDigits: 1 })} % (${won} / ${total})`
+}
+
 export const CONFIDENCE_RULES = ['F121-E1', 'F121-C', 'F162-Bis', 'F121-D', 'F121-E2', 'F121-C.2']
 
 /** Score de confiance automatique (V12) : libellé court, ou null si l’évaluation n’en a pas. */

@@ -93,7 +93,7 @@ Le filtre en haut de page permet d’afficher seulement les alertes envoyées, e
 - **Plancher central / prudent** (Over N.5) : gagné si le total final du match dépasse la ligne. Ces paris restent valables après un but, jusqu’à la fin du match.
 - Match arrêté, abandonné ou annulé : **Annulée**, sans effet sur les statistiques.
 
-Vous pouvez corriger un résultat dans la liste : il passe en **Manuel** et n’est plus recalculé. Indiquez aussi si vous avez **joué** l’option : les Statistiques donnent un second taux sur vos seules options jouées. Règles confirmées par le client : le pari reste valable jusqu’à la fin du match (les 15 minutes ne concernent que l’expiration de l’alerte), la prolongation compte comme le temps réglementaire, et les tirs au but ne comptent jamais. Ces deux réglages restent modifiables dans Paramètres.
+Vous pouvez corriger un résultat dans la liste : il passe en **Manuel** et n’est plus recalculé. Indiquez aussi si vous avez **joué** l’option : les Statistiques donnent un taux sur vos seules options jouées. Les taux des résultats **automatiques** et des résultats **notés à la main** y sont affichés séparément. Règles confirmées par le client : le pari reste valable jusqu’à la fin du match (les 15 minutes ne concernent que l’expiration de l’alerte), la prolongation compte comme le temps réglementaire, et les tirs au but ne comptent jamais. Ces deux réglages restent modifiables dans Paramètres.
 
 Sur téléphone, le Journal s’affiche en cartes : match, score, règle, décision, justification repliable, puis les listes Décision et Résultat de chaque option, sans défilement horizontal.
 

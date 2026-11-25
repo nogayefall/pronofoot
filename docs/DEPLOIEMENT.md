@@ -32,7 +32,8 @@ mysql --version
 | `deploy/.env.production.example` | `/var/www/pronofoot/backend/.env` (à compléter) | Configuration de production commentée : `APP_DEBUG=false`, cookies sécurisés et chiffrés, journaux quotidiens, pilotes et notifications. |
 | `deploy/nginx/pronofoot.conf` | `/etc/nginx/sites-available/pronofoot` | Redirection HTTP vers HTTPS, racine `backend/public`, fichiers cachés et `hot` interdits. |
 | `deploy/supervisor/pronofoot.conf` | `/etc/supervisor/conf.d/pronofoot.conf` | `scan:run` (un seul processus, arrêt propre sur SIGTERM, limite mémoire) et `queue:work` (envoi des alertes). |
-| `deploy/backup/backup-pronofoot.sh` | `/usr/local/sbin/backup-pronofoot.sh` | Sauvegarde quotidienne compressée et vérifiée de la base ; rétention à confirmer. |
+| `deploy/backup/backup-pronofoot.sh` | `/usr/local/sbin/backup-pronofoot.sh` | Sauvegarde quotidienne compressée et vérifiée de la base ; rotation à 14 jours. |
+| `deploy/backup/copie-locale.ps1` | poste Windows de l’administrateur | Copie quotidienne de la dernière sauvegarde hors du serveur (SSH), vérifiée ; 30 jours gardés. |
 | `deploy/backup/mysql-backup.cnf.example` | `/etc/pronofoot/mysql-backup.cnf` (`chmod 600`) | Identifiants du compte de sauvegarde, hors du script. |
 | `deploy/logrotate/pronofoot` | `/etc/logrotate.d/pronofoot` | Rotation et compression des journaux Supervisor et Laravel. |
 | `deploy/deploy.sh` | exécuté depuis `/var/www/pronofoot` | Maintenance, dépendances, **`npm run build`**, migrations, caches, arrêt propre du scan et de la file. |
@@ -58,7 +59,8 @@ Les scripts et fichiers de configuration sont forcés en fins de ligne LF (`depl
 
 ## Sauvegardes et journaux
 
-- Sauvegarde quotidienne par `deploy/backup/backup-pronofoot.sh` ; tester une restauration hors production au moins une fois par mois. La durée de conservation (`RETENTION_DAYS`) est à confirmer avec le client ; vide, rien n’est supprimé.
+- Sauvegarde quotidienne par `deploy/backup/backup-pronofoot.sh` ; tester une restauration hors production au moins une fois par mois. Rotation : `RETENTION_DAYS` (14 jours par défaut ; vide, rien n’est supprimé). Les sauvegardes faites à la main sont dans `/var/backups/pronofoot/manuelles` et ne sont jamais supprimées.
+- Copie hors du serveur : `deploy/backup/copie-locale.ps1`, lancée chaque jour par la tâche planifiée Windows « PronoFoot - copie sauvegarde » sur le poste de l’administrateur (dossier `%USERPROFILE%\PronoFoot-sauvegardes`, accès limité à ce compte). Elle ne tourne que si le poste est allumé ; une copie manquée est rattrapée au démarrage suivant. La sauvegarde n’est pas chiffrée : elle contient les comptes (mots de passe hachés) et les paramètres ; ne pas la partager.
 - Journaux Laravel quotidiens conservés 14 jours ; journaux Supervisor tournés par logrotate. Les clés, jetons et mots de passe sont masqués automatiquement dans les journaux.
 - Définir avec le client la rétention des instantanés et des captures avant d’activer une purge.
 

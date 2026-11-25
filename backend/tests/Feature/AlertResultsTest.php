@@ -296,6 +296,29 @@ class AlertResultsTest extends TestCase
         $this->artisan('results:recalculate', ['--apply' => true])->expectsOutputToContain('Options modifiées : 0')->assertSuccessful();
     }
 
+    public function test_chicago_charlotte_keeps_its_result_when_the_drop_was_a_feed_error(): void
+    {
+        [$match, $alert] = $this->alertAt(1, 1, 77);
+        $this->snapshot($match, 0, 1, 90);
+        $match->forceFill(['is_active' => false, 'ended_at' => now()])->save();
+        $alert->options[0]->forceFill(['outcome' => 'lost', 'outcome_source' => 'auto'])->save();
+        $this->final = ['FT', 1, 2, 90];
+        $goal = fn (int $minute, string $team): array => ['time' => ['elapsed' => $minute, 'extra' => null], 'team' => ['name' => $team], 'type' => 'Goal', 'detail' => 'Normal Goal', 'comments' => null];
+        $this->events = [$goal(48, 'Soudan'), $goal(68, 'Sénégal'), $goal(90, 'Soudan')];
+
+        $this->artisan('results:recalculate', ['--apply' => true])->expectsOutputToContain('Options modifiées : 0')->assertSuccessful();
+        $this->assertSame('lost', $alert->options[0]->fresh()->outcome);
+
+        // Événements incomplets : le résultat n’est pas deviné.
+        $this->events = [$goal(48, 'Soudan')];
+        $this->artisan('results:recalculate', ['--apply' => true])->expectsOutputToContain('Options modifiées : 0')->assertSuccessful();
+
+        // Vrai but annulé avant, puis Sénégal marque en premier : gagnée.
+        $this->events = [$goal(48, 'Soudan'), $goal(85, 'Sénégal'), $goal(90, 'Soudan')];
+        $this->artisan('results:recalculate', ['--apply' => true])->expectsOutputToContain('Options modifiées : 1')->assertSuccessful();
+        $this->assertSame('won', $alert->options[0]->fresh()->outcome);
+    }
+
     public function test_recalculation_leaves_a_match_without_official_final_score_unchanged(): void
     {
         [$match, $alert] = $this->alertAt(2, 2, 59);

@@ -11,7 +11,9 @@ use Carbon\CarbonImmutable;
  *    d’abord ou si aucun but n’est marqué. Un but contre son camp compte pour l’équipe dont le score augmente.
  *  - Neutre « un but de plus » : se note sur sa ligne (Over = buts au moment de l’alerte + 0.5), gagnée si le total final
  *    dépasse la ligne, perdue sinon.
- *  - But annulé (le score redescend) : retiré, il ne compte ni pour la ciblée ni pour le total.
+ *  - But annulé (le score redescend) : retiré, il ne compte ni pour la ciblée ni pour le total. Si le score remonte ensuite,
+ *    la baisse peut être une erreur passagère du flux (Chicago – Charlotte, 1-1 affiché 0-1 à la 90e) : quand les deux
+ *    lectures donnent un résultat différent, les événements du match départagent.
  *  - Over 4.5 (F121-D) : gagnée si le total final est de 5 buts ou plus.
  *  - Over 0.5 2e mi-temps (F121-E2) : gagnée si au moins un but est marqué en 2e mi-temps (prolongation exclue).
  *  - Plancher central / prudent (Over N.5 sur le total du match) : gagnée si le total final dépasse la ligne.
@@ -31,7 +33,7 @@ final class BetSettler
      * @param  list<array{home: int, away: int, minute: int|null, at: CarbonImmutable}>  $timeline  Scores relevés après l’alerte.
      * @param  CarbonImmutable|null  $validUntil  Fin de validité (durée de l’alerte) ; null = jusqu’à la fin du match.
      * @param  list<string>|null  $goalOrder  Équipes des buts marqués après l’alerte, dans l’ordre (événements du match).
-     * @return array{outcomes: list<string|null>, needsEvents: bool, baseGoals: int} baseGoals : buts marqués avant l’alerte et non annulés depuis.
+     * @return array{outcomes: list<string|null>, needsEvents: bool, minimumBaseGoals: int} minimumBaseGoals : buts marqués avant l’alerte, moins ceux que le score a perdus depuis.
      */
     public function settle(
         array $options,
@@ -43,7 +45,7 @@ final class BetSettler
         ?array $goalOrder = null,
     ): array {
         if ($cancelled) {
-            return ['outcomes' => array_fill(0, count($options), 'cancelled'), 'needsEvents' => false, 'baseGoals' => $base['home'] + $base['away']];
+            return ['outcomes' => array_fill(0, count($options), 'cancelled'), 'needsEvents' => false, 'minimumBaseGoals' => $base['home'] + $base['away']];
         }
 
         $counted = array_values(array_filter(
@@ -65,13 +67,13 @@ final class BetSettler
                 'targeted' => $this->targeted((string) ($option['side'] ?? ''), $base, $withinValidity, $goalOrder, $needsEvents),
                 'neutral' => $this->overLine($option['line'] ?? 'Over '.($base['home'] + $base['away'] + 0.5), $base, $withinValidity),
                 'over45' => $this->finalTotal($base, $counted) >= 5 ? 'won' : 'lost',
-                'halftime_over05' => $this->goals($base, $regulation)['goals'] === [] ? 'lost' : 'won',
+                'halftime_over05' => $this->halftimeGoal($base, $regulation),
                 'plancher_central', 'plancher_prudent' => $this->overLine($option['line'] ?? null, $base, $counted),
                 default => null,
             };
         }
 
-        return ['outcomes' => $outcomes, 'needsEvents' => $needsEvents, 'baseGoals' => $this->goals($base, $withinValidity)['baseGoals']];
+        return ['outcomes' => $outcomes, 'needsEvents' => $needsEvents, 'minimumBaseGoals' => $this->goals($base, $withinValidity)['baseGoals']];
     }
 
     /**
@@ -81,23 +83,72 @@ final class BetSettler
      */
     private function targeted(string $side, array $base, array $steps, ?array $goalOrder, bool &$needsEvents): ?string
     {
-        $first = $this->goals($base, $steps)['goals'][0] ?? null;
-        if ($first === null) {
-            return 'lost';
+        $cancelled = $this->firstScorer($this->goals($base, $steps)['goals']);
+        $glitch = $this->firstScorer($this->goals(...$this->withoutGlitches($base, $steps))['goals']);
+        if ($cancelled !== null && $cancelled === $glitch) {
+            return $cancelled === $side ? 'won' : 'lost';
         }
 
-        $scorer = match (true) {
+        if ($goalOrder !== null) {
+            return ($goalOrder[0] ?? 'none') === $side ? 'won' : 'lost';
+        }
+
+        $needsEvents = true;
+
+        return null;
+    }
+
+    /**
+     * Over 0.5 en 2e mi-temps ; null (en attente) si une baisse de score suivie d’une remontée laisse un doute.
+     *
+     * @param  array{home: int, away: int}  $base
+     * @param  list<array{home: int, away: int, minute: int|null, at: CarbonImmutable}>  $steps
+     */
+    private function halftimeGoal(array $base, array $steps): ?string
+    {
+        $cancelled = $this->goals($base, $steps)['goals'] !== [];
+        $glitch = $this->goals(...$this->withoutGlitches($base, $steps))['goals'] !== [];
+
+        return $cancelled === $glitch ? ($cancelled ? 'won' : 'lost') : null;
+    }
+
+    /**
+     * « home », « away », « none » (aucun but), ou null si les deux équipes ont marqué entre deux relevés.
+     *
+     * @param  list<array{home: int, away: int}>  $goals
+     */
+    private function firstScorer(array $goals): ?string
+    {
+        $first = $goals[0] ?? null;
+
+        return match (true) {
+            $first === null => 'none',
             $first['home'] > 0 && $first['away'] === 0 => 'home',
             $first['away'] > 0 && $first['home'] === 0 => 'away',
-            default => $goalOrder[0] ?? null,
+            default => null,
         };
-        if ($scorer === null) {
-            $needsEvents = true;
+    }
 
-            return null;
+    /**
+     * Autre lecture du score : une baisse suivie d’une remontée est une erreur passagère du flux. Chaque équipe garde son
+     * plus haut score atteint, plafonné à son dernier score (une baisse définitive reste un but annulé).
+     *
+     * @param  array{home: int, away: int}  $base
+     * @param  list<array{home: int, away: int, minute: int|null, at: CarbonImmutable}>  $steps
+     * @return array{0: array{home: int, away: int}, 1: list<array{home: int, away: int, minute: int|null, at: CarbonImmutable}>}
+     */
+    private function withoutGlitches(array $base, array $steps): array
+    {
+        $last = $steps === [] ? $base : $steps[array_key_last($steps)];
+        $highest = $base;
+        foreach ($steps as $index => $step) {
+            foreach (['home', 'away'] as $side) {
+                $highest[$side] = max($highest[$side], $step[$side]);
+                $steps[$index][$side] = min($highest[$side], $last[$side]);
+            }
         }
 
-        return $scorer === $side ? 'won' : 'lost';
+        return [['home' => min($base['home'], $last['home']), 'away' => min($base['away'], $last['away'])], $steps];
     }
 
     /**

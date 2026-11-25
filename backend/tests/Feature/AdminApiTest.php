@@ -304,6 +304,29 @@ class AdminApiTest extends TestCase
             ->assertJsonPath('alerts.successRatePercent', 100);
     }
 
+    public function test_statistics_separate_automatic_and_manual_results(): void
+    {
+        $match = TrackedMatch::query()->create(['provider' => 'real', 'provider_match_id' => '77', 'home_team' => 'A', 'away_team' => 'B', 'is_active' => false]);
+        $alert = function (?string $outcome, ?string $source) use ($match): void {
+            $log = OpportunityLog::query()->create(['tracked_match_id' => $match->id, 'event_type' => 'evaluation', 'rule_id' => 'F121-C', 'selection' => 'home', 'decision' => 'alert', 'reason' => 'Test', 'evaluated_at' => now()]);
+            $log->alert()->create(['channel' => 'log', 'status' => 'sent', 'message' => 'Test'])
+                ->options()->create(['position' => 1, 'type' => 'targeted', 'label' => 'Prochain but', 'side' => 'home', 'outcome' => $outcome ?? 'pending', 'outcome_source' => $source]);
+        };
+        foreach ([['won', 'auto'], ['lost', 'auto'], ['lost', 'auto'], ['lost', 'auto'], ['won', 'manual'], ['won', 'manual'], ['cancelled', 'manual'], [null, null]] as [$outcome, $source]) {
+            $alert($outcome, $source);
+        }
+
+        $this->getJson(route('admin.api.statistics'))
+            ->assertOk()
+            ->assertJsonPath('alerts.auto', ['won' => 1, 'lost' => 3, 'cancelled' => 0, 'successRatePercent' => 25])
+            ->assertJsonPath('alerts.manual', ['won' => 2, 'lost' => 0, 'cancelled' => 1, 'successRatePercent' => 100])
+            ->assertJsonPath('alerts.unrated', 1)
+            ->assertJsonPath('byType.targeted.auto.successRatePercent', 25)
+            ->assertJsonPath('byType.targeted.manual.successRatePercent', 100)
+            ->assertJsonPath('byRule.F121-C.auto.lost', 3)
+            ->assertJsonPath('byRule.F121-C.byType.targeted.manual.won', 2);
+    }
+
     public function test_dashboard_reports_simulation_and_does_not_invent_quota_or_scan_data(): void
     {
         $this->getJson(route('admin.api.dashboard'))
