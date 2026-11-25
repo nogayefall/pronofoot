@@ -10,6 +10,7 @@ use App\Models\Setting;
 use App\Models\TrackedMatch;
 use App\Models\User;
 use App\Rules\RuleConfiguration;
+use App\Services\GoalFloorScanService;
 use App\Services\ScanService;
 use Carbon\CarbonImmutable;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -133,6 +134,35 @@ class GoalFloorScanTest extends TestCase
         $plancher = OpportunityLog::query()->where('event_type', 'plancher_scan')->sole();
         $this->assertSame(['Over 2.5'], $plancher->alert->options->pluck('line')->all(), 'Getafe avec la ligne 3.5 déjà posée : seul Over 2.5 sort.');
         $this->assertSame('ligne déjà posée', $plancher->plancher['skipped'][0]['reason']);
+    }
+
+    public function test_a_line_counts_as_posted_only_when_it_really_is(): void
+    {
+        $match = $this->match();
+        $post = function (int $home, int $away, string $line, string $decision = 'unset', string $status = 'expired') use ($match): void {
+            $snapshot = $match->snapshots()->create(['minute' => 58, 'home_score' => $home, 'away_score' => $away, 'statistics' => [], 'captured_at' => CarbonImmutable::now()]);
+            $log = OpportunityLog::query()->create(['tracked_match_id' => $match->id, 'match_snapshot_id' => $snapshot->id, 'event_type' => 'evaluation', 'rule_id' => 'F121-E1', 'decision' => 'alert', 'reason' => 'Alerte.', 'evaluated_at' => CarbonImmutable::now()]);
+            $log->alert()->create(['channel' => 'telegram', 'status' => $status, 'message' => 'ALERTE'])
+                ->options()->create(['position' => 2, 'type' => 'neutral', 'label' => 'Un but de plus', 'line' => $line, 'decision' => $decision]);
+        };
+        $lines = fn (): array => app(GoalFloorScanService::class)->postedLines($match);
+
+        $post(1, 2, 'Over 3.5');
+        $this->assertSame([3.5], $lines());
+
+        // Neftchi – Al-Hilal : Over 4.5 proposé à 2-2, but annulé (1-2) : la ligne 4.5 n’est plus posée, 3.5 l’est toujours.
+        $post(2, 2, 'Over 4.5', status: 'invalidated');
+        $this->assertSame([3.5, 4.5], $lines());
+        $match->snapshots()->create(['minute' => 59, 'home_score' => 1, 'away_score' => 2, 'statistics' => [], 'captured_at' => CarbonImmutable::now()]);
+        $this->assertSame([3.5], $lines());
+
+        $post(1, 2, 'Over 5.5', decision: 'ignored');
+        $post(1, 2, 'Over 6.5', status: 'failed');
+        $this->assertSame([3.5], $lines(), 'Ignorée ou jamais envoyée : pas posée.');
+
+        $post(2, 2, 'Over 7.5', decision: 'played');
+        $match->snapshots()->create(['minute' => 61, 'home_score' => 1, 'away_score' => 2, 'statistics' => [], 'captured_at' => CarbonImmutable::now()]);
+        $this->assertSame([3.5, 7.5], $lines(), 'Jouée : toujours posée, même après un but annulé.');
     }
 
     public function test_telegram_can_be_disabled_per_scan_without_losing_the_journal_and_the_result(): void

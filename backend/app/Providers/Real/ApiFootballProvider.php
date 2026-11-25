@@ -322,6 +322,42 @@ final class ApiFootballProvider implements FootballProvider
         return $goals;
     }
 
+    public function getFinalScores(array $providerMatchIds): array
+    {
+        $credentials = $this->credentials();
+        if ($credentials === null || parse_url($credentials[0], PHP_URL_SCHEME) !== 'https') {
+            return [];
+        }
+
+        [$baseUrl, $apiKey] = $credentials;
+        $scores = [];
+        foreach (array_chunk($providerMatchIds, 20) as $ids) {
+            try {
+                $response = $this->request($baseUrl.'/fixtures', ['ids' => implode('-', $ids)], $apiKey);
+            } catch (ConnectionException) {
+                continue;
+            }
+
+            $fixtures = $response->successful() ? $response->json('response') : null;
+            foreach (is_array($fixtures) ? $fixtures : [] as $fixture) {
+                $id = $fixture['fixture']['id'] ?? null;
+                if (! is_int($id) || ! in_array((string) $id, $ids, true)) {
+                    continue;
+                }
+
+                $goals = $fixture['goals'] ?? [];
+                $scores[(string) $id] = [
+                    'status' => strtoupper(trim((string) ($fixture['fixture']['status']['short'] ?? ''))),
+                    'home' => is_int($goals['home'] ?? null) ? $goals['home'] : null,
+                    'away' => is_int($goals['away'] ?? null) ? $goals['away'] : null,
+                    'minute' => is_int($fixture['fixture']['status']['elapsed'] ?? null) ? $fixture['fixture']['status']['elapsed'] : null,
+                ];
+            }
+        }
+
+        return $scores;
+    }
+
     private function credentials(): ?array
     {
         $baseUrl = rtrim(trim((string) config('services.football_api.base_url')), '/');

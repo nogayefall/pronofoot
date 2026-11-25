@@ -125,6 +125,44 @@ class BetSettlerTest extends TestCase
         ], $scores, array_keys($scores));
     }
 
+    public function test_neftchi_al_hilal_over_four_point_five_is_lost_when_the_fourth_goal_is_cancelled(): void
+    {
+        // Alerte à 2-2 (4 buts, 59e), but annulé (1-2, 3 buts), puis 2-2 au final : 4 buts, Over 4.5 perdu.
+        $timeline = [[2, 2, 59], [1, 2, 59], [1, 2, 60], [2, 2, 75], [2, 2, 90]];
+        $settle = fn (array $timeline, ?string $line): string => (new BetSettler)->settle([['type' => 'neutral', 'line' => $line]], ['home' => 2, 'away' => 2], $this->timeline($timeline), false, true)['outcomes'][0];
+
+        $this->assertSame('lost', $settle($timeline, 'Over 4.5'));
+        $this->assertSame('lost', $settle($timeline, null), 'Sans ligne enregistrée : buts au moment de l’alerte + 0.5.');
+        $this->assertSame('won', $settle([...$timeline, [3, 2, 90]], 'Over 4.5'), 'Cinquième but : gagnée.');
+    }
+
+    public function test_a_goal_cancelled_after_the_alert_never_wins_the_targeted_or_neutral_option(): void
+    {
+        // Al-Nassr – Al Sadd : alerte à 2-1 (76e), 3-1 annulé, final 2-1.
+        $this->assertSame(['lost', 'lost'], $this->outcomes([[3, 1, 90], [2, 1, 90], [2, 1, 90]], [2, 1], 2));
+        // But annulé, puis l’autre équipe marque : c’est elle qui a marqué le prochain but.
+        $this->assertSame(['lost', 'won'], $this->outcomes([[3, 1, 80], [2, 1, 81], [2, 2, 88]], [2, 1], 2));
+        // But annulé, puis la même équipe marque vraiment.
+        $this->assertSame(['won', 'won'], $this->outcomes([[3, 1, 80], [2, 1, 81], [3, 1, 88]], [2, 1], 2));
+        // Seul le dernier but est annulé : le premier reste le prochain but.
+        $this->assertSame(['won', 'won'], $this->outcomes([[3, 1, 80], [4, 1, 82], [3, 1, 83]], [2, 1], 2));
+        // But donné à la mauvaise équipe puis corrigé.
+        $this->assertSame(['lost', 'won'], $this->outcomes([[3, 1, 80], [2, 2, 81]], [2, 1], 2));
+    }
+
+    public function test_a_goal_scored_before_the_alert_and_cancelled_after_is_removed_from_the_base(): void
+    {
+        $result = (new BetSettler)->settle([['type' => 'targeted', 'side' => 'home'], ['type' => 'neutral', 'line' => 'Over 4.5']], ['home' => 2, 'away' => 2], $this->timeline([[1, 2, 59], [2, 2, 75]]), false, true);
+
+        $this->assertSame(['won', 'lost'], $result['outcomes'], 'Le prochain vrai but est pour le domicile, mais le total final reste 4.');
+        $this->assertSame(3, $result['baseGoals'], 'Ordre des événements : 3 buts valables avant l’alerte.');
+    }
+
+    public function test_a_cancelled_second_half_goal_does_not_win_over_zero_point_five(): void
+    {
+        $this->assertSame(['lost'], (new BetSettler)->settle([['type' => 'halftime_over05']], ['home' => 0, 'away' => 0], $this->timeline([[1, 0, 60], [0, 0, 61], [0, 0, 90]]), false, true)['outcomes']);
+    }
+
     public function test_readings_during_the_penalty_shootout_never_add_a_goal(): void
     {
         // Pendant les tirs au but (statut P), le score relevé reste celui de la fin de la prolongation.

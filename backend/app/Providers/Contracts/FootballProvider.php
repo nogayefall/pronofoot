@@ -33,4 +33,13 @@ interface FootballProvider
      * @return list<array{minute: int|null, extra: int|null, team: string, detail: string}>|null Null si indisponible.
      */
     public function getGoalEvents(string $providerMatchId): ?array;
+
+    /**
+     * Statut et score final (champ goals : prolongation comprise, tirs au but exclus) de matchs, 20 par requête au plus
+     * (fixtures?ids=). Les matchs indisponibles sont absents du résultat.
+     *
+     * @param  list<string>  $providerMatchIds
+     * @return array<string, array{status: string, home: int|null, away: int|null, minute: int|null}>
+     */
+    public function getFinalScores(array $providerMatchIds): array;
 }

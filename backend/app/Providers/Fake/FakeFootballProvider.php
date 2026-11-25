@@ -103,6 +103,11 @@ final class FakeFootballProvider implements FootballProvider
         );
     }
 
+    public function getFinalScores(array $providerMatchIds): array
+    {
+        return [];
+    }
+
     public function getGoalEvents(string $providerMatchId): ?array
     {
         return null;

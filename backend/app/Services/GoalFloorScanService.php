@@ -29,7 +29,7 @@ final class GoalFloorScanService
 
     public const EVENT_TYPE = 'plancher_scan';
 
-    /** Options dont la ligne Over sur le total du match compte comme « déjà posée ». */
+    /** Options portant une ligne Over sur le total du match : « déjà posée » selon les conditions de postedLines(). */
     private const POSTED_TYPES = ['neutral', 'over45', 'plancher_central', 'plancher_prudent'];
 
     public function __construct(private readonly AlertMessageFormatter $formatter = new AlertMessageFormatter) {}
@@ -196,7 +196,9 @@ final class GoalFloorScanService
     }
 
     /**
-     * Lignes Over déjà posées sur ce match : paris Plancher précédents et options neutres (et Over 4.5) des alertes.
+     * Lignes Over vraiment posées sur ce match : paris Plancher précédents et options neutres (et Over 4.5) des alertes.
+     * Une option marquée « Jouée » compte toujours. Sinon, elle ne compte pas si elle est marquée « Ignorée », si l’envoi
+     * de son alerte a échoué, ou si l’alerte (hors Plancher) partait d’un score annulé depuis (score redescendu).
      *
      * @return list<float>
      */
@@ -206,15 +208,41 @@ final class GoalFloorScanService
         $options = AlertOption::query()
             ->whereIn('type', self::POSTED_TYPES)
             ->whereHas('alert.opportunityLog', fn ($query) => $query->where('tracked_match_id', $trackedMatch->id))
-            ->get(['line']);
+            ->with('alert.opportunityLog.matchSnapshot')
+            ->get();
         $lines = [];
         foreach ($options as $option) {
+            if (! $this->reallyPosted($option, $trackedMatch)) {
+                continue;
+            }
+
             if (is_string($option->line) && preg_match('/Over\s+(\d+(?:\.\d+)?)/i', $option->line, $match)) {
                 $lines[] = (float) $match[1];
             }
         }
 
         return array_values(array_unique($lines, SORT_REGULAR));
+    }
+
+    private function reallyPosted(AlertOption $option, TrackedMatch $trackedMatch): bool
+    {
+        if ($option->decision === 'played') {
+            return true;
+        }
+
+        if ($option->decision === 'ignored' || $option->alert?->status === 'failed') {
+            return false;
+        }
+
+        $base = $option->alert?->opportunityLog?->matchSnapshot;
+        if (str_starts_with($option->type, 'plancher_') || $base === null || $base->home_score === null || $base->away_score === null) {
+            return true;
+        }
+
+        return ! $trackedMatch->snapshots()
+            ->where('id', '>', $base->id)
+            ->where(fn ($query) => $query->where('home_score', '<', $base->home_score)->orWhere('away_score', '<', $base->away_score))
+            ->exists();
     }
 
     /**

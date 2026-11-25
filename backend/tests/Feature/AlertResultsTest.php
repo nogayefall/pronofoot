@@ -31,6 +31,9 @@ class AlertResultsTest extends TestCase
     /** @var list<array<string, mixed>> */
     private array $events = [];
 
+    /** @var array{0: string, 1: int, 2: int, 3: int}|null Statut, score domicile, extérieur, minute (fixtures?ids=). */
+    private ?array $final = null;
+
     protected function setUp(): void
     {
         parent::setUp();
@@ -227,6 +230,84 @@ class AlertResultsTest extends TestCase
         app(ScanService::class)->runOnce(forceRefresh: true);
     }
 
+    public function test_a_match_missing_from_the_feed_is_settled_with_its_official_final_score(): void
+    {
+        // RB Leipzig – Lens : dernier relevé 2-1, but dans les dernières secondes, score officiel 3-1.
+        [$match, $alert] = $this->alertAt(2, 1, 77);
+        $this->snapshot($match, 2, 1, 90);
+        $this->final = ['FT', 3, 1, 90];
+        $match->forceFill(['missing_readings' => 3])->save();
+
+        $this->scan();
+
+        $this->assertFalse($match->fresh()->is_active);
+        $this->assertSame(['won', 'won'], $alert->fresh()->options->pluck('outcome')->all());
+        $this->assertSame(1, Http::recorded()->filter(fn (array $pair): bool => str_contains($pair[0]->url(), 'fixtures?ids='))->count());
+    }
+
+    public function test_the_last_reading_is_used_when_the_official_score_is_unavailable_or_not_final(): void
+    {
+        [$match, $alert] = $this->alertAt(2, 1, 77);
+        $this->snapshot($match, 2, 1, 90);
+        $this->final = ['2H', 3, 1, 90];
+        $match->forceFill(['missing_readings' => 3])->save();
+
+        $this->scan();
+
+        $this->assertSame(['lost', 'lost'], $alert->fresh()->options->pluck('outcome')->all());
+    }
+
+    public function test_an_abandoned_match_missing_from_the_feed_cancels_the_options(): void
+    {
+        [$match, $alert] = $this->alertAt(2, 1, 77);
+        $this->final = ['ABD', 2, 1, 80];
+        $match->forceFill(['missing_readings' => 3])->save();
+
+        $this->scan();
+
+        $this->assertSame(['cancelled', 'cancelled'], $alert->fresh()->options->pluck('outcome')->all());
+    }
+
+    public function test_recalculation_only_changes_automatic_results_and_writes_nothing_without_apply(): void
+    {
+        // Neftchi – Al-Hilal : neutre Over 4.5 notée gagnée à tort (4 buts, puis 3, puis 4 au final).
+        [$match, $alert] = $this->alertAt(2, 2, 59);
+        $this->snapshot($match, 1, 2, 59);
+        $this->snapshot($match, 2, 2, 90);
+        $match->forceFill(['is_active' => false, 'ended_at' => now()])->save();
+        $alert->options[0]->forceFill(['outcome' => 'won', 'outcome_source' => 'auto'])->save();
+        $alert->options[1]->forceFill(['outcome' => 'won', 'outcome_source' => 'auto'])->save();
+        $alert->opportunityLog->forceFill(['outcome' => 'won'])->save();
+        $manual = $alert->options()->create(['position' => 3, 'type' => 'neutral', 'label' => 'Noté à la main', 'line' => 'Over 4.5', 'outcome' => 'won', 'outcome_source' => 'manual']);
+        $pending = $alert->options()->create(['position' => 4, 'type' => 'neutral', 'label' => 'En attente', 'line' => 'Over 4.5', 'outcome' => 'pending']);
+        $this->final = ['FT', 2, 2, 90];
+
+        $this->artisan('results:recalculate')->expectsOutputToContain('Options modifiées : 1')->assertSuccessful();
+        $this->assertSame('won', $alert->options[1]->fresh()->outcome, 'Simulation : rien n’est écrit.');
+
+        $this->artisan('results:recalculate', ['--apply' => true])->expectsOutputToContain('Options modifiées : 1')->assertSuccessful();
+        $this->assertSame('lost', $alert->options[1]->fresh()->outcome);
+        $this->assertSame('auto', $alert->options[1]->fresh()->outcome_source);
+        $this->assertSame('won', $alert->options[0]->fresh()->outcome);
+        $this->assertSame('won', $alert->opportunityLog->fresh()->outcome);
+        $this->assertSame(['won', 'manual'], [$manual->fresh()->outcome, $manual->fresh()->outcome_source]);
+        $this->assertSame('pending', $pending->fresh()->outcome);
+
+        $this->artisan('results:recalculate', ['--apply' => true])->expectsOutputToContain('Options modifiées : 0')->assertSuccessful();
+    }
+
+    public function test_recalculation_leaves_a_match_without_official_final_score_unchanged(): void
+    {
+        [$match, $alert] = $this->alertAt(2, 2, 59);
+        $this->snapshot($match, 1, 2, 90);
+        $match->forceFill(['is_active' => false, 'ended_at' => now()])->save();
+        $alert->options[1]->forceFill(['outcome' => 'won', 'outcome_source' => 'auto'])->save();
+
+        $this->artisan('results:recalculate', ['--apply' => true])->expectsOutputToContain('score final officiel indisponible')->assertSuccessful();
+
+        $this->assertSame('won', $alert->options[1]->fresh()->outcome);
+    }
+
     private function match(): TrackedMatch
     {
         return TrackedMatch::query()->create([
@@ -290,6 +371,13 @@ class AlertResultsTest extends TestCase
                 $payload['response'][1]['team']['id'] = 9012;
 
                 return Http::response(json_encode($payload, JSON_THROW_ON_ERROR), 200, $headers);
+            }
+
+            if (str_contains($url, '/fixtures?ids=')) {
+                return Http::response(json_encode(['errors' => [], 'response' => $this->final === null ? [] : [[
+                    'fixture' => ['id' => 901, 'status' => ['short' => $this->final[0], 'long' => 'Match Finished', 'elapsed' => $this->final[3]]],
+                    'goals' => ['home' => $this->final[1], 'away' => $this->final[2]],
+                ]]], JSON_THROW_ON_ERROR), 200, $headers);
             }
 
             if (str_contains($url, '/fixtures')) {

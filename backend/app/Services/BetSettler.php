@@ -9,7 +9,9 @@ use Carbon\CarbonImmutable;
  *
  *  - Ciblée : gagnée si l’équipe désignée marque le prochain but après l’alerte ; perdue si l’autre équipe marque
  *    d’abord ou si aucun but n’est marqué. Un but contre son camp compte pour l’équipe dont le score augmente.
- *  - Neutre : gagnée si au moins un but est marqué après l’alerte.
+ *  - Neutre « un but de plus » : se note sur sa ligne (Over = buts au moment de l’alerte + 0.5), gagnée si le total final
+ *    dépasse la ligne, perdue sinon.
+ *  - But annulé (le score redescend) : retiré, il ne compte ni pour la ciblée ni pour le total.
  *  - Over 4.5 (F121-D) : gagnée si le total final est de 5 buts ou plus.
  *  - Over 0.5 2e mi-temps (F121-E2) : gagnée si au moins un but est marqué en 2e mi-temps (prolongation exclue).
  *  - Plancher central / prudent (Over N.5 sur le total du match) : gagnée si le total final dépasse la ligne.
@@ -29,7 +31,7 @@ final class BetSettler
      * @param  list<array{home: int, away: int, minute: int|null, at: CarbonImmutable}>  $timeline  Scores relevés après l’alerte.
      * @param  CarbonImmutable|null  $validUntil  Fin de validité (durée de l’alerte) ; null = jusqu’à la fin du match.
      * @param  list<string>|null  $goalOrder  Équipes des buts marqués après l’alerte, dans l’ordre (événements du match).
-     * @return array{outcomes: list<string|null>, needsEvents: bool}
+     * @return array{outcomes: list<string|null>, needsEvents: bool, baseGoals: int} baseGoals : buts marqués avant l’alerte et non annulés depuis.
      */
     public function settle(
         array $options,
@@ -41,7 +43,7 @@ final class BetSettler
         ?array $goalOrder = null,
     ): array {
         if ($cancelled) {
-            return ['outcomes' => array_fill(0, count($options), 'cancelled'), 'needsEvents' => false];
+            return ['outcomes' => array_fill(0, count($options), 'cancelled'), 'needsEvents' => false, 'baseGoals' => $base['home'] + $base['away']];
         }
 
         $counted = array_values(array_filter(
@@ -61,15 +63,15 @@ final class BetSettler
         foreach ($options as $option) {
             $outcomes[] = match ($option['type']) {
                 'targeted' => $this->targeted((string) ($option['side'] ?? ''), $base, $withinValidity, $goalOrder, $needsEvents),
-                'neutral' => $this->goals($base, $withinValidity) === [] ? 'lost' : 'won',
+                'neutral' => $this->overLine($option['line'] ?? 'Over '.($base['home'] + $base['away'] + 0.5), $base, $withinValidity),
                 'over45' => $this->finalTotal($base, $counted) >= 5 ? 'won' : 'lost',
-                'halftime_over05' => $this->goals($base, $regulation) === [] ? 'lost' : 'won',
+                'halftime_over05' => $this->goals($base, $regulation)['goals'] === [] ? 'lost' : 'won',
                 'plancher_central', 'plancher_prudent' => $this->overLine($option['line'] ?? null, $base, $counted),
                 default => null,
             };
         }
 
-        return ['outcomes' => $outcomes, 'needsEvents' => $needsEvents];
+        return ['outcomes' => $outcomes, 'needsEvents' => $needsEvents, 'baseGoals' => $this->goals($base, $withinValidity)['baseGoals']];
     }
 
     /**
@@ -79,7 +81,7 @@ final class BetSettler
      */
     private function targeted(string $side, array $base, array $steps, ?array $goalOrder, bool &$needsEvents): ?string
     {
-        $first = $this->goals($base, $steps)[0] ?? null;
+        $first = $this->goals($base, $steps)['goals'][0] ?? null;
         if ($first === null) {
             return 'lost';
         }
@@ -99,17 +101,30 @@ final class BetSettler
     }
 
     /**
-     * Buts marqués relevé par relevé (augmentations du score). Une baisse (but annulé par la VAR) recale la référence.
+     * Buts marqués après l’alerte et non annulés, relevé par relevé (augmentations du score). Quand le score d’une équipe
+     * redescend (but annulé), son dernier but est retiré ; s’il date d’avant l’alerte, il est retiré du score de départ.
      *
      * @param  array{home: int, away: int}  $base
      * @param  list<array{home: int, away: int, minute: int|null, at: CarbonImmutable}>  $steps
-     * @return list<array{home: int, away: int}>
+     * @return array{goals: list<array{home: int, away: int}>, baseGoals: int}
      */
     private function goals(array $base, array $steps): array
     {
         $previous = $base;
+        $baseGoals = $base['home'] + $base['away'];
         $goals = [];
         foreach ($steps as $step) {
+            foreach (['home', 'away'] as $side) {
+                $cancelled = max(0, $previous[$side] - $step[$side]);
+                for ($index = count($goals) - 1; $index >= 0 && $cancelled > 0; $index--) {
+                    $removed = min($cancelled, $goals[$index][$side]);
+                    $goals[$index][$side] -= $removed;
+                    $cancelled -= $removed;
+                }
+                $baseGoals -= $cancelled;
+            }
+            $goals = array_values(array_filter($goals, fn (array $goal): bool => $goal['home'] + $goal['away'] > 0));
+
             $home = max(0, $step['home'] - $previous['home']);
             $away = max(0, $step['away'] - $previous['away']);
             if ($home + $away > 0) {
@@ -118,7 +133,7 @@ final class BetSettler
             $previous = ['home' => $step['home'], 'away' => $step['away']];
         }
 
-        return $goals;
+        return ['goals' => $goals, 'baseGoals' => $baseGoals];
     }
 
     /**

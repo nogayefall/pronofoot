@@ -87,7 +87,7 @@ Le filtre en haut de page permet d’afficher seulement les alertes envoyées, e
 **Résultat automatique.** À la fin du match, PronoFoot calcule seul le résultat de chaque option à partir des scores relevés (pastille **Auto**) :
 
 - **Ciblée** « Prochain but [équipe] » : gagnée si cette équipe marque le prochain but, perdue si l’autre équipe marque d’abord ou si plus aucun but n’est marqué. Un but contre son camp compte pour l’équipe qui en profite.
-- **Neutre** « Un but de plus » : gagnée si au moins un but est marqué après l’alerte.
+- **Neutre** « Un but de plus » : se note sur sa ligne (Over = buts au moment de l’alerte + 0,5), gagnée si le total final du match dépasse la ligne. Un but annulé ne compte pas.
 - **Over 4.5** (F121-D) : gagnée si le match finit avec 5 buts ou plus.
 - **Over 0.5 en 2e mi-temps** (F121-E2) : gagnée si au moins un but est marqué en 2e mi-temps.
 - **Plancher central / prudent** (Over N.5) : gagné si le total final du match dépasse la ligne. Ces paris restent valables après un but, jusqu’à la fin du match.

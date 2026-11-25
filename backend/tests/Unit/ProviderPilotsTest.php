@@ -873,6 +873,23 @@ class ProviderPilotsTest extends TestCase
         $this->assertStringContainsString('Cote Under 2.5 indisponible : API-Football a répondu HTTP 500', $feed->statusMessage);
     }
 
+    public function test_final_scores_are_read_twenty_matches_per_request(): void
+    {
+        config()->set('services.football_api.api_key', 'test-api-key');
+        config()->set('services.football_api.base_url', 'https://api.example.test');
+        Http::fake(['https://api.example.test/fixtures?ids=*' => Http::response(json_encode(['response' => [
+            ['fixture' => ['id' => 5, 'status' => ['short' => 'FT', 'elapsed' => 90]], 'goals' => ['home' => 3, 'away' => 1]],
+            ['fixture' => ['id' => 6, 'status' => ['short' => 'NS', 'elapsed' => null]], 'goals' => ['home' => null, 'away' => null]],
+        ]], JSON_THROW_ON_ERROR))]);
+
+        $scores = app(ApiFootballProvider::class)->getFinalScores(array_map('strval', range(1, 25)));
+
+        $this->assertSame(['status' => 'FT', 'home' => 3, 'away' => 1, 'minute' => 90], $scores['5']);
+        $this->assertNull($scores['6']['home']);
+        $this->assertArrayNotHasKey('7', $scores);
+        Http::assertSentCount(2);
+    }
+
     public function test_odds_driver_can_select_api_football(): void
     {
         config()->set('services.pronofoot.odds_driver', 'api_football');
