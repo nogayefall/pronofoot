@@ -8,7 +8,8 @@ param(
 )
 $ErrorActionPreference = 'Stop'
 $ssh = Join-Path $env:SystemRoot 'System32\OpenSSH\ssh.exe'
-$options = '-o BatchMode=yes -o ConnectTimeout=20'
+# -n : ssh ne lit pas l'entree standard (tache sans console).
+$options = '-n -o BatchMode=yes -o ConnectTimeout=20'
 $log = Join-Path $Destination 'copie.log'
 
 if (-not (Test-Path $Destination)) {
@@ -23,7 +24,7 @@ function Write-Log([string]$Message) {
 
 try {
     $list = 'sudo find /var/backups/pronofoot -maxdepth 1 -name "pronofoot-????-??-??-????.sql.gz" | sort | tail -1'
-    $remote = (& $ssh -o BatchMode=yes -o ConnectTimeout=20 $Server ($list -replace '"', '\"') | Select-Object -Last 1)
+    $remote = (& $ssh -n -o BatchMode=yes -o ConnectTimeout=20 $Server ($list -replace '"', '\"') | Select-Object -Last 1)
     if ([string]::IsNullOrWhiteSpace($remote)) { throw 'Aucune sauvegarde trouvee sur le serveur.' }
     $remote = $remote.Trim()
     $target = Join-Path $Destination (Split-Path $remote -Leaf)
@@ -33,7 +34,7 @@ try {
         $partial = "$target.partial"
         & cmd.exe /d /c "`"$ssh`" $options $Server sudo cat $remote > `"$partial`""
         if ($LASTEXITCODE -ne 0) { throw 'Echec de la copie SSH.' }
-        $expected = ((& $ssh -o BatchMode=yes -o ConnectTimeout=20 $Server "sudo sha256sum $remote") -split '\s+')[0]
+        $expected = ((& $ssh -n -o BatchMode=yes -o ConnectTimeout=20 $Server "sudo sha256sum $remote") -split '\s+')[0]
         $actual = (Get-FileHash -Algorithm SHA256 -Path $partial).Hash
         if ($actual -ne $expected) { Remove-Item $partial -Force; throw 'Somme SHA-256 differente : copie refusee.' }
         Move-Item $partial $target -Force
